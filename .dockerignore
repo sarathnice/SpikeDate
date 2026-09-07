@@ -1,0 +1,11 @@
+.git
+.github
+.next
+.vinext
+.wrangler
+android
+ios
+node_modules
+tests
+*.tar.gz
+npm-debug.log*

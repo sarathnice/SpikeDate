@@ -1,0 +1,26 @@
+services:
+  pulse-dev:
+    profiles: [dev]
+    build:
+      context: .
+      target: development
+    command: npm run dev -- --host 0.0.0.0
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - pulse_node_modules:/app/node_modules
+    environment:
+      NODE_ENV: development
+
+  pulse-staging:
+    profiles: [staging]
+    build:
+      context: .
+      target: staging
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  pulse_node_modules:

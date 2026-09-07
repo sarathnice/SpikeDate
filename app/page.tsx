@@ -16,7 +16,6 @@ import {
   HeartPulse,
   LockKeyhole,
   LogOut,
-  Mail,
   MessageCircle,
   MoreHorizontal,
   Orbit,
@@ -30,7 +29,6 @@ import {
   Sparkles,
   Sun,
   UserRound,
-  Users,
   X,
 } from 'lucide-react';
 import {
