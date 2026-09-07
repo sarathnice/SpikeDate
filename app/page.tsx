@@ -5,13 +5,14 @@ import Image from 'next/image';
 import {
   ArrowLeft, BadgeCheck, Camera, Check, ChevronDown, ChevronLeft, ChevronRight,
   Crown, Edit3, Heart, HeartPulse, Mail, MessageCircle, MoreHorizontal, Orbit, Play,
-  Radio, Send, Share2, ShieldCheck, SlidersHorizontal, Sparkles, UserRound, Users, X,
+  Palette, Radio, Send, Share2, ShieldCheck, SlidersHorizontal, Sparkles, Sun, UserRound, Users, X,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 
 type Tab = 'Pulse' | 'Galaxy' | 'Chat' | 'Profile';
+type ThemeName = 'default' | 'aurora' | 'velvet' | 'solar';
 type Gender = 'Woman' | 'Man' | 'Nonbinary';
 type MediaItem = { type: 'photo' | 'video'; src: string; poster?: string };
 type Profile = { name: string; age: number; gender: Gender; image: string; media: MediaItem[]; place: string; distance: string; distanceMiles: number; intent: string; tags: string[]; prompt: string; height: string; ethnicity: string; pets: string; kids: string; wantsKids: string; drinking: string; smoking: string };
@@ -50,6 +51,7 @@ const chatContacts: ChatContact[] = [
 const defaultFilters: Filters = { genders: ['Woman', 'Man'], minAge: 24, maxAge: 36, maxDistance: 15, intents: [], smoking: 'Any', wantsKids: 'Any' };
 const relationshipOptions = ['Long-term', 'Marriage', 'Serious-ish', 'Short-term'];
 const interestOptions = ['Cooking', 'Going out', 'Live music', 'Pets', 'Travel', 'Films', 'Trail days', 'Coffee'];
+const themeLabels: Record<ThemeName, string> = { default: 'Default Pulse', aurora: 'Aurora', velvet: 'Velvet Galaxy', solar: 'Solar Minimal' };
 
 const roomData = [
   { name: 'Tonight', caption: 'Free in the next 12 hours', count: '84 here now', image: '/maya.png', className: 'wide' },
@@ -77,6 +79,8 @@ export default function HomePage() {
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [subscriptionOpen, setSubscriptionOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [theme, setTheme] = useState<ThemeName>('default');
   const [filterOpen, setFilterOpen] = useState(false);
   const [matchProfile, setMatchProfile] = useState<Profile>(profiles[0]);
   const [composer, setComposer] = useState('');
@@ -187,6 +191,23 @@ export default function HomePage() {
     setTab(value); setRoom(null); setChatOpen(false); setPreviewCard(false);
   };
 
+  const chooseTheme = (nextTheme: ThemeName) => {
+    setTheme(nextTheme);
+    setThemeOpen(false);
+    window.localStorage.setItem('pulse-theme', nextTheme);
+    announce(`${themeLabels[nextTheme]} theme applied`);
+  };
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem('pulse-theme');
+    if (saved === 'default' || saved === 'aurora' || saved === 'velvet' || saved === 'solar') setTheme(saved);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.pulseTheme = theme;
+    return () => { delete document.documentElement.dataset.pulseTheme; };
+  }, [theme]);
+
   useEffect(() => {
     const context = document.modelContext;
     if (!context?.registerTool) return;
@@ -209,7 +230,7 @@ export default function HomePage() {
   }, [current.name]);
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-theme={theme}>
       <div className="phone-frame">
         {tab === 'Pulse' && <DiscoverHeader onIncoming={() => setIncomingOpen(true)} onFilters={() => setFilterOpen(true)} activeFilterCount={activeFilterCount} />}
         {tab === 'Pulse' && (filteredProfiles.length ? <DiscoverScreen profile={current} onOpen={() => setProfileOpen(true)} onPass={nextProfile} onLike={like} onPriority={priorityLike} /> : <EmptyDiscover onFilters={() => setFilterOpen(true)} />)}
@@ -217,7 +238,7 @@ export default function HomePage() {
         {tab === 'Galaxy' && room && <RoomStack room={room} profile={current} onBack={() => setRoom(null)} onOpen={() => setProfileOpen(true)} onPass={nextProfile} onLike={like} />}
         {tab === 'Chat' && !chatOpen && <ChatList contacts={contacts} onOpen={openExistingChat} />}
         {tab === 'Chat' && chatOpen && <ChatThread contact={activeChat} messages={activeMessages} composer={composer} onComposer={setComposer} onSend={sendMessage} onBack={() => setChatOpen(false)} onSafety={() => setSafetyOpen(true)} onUnsend={(id) => setMessagesByContact((items) => ({ ...items, [activeChat.name]: (items[activeChat.name] ?? []).filter((item) => item.id !== id) }))} />}
-        {tab === 'Profile' && !previewCard && <YourProfile name={selfName} registered={registered} freeTonight={freeTonight} onFreeTonight={setFreeTonight} onPreview={() => setPreviewCard(true)} onRegistration={() => setRegistrationOpen(true)} onSubscription={() => setSubscriptionOpen(true)} />}
+        {tab === 'Profile' && !previewCard && <YourProfile name={selfName} registered={registered} theme={theme} freeTonight={freeTonight} onFreeTonight={setFreeTonight} onPreview={() => setPreviewCard(true)} onRegistration={() => setRegistrationOpen(true)} onTheme={() => setThemeOpen(true)} onSubscription={() => setSubscriptionOpen(true)} />}
         {tab === 'Profile' && previewCard && <ProfilePreview name={selfName} onBack={() => setPreviewCard(false)} />}
         <TabBar active={tab} onChange={handleTab} />
       </div>
@@ -230,6 +251,7 @@ export default function HomePage() {
       <RegistrationDialog open={registrationOpen} onOpenChange={setRegistrationOpen} onComplete={completeRegistration} />
       <FilterDialog open={filterOpen} onOpenChange={setFilterOpen} filters={filters} onApply={(next) => { setFilters(next); setProfileIndex(0); setFilterOpen(false); announce('Preferences applied'); }} />
       <SubscriptionDialog open={subscriptionOpen} onOpenChange={setSubscriptionOpen} onChoose={() => { setSubscriptionOpen(false); announce('Pulse+ selected — checkout is ready to connect'); }} />
+      <ThemeDialog open={themeOpen} onOpenChange={setThemeOpen} selected={theme} onChoose={chooseTheme} />
       <div className={`toast ${toast ? 'show' : ''}`} role="status" aria-live="polite"><Heart size={17} fill="currentColor" />{toast}</div>
     </main>
   );
@@ -333,8 +355,8 @@ function ChatThread({ contact, messages, composer, onComposer, onSend, onBack, o
   return <section className="thread"><header className="thread-header"><button onClick={onBack} aria-label="Back to chats"><ArrowLeft size={22} /></button><span className="avatar small"><Image src={contact.image} alt={contact.name} fill sizes="42px" className="profile-photo" /></span><div><strong>{contact.name}</strong><small>{contact.active ? <><i /> Active now</> : 'Matched on PULSE'}</small></div><button className="shield" onClick={onSafety} aria-label="Safety options"><ShieldCheck size={22} /></button></header><div className="message-body"><div className="day-label">Your Pulse · Today</div>{messages.length === 1 && <div className="icebreakers inline"><button onClick={() => onComposer('What’s the best rooftop in Brooklyn?')}>Best rooftop?</button><button onClick={() => onComposer('Pick our first song 🎵')}>Pick our first song</button></div>}{messages.map((message) => <div key={message.id} className={`bubble-wrap ${message.mine ? 'mine' : ''}`}><div className="bubble">{message.text}</div>{message.mine && <button onClick={() => onUnsend(message.id)}>Unsend · 2m left</button>}</div>)}</div><form className="composer" onSubmit={(e) => { e.preventDefault(); onSend(); }}><input value={composer} onChange={(e) => onComposer(e.target.value)} placeholder={`Message ${contact.name}`} aria-label={`Message ${contact.name}`} /><button type="submit" aria-label="Send message"><Send size={19} /></button></form></section>;
 }
 
-function YourProfile({ name, registered, freeTonight, onFreeTonight, onPreview, onRegistration, onSubscription }: { name: string; registered: boolean; freeTonight: boolean; onFreeTonight: (checked: boolean) => void; onPreview: () => void; onRegistration: () => void; onSubscription: () => void }) {
-  return <section className="screen scroll-screen profile-page"><header className="page-header profile-header"><p className="eyebrow">Your profile</p><div className="self-row"><span className="self-avatar"><Image src="/imani.png" alt="Your profile" fill sizes="82px" className="profile-photo" /></span><div><h1>{name}</h1><p>{registered ? '100% complete · verified later' : '82% complete'}</p></div><button aria-label="Edit profile" onClick={onRegistration}><Edit3 size={20} /></button></div><div className={`progress ${registered ? 'complete' : ''}`}><span /></div></header><div className="profile-quick-actions"><button onClick={onRegistration}><Camera size={19} /><span><strong>{registered ? 'Edit registration' : 'Finish registration'}</strong><small>Basics, interests & preferences</small></span><ChevronRight size={17} /></button><button onClick={onSubscription}><Crown size={19} /><span><strong>Pulse+</strong><small>Plans and benefits</small></span><ChevronRight size={17} /></button></div><div className="settings-list"><section><div className="setting-heading"><span><small>INTENT</small><strong>What you’re looking for</strong></span><Edit3 size={17} /></div><div className="detail-chips coral"><span>Long-term</span><span>Marriage</span></div></section><section><div className="setting-heading"><span><small>PROMPTS · 2 OF 2</small><strong>“My ideal Sunday…”</strong></span><Edit3 size={17} /></div><p>Outside early, somewhere cozy by dinner.</p></section><section><div className="setting-heading"><span><small>INTERESTS · 5 OF 5</small><strong>Your frequency</strong></span><Edit3 size={17} /></div><div className="detail-chips"><span>Live music</span><span>Pets</span><span>Travel</span><span>Cooking</span><span>Films</span></div></section><section className="toggle-row"><span><small>TONIGHT</small><strong>I’m free tonight</strong><p>Show me in the Tonight Galaxy.</p></span><Switch checked={freeTonight} onCheckedChange={onFreeTonight} aria-label="I'm free tonight" /></section></div><button className="primary-button preview-button" onClick={onPreview}>Preview my card <ChevronRight size={18} /></button></section>;
+function YourProfile({ name, registered, theme, freeTonight, onFreeTonight, onPreview, onRegistration, onTheme, onSubscription }: { name: string; registered: boolean; theme: ThemeName; freeTonight: boolean; onFreeTonight: (checked: boolean) => void; onPreview: () => void; onRegistration: () => void; onTheme: () => void; onSubscription: () => void }) {
+  return <section className="screen scroll-screen profile-page"><header className="page-header profile-header"><p className="eyebrow">Your profile</p><div className="self-row"><span className="self-avatar"><Image src="/imani.png" alt="Your profile" fill sizes="82px" className="profile-photo" /></span><div><h1>{name}</h1><p>{registered ? '100% complete · verified later' : '82% complete'}</p></div><button aria-label="Edit profile" onClick={onRegistration}><Edit3 size={20} /></button></div><div className={`progress ${registered ? 'complete' : ''}`}><span /></div></header><div className="profile-quick-actions"><button onClick={onRegistration}><Camera size={19} /><span><strong>{registered ? 'Edit registration' : 'Finish registration'}</strong><small>Basics, interests & preferences</small></span><ChevronRight size={17} /></button><button onClick={onSubscription}><Crown size={19} /><span><strong>Pulse+</strong><small>Plans and benefits</small></span><ChevronRight size={17} /></button><button onClick={onTheme}><Palette size={19} /><span><strong>App theme</strong><small>{themeLabels[theme]} · 4 choices</small></span><ChevronRight size={17} /></button></div><div className="settings-list"><section><div className="setting-heading"><span><small>INTENT</small><strong>What you’re looking for</strong></span><Edit3 size={17} /></div><div className="detail-chips coral"><span>Long-term</span><span>Marriage</span></div></section><section><div className="setting-heading"><span><small>PROMPTS · 2 OF 2</small><strong>“My ideal Sunday…”</strong></span><Edit3 size={17} /></div><p>Outside early, somewhere cozy by dinner.</p></section><section><div className="setting-heading"><span><small>INTERESTS · 5 OF 5</small><strong>Your frequency</strong></span><Edit3 size={17} /></div><div className="detail-chips"><span>Live music</span><span>Pets</span><span>Travel</span><span>Cooking</span><span>Films</span></div></section><section className="toggle-row"><span><small>TONIGHT</small><strong>I’m free tonight</strong><p>Show me in the Tonight Galaxy.</p></span><Switch checked={freeTonight} onCheckedChange={onFreeTonight} aria-label="I'm free tonight" /></section></div><button className="primary-button preview-button" onClick={onPreview}>Preview my card <ChevronRight size={18} /></button></section>;
 }
 
 function ProfilePreview({ name, onBack }: { name: string; onBack: () => void }) {
@@ -379,6 +401,17 @@ function FilterDialog({ open, onOpenChange, filters, onApply }: { open: boolean;
 
 function SubscriptionDialog({ open, onOpenChange, onChoose }: { open: boolean; onOpenChange: (open: boolean) => void; onChoose: () => void }) {
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent showCloseButton={false} className="flow-dialog subscription-dialog"><button className="match-close" onClick={() => onOpenChange(false)} aria-label="Close subscription details"><X size={19} /></button><div className="flow-kicker"><Crown size={15} /> PULSE+</div><DialogTitle>More signal. Less noise.</DialogTitle><DialogDescription>Free keeps matching and chat open. Pulse+ adds control and visibility.</DialogDescription><div className="plan-grid"><section><span>FREE</span><strong>$0</strong><ul><li><Check size={15} /> Pulse, Galaxy and mutual-match chat</li><li><Check size={15} /> See two recent incoming likes</li><li><Check size={15} /> Share profiles with people you trust</li></ul></section><section className="featured"><span>PULSE+</span><strong>$14.99 <small>/ month</small></strong><ul><li><Check size={15} /> See everyone who liked you</li><li><Check size={15} /> Unlimited daily likes</li><li><Check size={15} /> Rewind your last pass</li><li><Check size={15} /> Advanced intent and lifestyle filters</li></ul></section></div><button className="primary-button plan-button" onClick={onChoose}>Choose Pulse+ <ChevronRight size={18} /></button><p className="billing-note">Prototype pricing · billing is not connected. Cancel anytime when subscriptions launch. Restore purchases will be available.</p></DialogContent></Dialog>;
+}
+
+const themeChoices: { id: ThemeName; name: string; detail: string; colors: string[] }[] = [
+  { id: 'default', name: 'Default Pulse', detail: 'Midnight, coral and gold', colors: ['#0e0e10', '#ff4d6d', '#f0b429'] },
+  { id: 'aurora', name: 'Aurora', detail: 'Deep ocean, teal and mint', colors: ['#07151c', '#27d9ca', '#8cf59a'] },
+  { id: 'velvet', name: 'Velvet Galaxy', detail: 'Plum, orchid and champagne', colors: ['#170b1c', '#ea5ca9', '#f5c451'] },
+  { id: 'solar', name: 'Solar Minimal', detail: 'Clean ivory, vermilion and bronze', colors: ['#f7f3eb', '#e65039', '#8a5d16'] },
+];
+
+function ThemeDialog({ open, onOpenChange, selected, onChoose }: { open: boolean; onOpenChange: (open: boolean) => void; selected: ThemeName; onChoose: (theme: ThemeName) => void }) {
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent showCloseButton={false} className="flow-dialog theme-dialog"><button className="match-close" onClick={() => onOpenChange(false)} aria-label="Close theme choices"><X size={19} /></button><div className="flow-kicker"><Palette size={15} /> APPEARANCE</div><DialogTitle>Choose your PULSE</DialogTitle><DialogDescription>Default Pulse stays the starting theme. Your choice is saved on this device.</DialogDescription><div className="theme-grid">{themeChoices.map((choice) => <button type="button" key={choice.id} data-theme-choice={choice.id} className={`theme-option ${selected === choice.id ? 'selected' : ''}`} onClick={() => onChoose(choice.id)} aria-pressed={selected === choice.id}><span className="theme-swatches">{choice.colors.map((color) => <i key={color} style={{ backgroundColor: color }} />)}</span><span><strong>{choice.name}</strong><small>{choice.detail}</small></span>{selected === choice.id ? <Check size={18} /> : choice.id === 'solar' ? <Sun size={18} /> : null}</button>)}</div></DialogContent></Dialog>;
 }
 
 function SafetyDialog({ open, onOpenChange, onAction }: { open: boolean; onOpenChange: (open: boolean) => void; onAction: (message: string) => void }) {

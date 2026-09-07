@@ -156,6 +156,24 @@ await verify('Chat safety tools are one tap away', () => evaluate(`document.quer
 await click('[data-slot="dialog-close"]');
 
 await click('.tabbar button', 'Profile');
+await verify('Profile exposes app theme choices', () => evaluate(`document.querySelector('.profile-quick-actions')?.textContent.includes('App theme')`));
+await click('.profile-quick-actions button', 'App theme');
+await verify('Theme picker includes default and three alternatives', () => evaluate(`document.querySelectorAll('.theme-option').length===4 && document.querySelector('.theme-dialog')?.textContent.includes('Solar Minimal')`));
+await verify('Default Pulse remains the starting theme', () => evaluate(`document.querySelector('.theme-option[data-theme-choice="default"]')?.getAttribute('aria-pressed')==='true'`));
+await click('.theme-option', 'Aurora');
+await verify('Aurora theme applies immediately', () => evaluate(`document.documentElement.dataset.pulseTheme==='aurora'`));
+await click('.profile-quick-actions button', 'App theme');
+await click('.theme-option', 'Velvet Galaxy');
+await verify('Velvet Galaxy theme applies immediately', () => evaluate(`document.documentElement.dataset.pulseTheme==='velvet'`));
+await click('.profile-quick-actions button', 'App theme');
+await click('.theme-option', 'Solar Minimal');
+await verify('Solar Minimal applies its light palette', () => evaluate(`document.documentElement.dataset.pulseTheme==='solar' && getComputedStyle(document.querySelector('.phone-frame')).backgroundColor==='rgb(247, 243, 235)'`));
+await reload();
+await verify('Selected theme persists after reload', () => evaluate(`document.documentElement.dataset.pulseTheme==='solar'`));
+await click('.tabbar button', 'Profile');
+await click('.profile-quick-actions button', 'App theme');
+await click('.theme-option', 'Default Pulse');
+await verify('User can restore Default Pulse', () => evaluate(`document.documentElement.dataset.pulseTheme==='default'`));
 await click('.profile-quick-actions button', 'registration');
 await verify('Registration step 1 collects basics', () => evaluate(`!!document.querySelector('input[aria-label="First name"]') && !!document.querySelector('input[aria-label="Birthday"]')`));
 await fill('input[aria-label="First name"]', 'Sam');
