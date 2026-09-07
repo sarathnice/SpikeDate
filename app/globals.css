@@ -19,7 +19,10 @@ button { font:inherit; }
 .wordmark { color:var(--coral); letter-spacing:.34em; font-size:.86rem; font-weight:800; margin-left:.34em; }
 .incoming-button { position:absolute; right:21px; top:23px; color:white; border:0; background:transparent; padding:4px; cursor:pointer; }
 .notification-dot { position:absolute; right:-5px; top:-5px; min-width:17px; height:17px; display:grid; place-items:center; border-radius:99px; background:var(--coral); font-size:10px; font-weight:800; border:2px solid var(--background); }
-.discover-screen { height:100%; padding:58px 14px 150px; display:flex; flex-direction:column; gap:14px; }
+.discover-screen { height:100%; padding:0 0 82px; display:block; position:relative; }
+.discover-screen>.profile-card { width:100%; height:100%; min-height:0; border-radius:0; box-shadow:none; }
+.discover-screen>.profile-card .card-content { bottom:116px; }
+.discover-screen>.action-row { position:absolute; z-index:4; left:0; right:0; bottom:95px; }
 .profile-card { flex:1; min-height:0; width:100%; border:0; border-radius:24px; padding:0; overflow:hidden; position:relative; background:var(--surface); color:white; text-align:left; cursor:pointer; box-shadow:0 18px 45px rgba(0,0,0,.35); touch-action:pan-y; }
 .profile-photo { object-fit:cover; }
 .profile-card .card-photo,.profile-film .card-photo { object-fit:contain; object-position:center; z-index:1; }
@@ -59,7 +62,7 @@ button { font:inherit; }
 .detail-chips.coral span { border-color:rgba(255,77,109,.32); color:#ff8198; }
 .sheet-actions { position:absolute; z-index:5; left:0; right:0; bottom:0; padding:14px 20px 18px; background:linear-gradient(transparent,rgba(14,14,16,.96) 28%); }
 @media (min-width:500px) { .phone-frame { height:min(900px,calc(100dvh - 36px)); border-radius:34px; } .app-shell { padding:18px; } .profile-sheet { bottom:18px!important; border-radius:28px; } }
-@media (max-height:720px) { .discover-screen { padding-bottom:137px; } .tabbar { height:74px; } .profile-card { border-radius:20px; } }
+@media (max-height:720px) { .discover-screen { padding-bottom:74px; } .discover-screen>.profile-card .card-content { bottom:105px; } .discover-screen>.action-row { bottom:83px; } .tabbar { height:74px; } .profile-card { border-radius:20px; } }
 @media (prefers-reduced-motion:reduce) { * { scroll-behavior:auto!important; transition-duration:.01ms!important; animation-duration:.01ms!important; } }
 
 .screen { height:100%; padding:26px 18px 96px; background:var(--background); }
