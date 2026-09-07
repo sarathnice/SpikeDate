@@ -15,7 +15,7 @@ const playfair = Playfair_Display({
 
 export const metadata: Metadata = {
   title: 'PULSE — Find your frequency',
-  description: 'A photo-first dating experience built around real-time rooms and thoughtful connection.',
+  description: 'A photo-first dating experience built around Pulse discovery, Galaxy communities, and thoughtful connection.',
 };
 
 export default function RootLayout({

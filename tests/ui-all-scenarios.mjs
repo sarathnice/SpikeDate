@@ -75,7 +75,8 @@ await reload();
 
 await verify('App title renders', () => evaluate(`document.title.includes('PULSE')`));
 await verify('Mobile layout has no horizontal overflow', () => evaluate(`document.documentElement.scrollWidth===document.documentElement.clientWidth`));
-await verify('Discover starts with Maya', () => evaluate(`document.querySelector('.profile-card')?.textContent.includes('Maya, 27')`));
+await verify('Pulse starts with Maya', () => evaluate(`document.querySelector('.profile-card')?.textContent.includes('Maya, 27')`));
+await verify('Spark action is removed from Pulse', () => evaluate(`document.querySelectorAll('.discover-screen .action-button').length===2 && !document.body.textContent.includes('Spark')`));
 await mouseSwipe('.profile-card', 'left');
 await verify('Mouse drag left advances profile', () => evaluate(`document.querySelector('.profile-card')?.textContent.includes('Lena, 29')`));
 await reload();
@@ -93,7 +94,7 @@ await verify('Received message opens correct thread', () => evaluate(`document.q
 await verify('Incoming message content is readable', () => evaluate(`document.querySelector('.bubble')?.textContent.includes('voice note')`));
 await click('.thread-header button[aria-label="Back to chats"]');
 await verify('Opening chat clears unread badge', () => evaluate(`![...document.querySelectorAll('.chat-row')].find(n=>n.textContent.includes('Lena'))?.querySelector('.chat-meta b')`));
-await click('.tabbar button', 'Discover');
+await click('.tabbar button', 'Pulse');
 
 await click('.filter-button');
 await verify('Preference filters open', () => evaluate(`document.querySelector('.filter-dialog')?.textContent.includes('Who do you want to meet?')`));
@@ -174,13 +175,12 @@ await click('.profile-quick-actions button', 'Pulse+');
 await verify('Subscription details remain accessible', () => evaluate(`document.querySelector('.subscription-dialog')?.textContent.includes('$14.99')`));
 await click('.match-close');
 
-await click('.tabbar button', 'Rooms');
+await click('.tabbar button', 'Galaxy');
 await click('.room-tile', 'Tonight');
-await verify('Room opens filtered profile stack', () => evaluate(`document.querySelector('.room-header')?.textContent.includes('84 here now')`));
+await verify('Galaxy opens filtered profile stack', () => evaluate(`document.querySelector('.room-header')?.textContent.includes('84 here now')`));
 await touchSwipe('.room-card-wrap .profile-card', 'left');
-await verify('Touch swipe works inside Rooms', () => evaluate(`document.querySelector('.room-card-wrap .profile-card')!==null`));
-await click('.room-stack .action-button.spark');
-await verify('Spark gives priority confirmation', () => evaluate(`document.querySelector('.toast.show')?.textContent.includes('Spark sent')`));
+await verify('Touch swipe works inside Galaxy', () => evaluate(`document.querySelector('.room-card-wrap .profile-card')!==null`));
+await verify('Spark action is removed from Galaxy', () => evaluate(`document.querySelectorAll('.room-stack .action-button').length===2 && !document.querySelector('.action-button.spark')`));
 
 await command('Emulation.setDeviceMetricsOverride', { width: 412, height: 915, deviceScaleFactor: 1, mobile: true });
 await reload();
