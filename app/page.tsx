@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import {
   ArrowLeft, BadgeCheck, Camera, Check, ChevronDown, ChevronLeft, ChevronRight,
-  Crown, Edit3, Heart, Home, Mail, MessageCircle, MoreHorizontal, Play, Radio,
-  Send, Share2, ShieldCheck, SlidersHorizontal, Sparkles, UserRound, Users, X,
+  Crown, Edit3, Heart, HeartPulse, Mail, MessageCircle, MoreHorizontal, Orbit, Play,
+  Radio, Send, Share2, ShieldCheck, SlidersHorizontal, Sparkles, UserRound, Users, X,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -59,7 +59,7 @@ const roomData = [
   { name: 'New in town', caption: 'Make the city feel smaller', count: '43 new faces', image: '/lena.png', className: 'wide' },
 ];
 
-const tabIcons = { Pulse: Home, Galaxy: Radio, Chat: MessageCircle, Profile: UserRound };
+const tabIcons = { Pulse: HeartPulse, Galaxy: Orbit, Chat: MessageCircle, Profile: UserRound };
 
 export default function HomePage() {
   const [tab, setTab] = useState<Tab>('Pulse');
@@ -67,6 +67,8 @@ export default function HomePage() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [incomingOpen, setIncomingOpen] = useState(false);
   const [matchOpen, setMatchOpen] = useState(false);
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [connectMessage, setConnectMessage] = useState('Your profile caught my attention — what are you excited about lately?');
   const [room, setRoom] = useState<string | null>(null);
   const [toast, setToast] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
@@ -119,8 +121,15 @@ export default function HomePage() {
 
   const priorityLike = () => {
     setProfileOpen(false);
+    setConnectMessage(`Your ${current.tags[0].toLowerCase()} vibe caught my attention — tell me more?`);
+    setConnectOpen(true);
+  };
+
+  const sendConnection = () => {
+    if (!connectMessage.trim()) return;
     setSentLikes((items) => items.some((item) => item.name === current.name) ? items : [...items, current]);
-    announce(`${current.name} will see your like first`);
+    setConnectOpen(false);
+    announce(`Connection request sent to ${current.name}`);
   };
 
   const openChatWith = (text = '', profile = matchProfile) => {
@@ -214,6 +223,7 @@ export default function HomePage() {
       </div>
 
       <FullProfile profile={current} open={profileOpen} onOpenChange={setProfileOpen} onPass={nextProfile} onLike={like} onShare={() => shareProfile(current)} />
+      <ConnectDialog profile={current} open={connectOpen} onOpenChange={setConnectOpen} message={connectMessage} onMessage={setConnectMessage} onSend={sendConnection} />
       <Incoming open={incomingOpen} onOpenChange={setIncomingOpen} sentLikes={sentLikes} declined={declinedIncoming} onLikeBack={likeBack} onPass={(name) => { setDeclinedIncoming((items) => [...items, name]); announce(`${name} marked Not for me`); }} onMessage={(profile) => openChatWith('', profile)} />
       <MatchModal open={matchOpen} onOpenChange={setMatchOpen} profile={matchProfile} room={room} onIcebreaker={(text) => openChatWith(text, matchProfile)} onBrowse={() => { setMatchOpen(false); nextProfile(); }} />
       <SafetyDialog open={safetyOpen} onOpenChange={setSafetyOpen} onAction={announce} />
@@ -287,6 +297,11 @@ function FullProfile({ profile, open, onOpenChange, onPass, onLike, onShare }: {
   const active = media[mediaIndex] ?? { type: 'photo' as const, src: profile.image };
   const changeMedia = (step: number) => setMediaIndex((index) => (index + step + media.length) % media.length);
   return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent side="bottom" showCloseButton={false} className="profile-sheet"><SheetTitle className="sr-only">{profile.name}&apos;s full profile</SheetTitle><SheetDescription className="sr-only">Photos and details for {profile.name}</SheetDescription><button className="sheet-handle" onClick={() => onOpenChange(false)} aria-label="Close full profile"><ChevronDown size={25} /></button><button className="profile-share" onClick={onShare} aria-label={`Share ${profile.name}'s profile with friends or family`}><Share2 size={17} /> Share</button><div className="profile-scroll"><div className="profile-film">{active.type === 'video' ? <video src={active.src} poster={active.poster} muted autoPlay loop playsInline aria-label={`${profile.name}'s profile video`} /> : <><Image src={active.src} alt="" fill sizes="390px" className="profile-photo card-photo-backdrop" aria-hidden="true" /><Image src={active.src} alt={`${profile.name}'s profile photo ${mediaIndex + 1}`} fill sizes="390px" className="profile-photo card-photo" /></>}<div className="media-bars" aria-hidden="true">{media.map((_, index) => <span key={index} className={index === mediaIndex ? 'active' : ''} />)}</div><span className="film-count">{active.type === 'video' && <Play size={12} fill="currentColor" />} {mediaIndex + 1} / {media.length}</span>{media.length > 1 && <><button className="media-hit previous" onClick={() => changeMedia(-1)} aria-label="Previous profile photo"><ChevronLeft size={24} /></button><button className="media-hit next" onClick={() => changeMedia(1)} aria-label="Next profile photo"><ChevronRight size={24} /></button><span className="media-hint">Tap right for the next photo</span></>}<div className="profile-title"><div className="name-row"><h2>{profile.name}, {profile.age}</h2><BadgeCheck size={21} fill="#FF4D6D" color="#0E0E10" /></div><p>{profile.place} · {profile.distance}</p></div></div><div className="profile-details"><section><span className="section-label">A perfect ordinary Sunday</span><p>{profile.name === 'Maya' ? 'Cold brew, a long walk with no route, then making dinner with a record on.' : profile.prompt}</p></section><section><span className="section-label">The quickest way to my heart</span><p>{profile.prompt}</p></section><section><span className="section-label">ABOUT {profile.name.toUpperCase()}</span><div className="detail-chips"><span>{profile.intent}</span><span>{profile.height}</span><span>{profile.ethnicity}</span><span>{profile.pets}</span><span>{profile.kids}</span><span>Wants kids: {profile.wantsKids}</span><span>Drinks: {profile.drinking}</span><span>Smokes: {profile.smoking}</span></div></section><section><span className="section-label">SHARED WITH YOU</span><div className="detail-chips coral">{profile.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></section></div></div><div className="sheet-actions"><ActionRow onPass={onPass} onLike={onLike} /></div></SheetContent></Sheet>;
+}
+
+function ConnectDialog({ profile, open, onOpenChange, message, onMessage, onSend }: { profile: Profile; open: boolean; onOpenChange: (open: boolean) => void; message: string; onMessage: (message: string) => void; onSend: () => void }) {
+  const suggestions = [`Ask about ${profile.tags[0].toLowerCase()}`, 'Suggest a first date', 'Send a warm hello'];
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent showCloseButton={false} className="connect-dialog"><button className="match-close" onClick={() => onOpenChange(false)} aria-label="Close connection message"><X size={19} /></button><div className="connect-person"><span className="avatar"><Image src={profile.image} alt={profile.name} fill sizes="58px" className="profile-photo" /></span><span><small>CONNECT</small><strong>{profile.name}, {profile.age}</strong></span></div><DialogTitle>Connect with {profile.name}</DialogTitle><DialogDescription>Send a short note with your priority like. You can chat after {profile.name} accepts.</DialogDescription><div className="connect-suggestions">{suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => onMessage(suggestion)}>{suggestion}</button>)}</div><label className="connect-message">Your message<textarea aria-label="Connection message" maxLength={140} value={message} onChange={(event) => onMessage(event.target.value)} /><small>{message.length}/140</small></label><button className="primary-button" disabled={!message.trim()} onClick={onSend}><Send size={18} /> Send connection request</button></DialogContent></Dialog>;
 }
 
 function RoomsHub({ onOpenRoom }: { onOpenRoom: (name: string) => void }) {
