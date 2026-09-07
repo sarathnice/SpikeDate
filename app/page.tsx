@@ -5,7 +5,7 @@ import Image from 'next/image';
 import {
   ArrowLeft, BadgeCheck, Camera, Check, ChevronDown, ChevronLeft, ChevronRight,
   Crown, Edit3, Heart, Home, Mail, MessageCircle, MoreHorizontal, Play, Radio,
-  Send, Share2, ShieldCheck, SlidersHorizontal, UserRound, Users, X,
+  Send, Share2, ShieldCheck, SlidersHorizontal, Sparkles, UserRound, Users, X,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -117,6 +117,12 @@ export default function HomePage() {
     }
   };
 
+  const priorityLike = () => {
+    setProfileOpen(false);
+    setSentLikes((items) => items.some((item) => item.name === current.name) ? items : [...items, current]);
+    announce(`${current.name} will see your like first`);
+  };
+
   const openChatWith = (text = '', profile = matchProfile) => {
     setMatchOpen(false);
     setIncomingOpen(false);
@@ -197,7 +203,7 @@ export default function HomePage() {
     <main className="app-shell">
       <div className="phone-frame">
         {tab === 'Pulse' && <DiscoverHeader onIncoming={() => setIncomingOpen(true)} onFilters={() => setFilterOpen(true)} activeFilterCount={activeFilterCount} />}
-        {tab === 'Pulse' && (filteredProfiles.length ? <DiscoverScreen profile={current} onOpen={() => setProfileOpen(true)} onPass={nextProfile} onLike={like} /> : <EmptyDiscover onFilters={() => setFilterOpen(true)} />)}
+        {tab === 'Pulse' && (filteredProfiles.length ? <DiscoverScreen profile={current} onOpen={() => setProfileOpen(true)} onPass={nextProfile} onLike={like} onPriority={priorityLike} /> : <EmptyDiscover onFilters={() => setFilterOpen(true)} />)}
         {tab === 'Galaxy' && !room && <RoomsHub onOpenRoom={setRoom} />}
         {tab === 'Galaxy' && room && <RoomStack room={room} profile={current} onBack={() => setRoom(null)} onOpen={() => setProfileOpen(true)} onPass={nextProfile} onLike={like} />}
         {tab === 'Chat' && !chatOpen && <ChatList contacts={contacts} onOpen={openExistingChat} />}
@@ -227,8 +233,8 @@ function EmptyDiscover({ onFilters }: { onFilters: () => void }) {
   return <section className="empty-discover"><SlidersHorizontal size={30} /><h1>No profiles match yet</h1><p>Try widening your age, distance or lifestyle preferences.</p><button className="primary-button" onClick={onFilters}>Adjust preferences</button></section>;
 }
 
-function DiscoverScreen({ profile, onOpen, onPass, onLike }: { profile: Profile; onOpen: () => void; onPass: () => void; onLike: () => void }) {
-  return <section className="discover-screen" aria-label="Pulse profiles"><ProfileCard profile={profile} onOpen={onOpen} onSwipeLeft={onPass} onSwipeRight={onLike} /><ActionRow onPass={onPass} onLike={onLike} /></section>;
+function DiscoverScreen({ profile, onOpen, onPass, onLike, onPriority }: { profile: Profile; onOpen: () => void; onPass: () => void; onLike: () => void; onPriority: () => void }) {
+  return <section className="discover-screen" aria-label="Pulse profiles"><ProfileCard profile={profile} onOpen={onOpen} onSwipeLeft={onPass} onSwipeRight={onLike} /><ActionRow onPass={onPass} onLike={onLike} onPriority={onPriority} /></section>;
 }
 
 function ProfileCard({ profile, onOpen, room, preview, onSwipeLeft, onSwipeRight }: { profile: Profile; onOpen?: () => void; room?: string | null; preview?: boolean; onSwipeLeft?: () => void; onSwipeRight?: () => void }) {
@@ -264,8 +270,8 @@ function ProfileCard({ profile, onOpen, room, preview, onSwipeLeft, onSwipeRight
   </button>;
 }
 
-function ActionRow({ onPass, onLike }: { onPass: () => void; onLike: () => void }) {
-  return <div className="action-row" aria-label="Profile actions"><button className="action-button pass" aria-label="Pass" onClick={onPass}><X size={27} /></button><button className="action-button like" aria-label="Like" onClick={onLike}><Heart size={29} fill="currentColor" /></button></div>;
+function ActionRow({ onPass, onLike, onPriority }: { onPass: () => void; onLike: () => void; onPriority?: () => void }) {
+  return <div className="action-row" aria-label="Profile actions"><button className="action-button pass" aria-label="Pass" onClick={onPass}><X size={27} /></button><button className="action-button like" aria-label="Like" onClick={onLike}><Heart size={29} fill="currentColor" /></button>{onPriority && <button className="action-button priority" aria-label="Priority like" onClick={onPriority}><Sparkles size={27} fill="currentColor" /></button>}</div>;
 }
 
 function TabBar({ active, onChange }: { active: Tab; onChange: (tab: Tab) => void }) {
