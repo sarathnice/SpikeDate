@@ -7,6 +7,8 @@ matches, conversations, messages, plans, subscriptions, entitlements, safety,
 notifications, devices, privacy requests, feature flags, and audit history.
 Private profile media is stored in R2 and served only through authenticated
 routes. Three generated migrations define and evolve the schema.
+The client uses these APIs when `NEXT_PUBLIC_SPIKEDATE_SERVER_DATA_ENABLED=true`;
+the local design preview can keep the flag off for a fully offline demo.
 
 ## Phase 2 — Trust, safety, and compliance
 
@@ -40,6 +42,9 @@ state, notification registration, platform icons, and launch assets. CI builds
 web/Docker, Android debug APK, and unsigned iOS Simulator artifacts. Automated
 coverage includes unit, live Worker/D1/R2 APIs, 50 isolated profiles, and mobile
 UI journeys for iOS and Android dimensions.
+CI applies the D1 migrations, starts a local Cloudflare Worker, runs the live API
+suite, and then runs the same server-backed UI journeys before building native
+artifacts.
 
 Production is deliberately out of scope for this iteration. Test seeding, mock
 billing, Cloudflare Access policy, store credentials, production venue provider,

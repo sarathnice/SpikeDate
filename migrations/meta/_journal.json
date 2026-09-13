@@ -6,14 +6,14 @@
       "idx": 0,
       "version": "6",
       "when": 1789257143061,
-      "tag": "0000_unusual_zeigeist",
+      "tag": "0000_spikedate_foundation",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "6",
       "when": 1789258367919,
-      "tag": "0001_tiny_james_howlett",
+      "tag": "0001_spikedate_operations",
       "breakpoints": true
     },
     {

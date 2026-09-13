@@ -15,6 +15,8 @@ async function signIn(page: Page) {
       .catch(() => false)
   )
     await dismiss.first().click();
+  const later = page.getByRole('button', { name: 'Later', exact: true });
+  if (await later.isVisible().catch(() => false)) await later.click();
 }
 
 async function expectImagesLoaded(page: Page) {
@@ -94,7 +96,7 @@ test('Galaxy, Chat, and Profile navigation expose primary actions', async ({
   await expect(page.getByText('Start with a plan')).toBeVisible();
   await expect(page.getByText('Browse the Galaxy')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Chat', exact: true }).click();
+  await page.getByRole('button', { name: /^Chat/ }).click();
   await expect(page.getByRole('heading', { name: 'Chats' })).toBeVisible();
   await expect(
     page.locator('.chat-row').first().or(page.getByText('No matches yet')),
@@ -111,11 +113,19 @@ test('Profile Lift and subscription sheets fit between safe areas', async ({
   page,
 }) => {
   await signIn(page);
-  await page.getByRole('button', { name: /Lift my profile/i }).click();
-  const lift = page.getByRole('dialog', { name: /Be seen sooner/i });
+  await page
+    .getByRole('button', {
+      name: /Lift my profile|View active Profile Lift/i,
+    })
+    .click();
+  const lift = page.getByRole('dialog', {
+    name: /Be seen sooner|Your Profile Lift is active/i,
+  });
   await expect(lift).toBeVisible();
   await expect(
-    lift.getByRole('button', { name: /Start .* Profile Lift/i }),
+    lift
+      .getByRole('button', { name: /Start .* Profile Lift/i })
+      .or(lift.getByRole('button', { name: /Profile Lift is running/i })),
   ).toBeVisible();
   await expect(
     lift.getByRole('button', { name: /Close Profile Lift/i }),
@@ -123,7 +133,7 @@ test('Profile Lift and subscription sheets fit between safe areas', async ({
   await lift.getByRole('button', { name: /Close Profile Lift/i }).click();
 
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
-  await page.getByRole('button', { name: /SpikeDate\+/i }).click();
+  await page.getByRole('button', { name: /SpikeDate\+|Free plan/i }).click();
   const subscription = page.getByRole('dialog', {
     name: /More signal\. Less noise\./i,
   });
@@ -133,7 +143,7 @@ test('Profile Lift and subscription sheets fit between safe areas', async ({
   ).toBeVisible();
   await expect(
     subscription
-      .getByRole('button', { name: /Subscribe/i })
+      .getByRole('button', { name: /Subscribe|Choose .* SpikeDate\+/i })
       .or(subscription.getByRole('button', { name: /SpikeDate\+ is active/i })),
   ).toBeVisible();
 

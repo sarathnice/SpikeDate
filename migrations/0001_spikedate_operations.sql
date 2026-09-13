@@ -1,3 +1,4 @@
+-- SpikeDate billing and operational extensions.
 CREATE TABLE `billing_events` (
 	`id` text PRIMARY KEY NOT NULL,
 	`provider` text NOT NULL,

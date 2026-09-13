@@ -109,6 +109,7 @@ type BrowserSpeechRecognition = {
 type Gender = 'Woman' | 'Man' | 'Nonbinary';
 type MediaItem = { type: 'photo' | 'video'; src: string; poster?: string };
 type Profile = {
+  id?: string;
   name: string;
   age: number;
   gender: Gender;
@@ -133,6 +134,8 @@ type Profile = {
   };
 };
 type ChatContact = {
+  userId?: string;
+  conversationId?: string;
   name: string;
   image: string;
   email?: string;
@@ -1039,9 +1042,9 @@ const demoAccount: AuthAccount = {
 
 const testPassword = 'SpikeDate2026!';
 const testEmails: Record<string, string> = Object.fromEntries(
-  profiles.map((profile) => [
+  profiles.map((profile, index) => [
     profile.name,
-    `${profile.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@spikedate.test`,
+    `test${String(index + 1).padStart(3, '0')}@spikedate.test`,
   ]),
 );
 const birthdays: Record<string, string> = Object.fromEntries(
@@ -1117,6 +1120,37 @@ const testAccounts: AuthAccount[] = testIdentities.map((identity) => ({
   passwordHash: demoAccount.passwordHash,
   createdAt: '2026-09-08T00:00:00.000Z',
 }));
+
+const serverDataEnabled =
+  process.env.NEXT_PUBLIC_SPIKEDATE_SERVER_DATA_ENABLED === 'true';
+
+type ApiErrorBody = { error?: string };
+
+async function serverJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (init?.body && !headers.has('content-type'))
+    headers.set('content-type', 'application/json');
+  const response = await fetch(path, {
+    ...init,
+    credentials: 'include',
+    headers,
+  });
+  const body = (await response.json().catch(() => ({}))) as T & ApiErrorBody;
+  if (!response.ok)
+    throw new Error(body.error || 'SpikeDate could not save that change.');
+  return body;
+}
+
+function testUserIdForEmail(email?: string) {
+  const match = email?.match(/^test(\d{3})@spikedate\.test$/);
+  return match ? `test-${match[1]}` : null;
+}
+
+function heightToCm(value: string) {
+  const match = value.match(/^(\d)'\s*(\d{1,2})/);
+  if (!match) return null;
+  return Math.round((Number(match[1]) * 12 + Number(match[2])) * 2.54);
+}
 
 const todayPrompts = [
   'What are you doing today?',
@@ -1437,6 +1471,7 @@ export default function HomePage() {
     profiles.find((profile) => profile.name === 'Noah')!,
   ]);
   const [savedProfileNames, setSavedProfileNames] = useState<string[]>([]);
+  const [serverProfiles, setServerProfiles] = useState<Profile[]>([]);
   const [declinedIncoming, setDeclinedIncoming] = useState<string[]>([]);
   const [registered, setRegistered] = useState(false);
   const [selfName, setSelfName] = useState('Alex');
@@ -1445,7 +1480,9 @@ export default function HomePage() {
   const [interactions, setInteractions] = useState<ProfileInteraction[]>([]);
   const [storedMessages, setStoredMessages] = useState<StoredMessage[]>([]);
   const signedInIdentity = identityForEmail(authEmail);
-  const filteredProfiles = profiles
+  const profileSource =
+    serverDataEnabled && serverProfiles.length ? serverProfiles : profiles;
+  const filteredProfiles = profileSource
     .filter(
       (profile) =>
         !blockedProfiles.includes(profile.name) &&
@@ -1575,6 +1612,14 @@ export default function HomePage() {
     }, 2400);
   };
 
+  const mirrorToServer = (
+    operation: () => Promise<unknown>,
+    failureMessage = 'Could not sync this change. Check your connection and try again.',
+  ) => {
+    if (!serverDataEnabled) return;
+    void operation().catch(() => announce(failureMessage));
+  };
+
   const toggleSavedProfile = (profile: Profile) => {
     setSavedProfileNames((current) => {
       const isSaved = current.includes(profile.name);
@@ -1591,6 +1636,20 @@ export default function HomePage() {
           ? `${profile.name} removed from Saved`
           : `${profile.name} saved privately`,
       );
+      const targetUserId =
+        profile.id ?? testUserIdForEmail(testEmails[profile.name]);
+      if (targetUserId)
+        mirrorToServer(() =>
+          serverJson('/api/interactions', {
+            method: 'POST',
+            body: JSON.stringify({
+              targetUserId,
+              kind: isSaved ? 'rewind' : 'save',
+              targetType: 'profile',
+              idempotencyKey: crypto.randomUUID(),
+            }),
+          }),
+        );
       return next;
     });
   };
@@ -1663,6 +1722,16 @@ export default function HomePage() {
       );
       setTodayComposerOpen(false);
       setTodayComposerStory(null);
+      mirrorToServer(() =>
+        serverJson('/api/daily-update', {
+          method: 'POST',
+          body: JSON.stringify({
+            text: updatedStory.caption,
+            visibility: updatedStory.visibility,
+            availableTonight: false,
+          }),
+        }),
+      );
       announce('Your Today post was updated');
       return;
     }
@@ -1682,6 +1751,16 @@ export default function HomePage() {
     if (!saveDailyStories(next)) return;
     setTodayComposerOpen(false);
     setTodayComposerStory(null);
+    mirrorToServer(() =>
+      serverJson('/api/daily-update', {
+        method: 'POST',
+        body: JSON.stringify({
+          text: nextStory.caption,
+          visibility: nextStory.visibility,
+          availableTonight: false,
+        }),
+      }),
+    );
     announce('Your new Today post is live for 24 hours');
   };
 
@@ -1761,6 +1840,7 @@ export default function HomePage() {
     setViewedDailyStory(null);
     setTodayComposerOpen(false);
     setTodayComposerStory(null);
+    mirrorToServer(() => serverJson('/api/daily-update', { method: 'DELETE' }));
     announce('Today post deleted');
   };
 
@@ -1787,23 +1867,44 @@ export default function HomePage() {
     target: string,
   ) => {
     const recipient = identityForProfile(profile);
-    if (!authEmail || !signedInIdentity || !recipient) return false;
-    saveInteractions((current) => [
-      ...current.filter(
-        (item) =>
-          !(item.fromEmail === authEmail && item.toEmail === recipient.email),
-      ),
-      {
-        id: `${Date.now()}-${authEmail}-${recipient.email}`,
-        fromEmail: authEmail,
-        toEmail: recipient.email,
-        kind,
-        target,
-        note: note.trim(),
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-      },
-    ]);
+    if (!authEmail) return false;
+    if (!serverDataEnabled && (!signedInIdentity || !recipient)) return false;
+    if (recipient)
+      saveInteractions((current) => [
+        ...current.filter(
+          (item) =>
+            !(item.fromEmail === authEmail && item.toEmail === recipient.email),
+        ),
+        {
+          id: `${Date.now()}-${authEmail}-${recipient.email}`,
+          fromEmail: authEmail,
+          toEmail: recipient.email,
+          kind,
+          target,
+          note: note.trim(),
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+    const targetUserId = profile.id ?? testUserIdForEmail(recipient?.email);
+    if (targetUserId)
+      mirrorToServer(() =>
+        serverJson('/api/interactions', {
+          method: 'POST',
+          body: JSON.stringify({
+            targetUserId,
+            kind: kind === 'super' ? 'super_spike' : 'like',
+            note: note.trim() || undefined,
+            targetType: target.startsWith('Today')
+              ? 'daily_update'
+              : target.toLowerCase().includes('photo')
+                ? 'photo'
+                : 'prompt',
+            targetRef: target,
+            idempotencyKey: crypto.randomUUID(),
+          }),
+        }),
+      );
     return true;
   };
 
@@ -1990,7 +2091,34 @@ export default function HomePage() {
     });
     setSafetyOpen(false);
     setProfileOpen(false);
+    const targetUserId =
+      profile.id ?? testUserIdForEmail(testEmails[profile.name]);
+    if (targetUserId)
+      mirrorToServer(() =>
+        serverJson('/api/safety', {
+          method: 'POST',
+          body: JSON.stringify({ targetUserId, action: 'block' }),
+        }),
+      );
     announce(`${profile.name} has been blocked and removed from SpikeDate`);
+  };
+
+  const reportProfile = (profile: Profile) => {
+    const targetUserId =
+      profile.id ?? testUserIdForEmail(testEmails[profile.name]);
+    if (targetUserId)
+      mirrorToServer(() =>
+        serverJson('/api/safety', {
+          method: 'POST',
+          body: JSON.stringify({
+            targetUserId,
+            action: 'report',
+            reason: 'Profile concern',
+          }),
+        }),
+      );
+    setSafetyOpen(false);
+    announce(`${profile.name} reported for review`);
   };
 
   const openChatWith = (text = '', profile = matchProfile) => {
@@ -2064,6 +2192,25 @@ export default function HomePage() {
         return next;
       });
     }
+    mirrorToServer(async () => {
+      let conversationId = activeChat.conversationId;
+      if (!conversationId) {
+        const targetUserId =
+          activeChat.userId ?? testUserIdForEmail(activeChat.email);
+        const result = await serverJson<{
+          conversations: Array<{ id: string; other_user_id: string }>;
+        }>('/api/conversations');
+        conversationId = result.conversations.find(
+          (item) => item.other_user_id === targetUserId,
+        )?.id;
+      }
+      if (!conversationId)
+        throw new Error('Match before starting a conversation.');
+      await serverJson(`/api/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ body: text, clientId: crypto.randomUUID() }),
+      });
+    }, 'Message kept on this device but could not be delivered.');
     setComposer('');
   };
 
@@ -2153,6 +2300,28 @@ export default function HomePage() {
           return next;
         });
     }
+    mirrorToServer(
+      () =>
+        serverJson('/api/galaxy/plans', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: plan.planName,
+            activity: plan.activity,
+            venue: {
+              name: plan.venue.name,
+              address: plan.venue.address,
+              latitude: plan.venue.latitude,
+              longitude: plan.venue.longitude,
+            },
+            startsAt: new Date(`${plan.day}T${plan.time}`).getTime(),
+            inviteeIds: completePlan.inviteeEmails?.flatMap((email) => {
+              const id = testUserIdForEmail(email);
+              return id ? [id] : [];
+            }),
+          }),
+        }),
+      'Plan saved on this device but could not be sent to every match.',
+    );
     setPlanOpen(false);
     announce(
       `Plan sent to ${plan.invitees.length} ${plan.invitees.length === 1 ? 'match' : 'matches'}`,
@@ -2390,6 +2559,63 @@ export default function HomePage() {
         `pulse-registration:${authEmail}`,
         JSON.stringify(data),
       );
+    mirrorToServer(async () => {
+      await serverJson('/api/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          section: 'profile',
+          data: {
+            displayName: data.name,
+            bio: data.bio,
+            pronouns: data.pronouns || null,
+            occupation: data.occupation || null,
+            education: data.education || null,
+            heightCm: heightToCm(data.height),
+            ethnicity: data.ethnicity || null,
+            relationshipGoal: data.intents[0] || 'Dating',
+            kids: data.kids || null,
+            wantsKids: data.wantsKids || null,
+            drinking: data.drinking || null,
+            smoking: data.smoking || null,
+            pets: data.pets || null,
+            city: data.city || null,
+            country: 'US',
+            discoverable: true,
+          },
+        }),
+      });
+      await serverJson('/api/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          section: 'preferences',
+          data: {
+            genders: data.preferredGenders,
+            minAge: data.minAge,
+            maxAge: data.maxAge,
+            maxDistanceKm: data.maxDistance,
+            relationshipGoals: data.intents,
+            dealbreakers: [],
+          },
+        }),
+      });
+      await serverJson('/api/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          section: 'prompts',
+          data: [
+            { prompt: 'A little more about me', answer: data.promptOne },
+            { prompt: 'Ask me about', answer: data.promptTwo },
+          ].filter((item) => item.answer.trim().length >= 2),
+        }),
+      });
+      await serverJson('/api/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          section: 'interests',
+          data: [...data.interests, ...data.values].slice(0, 20),
+        }),
+      });
+    }, 'Profile saved on this device but could not sync yet.');
     setRegistrationOpen(false);
     setProfileIndex(0);
     announce('Profile registered — you’re ready to be discovered');
@@ -2421,6 +2647,16 @@ export default function HomePage() {
       `pulse-boosts:${authEmail}`,
       JSON.stringify({ week: currentWeekKey(), included: 1 }),
     );
+    mirrorToServer(() =>
+      serverJson('/api/billing/purchase', {
+        method: 'POST',
+        body: JSON.stringify({
+          productId: `spikedate.plus.${billing}`,
+          provider: 'mock',
+          transactionId: `web-${billing}-${crypto.randomUUID()}`,
+        }),
+      }),
+    );
     setSubscriptionOpen(false);
     announce(
       'SpikeDate+ active — Likes are unlimited and 3 Super Spikes are ready',
@@ -2431,6 +2667,17 @@ export default function HomePage() {
     if (!authEmail) return;
     setPurchasedBoosts((current) => current + quantity);
     setBoostsRemaining((current) => current + quantity);
+    const pack = quantity >= 10 ? 10 : quantity >= 3 ? 3 : 1;
+    mirrorToServer(() =>
+      serverJson('/api/billing/purchase', {
+        method: 'POST',
+        body: JSON.stringify({
+          productId: `spikedate.lifts.${pack}`,
+          provider: 'mock',
+          transactionId: `web-lift-${crypto.randomUUID()}`,
+        }),
+      }),
+    );
     announce(
       `${quantity} Profile ${quantity === 1 ? 'Lift' : 'Lifts'} added — use anytime`,
     );
@@ -2442,6 +2689,15 @@ export default function HomePage() {
       announce('Choose a Profile Lift pack to continue');
       return;
     }
+    mirrorToServer(() =>
+      serverJson('/api/billing/lift', {
+        method: 'POST',
+        body: JSON.stringify({
+          source: purchasedBoosts > 0 ? 'purchased' : 'weekly',
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      }),
+    );
     const endsAt = Date.now() + 30 * 60 * 1000;
     setActiveBoosts((current) => {
       const next = { ...current, [authEmail]: endsAt };
@@ -3089,6 +3345,30 @@ export default function HomePage() {
 
   const signIn = async (email: string, password: string) => {
     const normalized = email.trim().toLowerCase();
+    if (serverDataEnabled) {
+      try {
+        await serverJson('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email: normalized, password }),
+        });
+      } catch (error) {
+        return (error as Error).message;
+      }
+      window.localStorage.setItem('pulse-session', normalized);
+      const nextMembership = readMembership(normalized);
+      superPulseOwner.current = normalized;
+      allowanceOwner.current = normalized;
+      boostOwner.current = normalized;
+      setMembership(nextMembership);
+      setDailyLikesRemaining(readDailyLikes(normalized));
+      setSuperPulsesRemaining(readSuperPulses(normalized, nextMembership));
+      setPurchasedBoosts(readPurchasedBoosts(normalized));
+      setBoostsRemaining(readBoostsRemaining(normalized, nextMembership));
+      setAuthEmail(normalized);
+      setProfileIndex(0);
+      restoreProfile(normalized);
+      return null;
+    }
     const account = readAccounts().find((item) => item.email === normalized);
     if (!account || account.passwordHash !== (await hashPassword(password)))
       return 'Email or password is incorrect.';
@@ -3110,18 +3390,40 @@ export default function HomePage() {
 
   const createAccount = async (email: string, password: string) => {
     const normalized = email.trim().toLowerCase();
+    if (serverDataEnabled) {
+      try {
+        await serverJson('/api/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: normalized,
+            password,
+            birthDate: '1990-01-01',
+            displayName: 'New member',
+            gender: 'Prefer not to say',
+            relationshipGoal: 'Dating',
+            termsAccepted: true,
+          }),
+        });
+      } catch (error) {
+        return (error as Error).message;
+      }
+    }
     const accounts = readAccounts();
-    if (accounts.some((item) => item.email === normalized))
+    if (
+      !serverDataEnabled &&
+      accounts.some((item) => item.email === normalized)
+    )
       return 'An account already exists for this email.';
     const account: AuthAccount = {
       email: normalized,
       passwordHash: await hashPassword(password),
       createdAt: new Date().toISOString(),
     };
-    window.localStorage.setItem(
-      'pulse-accounts',
-      JSON.stringify([...accounts, account]),
-    );
+    if (!accounts.some((item) => item.email === normalized))
+      window.localStorage.setItem(
+        'pulse-accounts',
+        JSON.stringify([...accounts, account]),
+      );
     window.localStorage.setItem('pulse-session', normalized);
     superPulseOwner.current = normalized;
     allowanceOwner.current = normalized;
@@ -3141,6 +3443,8 @@ export default function HomePage() {
   };
 
   const logout = () => {
+    if (serverDataEnabled)
+      void serverJson('/api/auth/logout', { method: 'POST' }).catch(() => {});
     window.localStorage.removeItem('pulse-session');
     superPulseOwner.current = null;
     allowanceOwner.current = null;
@@ -3189,6 +3493,182 @@ export default function HomePage() {
     } catch {
       setSavedProfileNames([]);
     }
+  }, [authEmail]);
+
+  useEffect(() => {
+    if (!serverDataEnabled || !authEmail) {
+      setServerProfiles([]);
+      return;
+    }
+    let cancelled = false;
+    void Promise.all([
+      serverJson<{
+        profile: Record<string, unknown> | null;
+        preferences: Record<string, unknown> | null;
+        wallet: {
+          super_spikes?: number;
+          profile_lifts?: number;
+          weekly_lift_available?: number;
+        } | null;
+        subscription: { status?: string } | null;
+      }>('/api/profile'),
+      serverJson<{
+        profiles: Array<{
+          id: string;
+          name: string;
+          age: number;
+          gender?: string;
+          bio?: string;
+          city?: string | null;
+          relationshipGoal?: string;
+          imageUrl?: string | null;
+          today?: string | null;
+          availableTonight?: boolean;
+        }>;
+      }>('/api/discover?limit=50'),
+      serverJson<{
+        conversations: Array<{
+          id: string;
+          other_user_id: string;
+          display_name: string;
+          preview?: string | null;
+          unread_count?: number;
+        }>;
+      }>('/api/conversations'),
+      serverJson<{
+        wallet: {
+          super_spikes?: number;
+          profile_lifts?: number;
+          weekly_lift_available?: number;
+        } | null;
+        active: { ends_at?: number } | null;
+      }>('/api/billing/lift'),
+    ])
+      .then(([account, discovery, conversationData, liftData]) => {
+        if (cancelled) return;
+        const wallet = liftData.wallet ?? account.wallet;
+        setSuperPulsesRemaining(wallet?.super_spikes ?? 0);
+        setPurchasedBoosts(wallet?.profile_lifts ?? 0);
+        setBoostsRemaining(
+          (wallet?.profile_lifts ?? 0) +
+            (wallet?.weekly_lift_available ? 1 : 0),
+        );
+        setMembership(
+          account.subscription?.status === 'active' ? 'plus' : 'free',
+        );
+        if (liftData.active?.ends_at) {
+          setActiveBoosts((currentBoosts) => ({
+            ...currentBoosts,
+            [authEmail]: liftData.active?.ends_at ?? 0,
+          }));
+          setBoostClock(Date.now());
+        }
+        setServerProfiles(
+          discovery.profiles.map((candidate, index) => {
+            const known = profiles.find((item) => item.name === candidate.name);
+            if (known)
+              return {
+                ...known,
+                id: candidate.id,
+                image: candidate.imageUrl || known.image,
+                media: candidate.imageUrl
+                  ? [{ type: 'photo', src: candidate.imageUrl }]
+                  : known.media,
+                age: candidate.age,
+                place: candidate.city || known.place,
+                intent: candidate.relationshipGoal || known.intent,
+                tonight: candidate.today
+                  ? {
+                      plan: candidate.today,
+                      expiresAt: new Date(
+                        Date.now() + 86_400_000,
+                      ).toISOString(),
+                    }
+                  : known.tonight,
+              };
+            const gender: Gender =
+              candidate.gender === 'man'
+                ? 'Man'
+                : candidate.gender === 'nonbinary'
+                  ? 'Nonbinary'
+                  : 'Woman';
+            const image =
+              candidate.imageUrl ||
+              profiles[index % profiles.length]?.image ||
+              '/imani.png';
+            return {
+              id: candidate.id,
+              name: candidate.name,
+              age: candidate.age,
+              gender,
+              image,
+              media: [{ type: 'photo', src: image }],
+              place: candidate.city || 'Nearby',
+              distance: 'Nearby',
+              distanceMiles: 2,
+              intent: candidate.relationshipGoal || 'Dating',
+              tags: [],
+              prompt: candidate.bio || 'Ask me what I am looking forward to.',
+              height: 'Not shared',
+              ethnicity: 'Not shared',
+              pets: 'Not shared',
+              kids: 'Not shared',
+              wantsKids: 'Not shared',
+              drinking: 'Not shared',
+              smoking: 'Not shared',
+              tonight: candidate.today
+                ? {
+                    plan: candidate.today,
+                    expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+                  }
+                : undefined,
+            };
+          }),
+        );
+        setContacts(
+          conversationData.conversations.flatMap((conversation) => {
+            const emailMatch =
+              conversation.other_user_id.match(/^test-(\d{3})$/);
+            const email = emailMatch
+              ? `test${emailMatch[1]}@spikedate.test`
+              : undefined;
+            const known = email ? identityForEmail(email)?.profile : undefined;
+            return [
+              {
+                userId: conversation.other_user_id,
+                conversationId: conversation.id,
+                name: conversation.display_name,
+                image: known?.image ?? '/imani.png',
+                email,
+                preview: conversation.preview || 'You matched on SpikeDate',
+                time: 'Recent',
+                unread: Number(conversation.unread_count ?? 0),
+              },
+            ];
+          }),
+        );
+        const profile = account.profile;
+        const profileText = (key: string, fallback: string) =>
+          typeof profile?.[key] === 'string'
+            ? (profile[key] as string)
+            : fallback;
+        if (profile && profileText('display_name', '') !== 'New member') {
+          setSelfName(profileText('display_name', 'Alex'));
+          setRegistered(Boolean(profile.completed_at || profile.bio));
+          setRegistrationData((currentData) => ({
+            ...currentData,
+            name: profileText('display_name', currentData.name),
+            bio: profileText('bio', currentData.bio),
+            city: profileText('city', currentData.city),
+            occupation: profileText('occupation', currentData.occupation),
+            education: profileText('education', currentData.education),
+          }));
+        }
+      })
+      .catch(() => announce('Server data is temporarily unavailable.'));
+    return () => {
+      cancelled = true;
+    };
   }, [authEmail]);
 
   useEffect(() => {
@@ -3398,6 +3878,27 @@ export default function HomePage() {
       );
     } catch {
       setBlockedProfiles([]);
+    }
+    if (serverDataEnabled) {
+      void serverJson<{ user: { email: string } }>('/api/auth/session')
+        .then(({ user }) => {
+          const session = user.email.toLowerCase();
+          window.localStorage.setItem('pulse-session', session);
+          const nextMembership = readMembership(session);
+          superPulseOwner.current = session;
+          allowanceOwner.current = session;
+          boostOwner.current = session;
+          setMembership(nextMembership);
+          setDailyLikesRemaining(readDailyLikes(session));
+          setSuperPulsesRemaining(readSuperPulses(session, nextMembership));
+          setPurchasedBoosts(readPurchasedBoosts(session));
+          setBoostsRemaining(readBoostsRemaining(session, nextMembership));
+          setAuthEmail(session);
+          restoreProfile(session);
+        })
+        .catch(() => window.localStorage.removeItem('pulse-session'))
+        .finally(() => setAuthReady(true));
+      return;
     }
     const storedSession = window.localStorage.getItem('pulse-session');
     const session =
@@ -3927,6 +4428,7 @@ export default function HomePage() {
         profile={safetyProfile}
         mode={safetyMode}
         onAction={announce}
+        onReport={() => reportProfile(safetyProfile)}
         onBlock={() => blockProfile(safetyProfile)}
       />
       <RegistrationDialog
@@ -9917,6 +10419,7 @@ function SafetyDialog({
   profile,
   mode,
   onAction,
+  onReport,
   onBlock,
 }: {
   open: boolean;
@@ -9924,6 +10427,7 @@ function SafetyDialog({
   profile: Profile;
   mode: 'menu' | 'report' | 'block';
   onAction: (message: string) => void;
+  onReport: () => void;
   onBlock: () => void;
 }) {
   if (mode === 'report')
@@ -9935,13 +10439,7 @@ function SafetyDialog({
             SpikeDate will review the profile. Reporting does not automatically
             block them.
           </DialogDescription>
-          <button
-            className="danger"
-            onClick={() => {
-              onOpenChange(false);
-              onAction(`${profile.name} reported for review`);
-            }}
-          >
+          <button className="danger" onClick={onReport}>
             <Flag size={19} /> Submit report <ChevronRight size={17} />
           </button>
           <button className="safety-cancel" onClick={() => onOpenChange(false)}>
@@ -9984,12 +10482,7 @@ function SafetyDialog({
           <ShieldCheck size={20} /> Share date details{' '}
           <ChevronRight size={17} />
         </button>
-        <button
-          onClick={() => {
-            onOpenChange(false);
-            onAction(`${profile.name} reported for review`);
-          }}
-        >
+        <button onClick={onReport}>
           <MoreHorizontal size={20} /> Report profile <ChevronRight size={17} />
         </button>
         <button className="danger" onClick={onBlock}>

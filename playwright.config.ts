@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const channel =
+  process.env.SPIKEDATE_PLAYWRIGHT_CHANNEL === 'bundled' ? undefined : 'msedge';
+
 export default defineConfig({
   testDir: './tests/playwright',
   timeout: 75_000,
@@ -13,7 +16,7 @@ export default defineConfig({
   ],
   use: {
     baseURL: process.env.SPIKEDATE_UI_URL || 'http://127.0.0.1:3002',
-    channel: 'msedge',
+    ...(channel ? { channel } : {}),
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
@@ -23,7 +26,6 @@ export default defineConfig({
       use: {
         ...devices['iPhone 13'],
         browserName: 'chromium',
-        channel: 'msedge',
       },
     },
     {
@@ -31,7 +33,6 @@ export default defineConfig({
       use: {
         ...devices['Pixel 7'],
         browserName: 'chromium',
-        channel: 'msedge',
       },
     },
   ],

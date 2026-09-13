@@ -2,7 +2,7 @@ name: SpikeDate staging CI
 
 on:
   push:
-    branches: [main, staging, "codex/**"]
+    branches: [main, staging, 'codex/**']
   pull_request:
 
 permissions:
@@ -12,34 +12,54 @@ jobs:
   web-and-docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22.14.0
           cache: npm
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
-      - run: npm run build
+      - run: NEXT_PUBLIC_SPIKEDATE_SERVER_DATA_ENABLED=true npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Test Cloudflare APIs and mobile UI
+        shell: bash
+        run: |
+          for migration in migrations/*.sql; do
+            npx wrangler d1 execute DB --local --persist-to .wrangler/state --config dist/server/wrangler.json --file "$migration"
+          done
+          npx wrangler dev --config dist/server/wrangler.json --ip 127.0.0.1 --port 3002 --persist-to .wrangler/state \
+            --var SPIKEDATE_TEST_SEED_ENABLED:true \
+            --var SPIKEDATE_TEST_SEED_SECRET:local-e2e-secret \
+            --var SPIKEDATE_BILLING_MODE:mock \
+            --var SPIKEDATE_ADMIN_ACCESS_REQUIRED:false > wrangler-test.log 2>&1 &
+          worker_pid=$!
+          trap 'kill $worker_pid' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3002/ > /dev/null; then break; fi
+            sleep 1
+          done
+          SPIKEDATE_API_URL=http://127.0.0.1:3002 SPIKEDATE_TEST_SEED_SECRET=local-e2e-secret node tests/api-e2e.mjs
+          SPIKEDATE_UI_URL=http://127.0.0.1:3002 SPIKEDATE_PLAYWRIGHT_CHANNEL=bundled npx playwright test
       - run: docker build --target staging -t spikedate:staging .
 
   android:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22.14.0
           cache: npm
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: '21'
       - run: npm ci
       - run: npm run build
       - run: SPIKEDATE_STAGING_URL=http://10.0.2.2:3000 npx cap sync android
       - run: chmod +x android/gradlew && cd android && ./gradlew assembleDebug
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: spikedate-android-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
@@ -47,8 +67,8 @@ jobs:
   ios-simulator:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22.14.0
           cache: npm
@@ -56,7 +76,7 @@ jobs:
       - run: npm run build
       - run: SPIKEDATE_STAGING_URL=http://localhost:3000 npx cap sync ios
       - run: xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath ios/build CODE_SIGNING_ALLOWED=NO build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: spikedate-ios-simulator
           path: ios/build/Build/Products/Debug-iphonesimulator/App.app

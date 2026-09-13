@@ -65,6 +65,16 @@ await record('seed exactly 50 isolated accounts', async () => {
   assert.equal(body.created, 50);
 });
 
+await record('authenticate all 50 synthetic accounts', async () => {
+  const sessions = await Promise.all(
+    Array.from({ length: 50 }, (_, index) =>
+      login(`test${String(index + 1).padStart(3, '0')}@spikedate.test`),
+    ),
+  );
+  assert.equal(sessions.length, 50);
+  assert.ok(sessions.every(Boolean), 'every synthetic account needs a session');
+});
+
 await record('reject under-18 registration', async () => {
   const currentYear = new Date().getUTCFullYear();
   const { response, body } = await jsonRequest('/api/auth/register', {
@@ -92,7 +102,7 @@ await record('complete adult registration and session', async () => {
       birthDate: '1995-01-01',
       displayName: 'Registration QA',
       gender: 'woman',
-      relationshipGoal: 'Long-term relationship',
+      relationshipGoal: 'Long-term',
       termsAccepted: true,
     }),
   });

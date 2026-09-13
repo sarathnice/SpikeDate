@@ -59,7 +59,7 @@ npm run test:ui
 
 The production-shaped Worker uses Cloudflare D1 (`DB`) for application data
 and private R2 (`MEDIA`) for profile media. Generate schema changes with
-`npm run db:generate`; migrations are stored in `drizzle/` and packaged with
+`npm run db:generate`; migrations are stored in `migrations/` and packaged with
 the Site. The complete phase inventory and release gates are documented in
 [`PHASE_IMPLEMENTATION.md`](./PHASE_IMPLEMENTATION.md), with test evidence in
 [`UI_TEST_REPORT.md`](./UI_TEST_REPORT.md).

@@ -19,11 +19,12 @@ Browser: Microsoft Edge (Chromium), headless UI automation
 ## Five-phase readiness validation
 
 - Server unit checks: **4 passed / 4 tested**
-- Live Cloudflare Worker API journeys: **15 passed / 15 tested**
+- Live Cloudflare Worker API journeys: **16 passed / 16 tested**
 - Focused iOS-size journeys: **5 passed / 5 tested**
 - Focused Android-size journeys: **5 passed / 5 tested**
 - D1 migrations: **3 applied successfully**
 - Seed isolation: **50 synthetic `@spikedate.test` accounts**
+- Server-backed mobile client: **enabled and exercised end to end**
 - Latest final failures: **0**
 
 The focused mobile suite verifies discovery and full-profile actions, Like and
@@ -35,10 +36,11 @@ message delivery/read state, Galaxy plans, purchase and entitlement accounting,
 Super Spike decrement, report/block enforcement, admin RBAC, and auditable case
 resolution.
 
-Two UI assertions initially failed because valid states were not represented in
-the tests: a new account can correctly have no matches, and an active subscriber
-correctly has no purchase CTA. Both tests now cover those real states and pass
-on iPhone 13 and Pixel 7 dimensions.
+The server-backed mobile pass initially exposed four stale test assumptions:
+the Chat label includes its unread count, a Profile Lift may already be active,
+the paywall opens from either “Free plan” or “SpikeDate+”, and its CTA varies by
+billing state. The tests now cover those valid states and all ten focused
+journeys pass on iPhone 13 and Pixel 7 dimensions.
 
 ## What was tested
 
@@ -74,13 +76,12 @@ The first complete run reported **14 failed assertions**. A separate first pass 
 ## Completed readiness improvements
 
 1. Added authenticated D1 storage and APIs for profiles, Likes, matches, messages, plans, blocks, subscriptions, usage allowances, daily updates, devices, privacy requests, and audit logs.
-2. Give every seeded/production profile its own six-photo set and optional short video; the current 50-profile QA catalog intentionally reuses the available portrait assets.
+2. Connected signed-in mobile UI state to the Cloudflare APIs behind the `NEXT_PUBLIC_SPIKEDATE_SERVER_DATA_ENABLED` deployment switch while preserving the offline design-preview mode.
 3. Keep the SpikeDate badge purely as brand/profile affordance. Use a separate checkmark for identity verification and a separate top-right indicator for online status.
 4. Added the notification data model plus native push-token registration and SpikeDate deep links.
-6. Add analytics for profile completion, Like-to-match conversion, Super Spike response, Profile Lift visibility, first-message response, and plan acceptance.
-7. Added private R2 media, moderation states, protected report review, session controls, and auditable block enforcement.
-8. Connect the venue browser to the production places provider and add consent-based temporary live-location sharing only after the planned safety review.
-9. Added Vitest, Playwright mobile projects, a 50-account live API journey, and web/Android/iOS CI jobs.
+5. Added private R2 media, moderation states, protected report review, session controls, and auditable block enforcement.
+6. Added Vitest, Playwright mobile projects, a 50-account live API journey, and web/Android/iOS CI jobs.
+7. Aligned the generated D1 migration directory with the Cloudflare Worker package so clean staging environments can apply all migrations automatically.
 
 ## External release gates
 

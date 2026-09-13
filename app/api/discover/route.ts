@@ -17,6 +17,7 @@ type Candidate = {
   shared_interests: number;
   daily_text: string | null;
   available_tonight: number | null;
+  primary_media_id: string | null;
 };
 
 export async function GET(request: Request) {
@@ -50,7 +51,9 @@ export async function GET(request: Request) {
         'SELECT profiles.user_id, profiles.display_name, users.birth_date, profiles.bio, profiles.city, profiles.gender, ' +
           'profiles.relationship_goal, profiles.verification_status, lifts.ends_at AS lift_ends_at, ' +
           'COUNT(DISTINCT shared.interest_id) AS shared_interests, updates.text AS daily_text, ' +
-          'updates.available_tonight AS available_tonight ' +
+          'updates.available_tonight AS available_tonight, ' +
+          "(SELECT media.id FROM profile_media media WHERE media.user_id = profiles.user_id AND media.type = 'photo' " +
+          "AND media.moderation_status = 'approved' ORDER BY media.position LIMIT 1) AS primary_media_id " +
           'FROM profiles JOIN users ON users.id = profiles.user_id ' +
           'LEFT JOIN user_interests shared ON shared.user_id = profiles.user_id AND shared.interest_id IN ' +
           '(SELECT interest_id FROM user_interests WHERE user_id = ?) ' +
@@ -112,6 +115,7 @@ export async function GET(request: Request) {
           id: candidate.user_id,
           name: candidate.display_name,
           age,
+          gender: candidate.gender,
           bio: candidate.bio,
           city: candidate.city,
           relationshipGoal: candidate.relationship_goal,
@@ -119,6 +123,9 @@ export async function GET(request: Request) {
           profileLiftActive: Boolean(candidate.lift_ends_at),
           today: candidate.daily_text,
           availableTonight: Boolean(candidate.available_tonight),
+          imageUrl: candidate.primary_media_id
+            ? '/api/media/' + candidate.primary_media_id
+            : null,
           whyFit: reasons.slice(0, 3),
         },
       ];

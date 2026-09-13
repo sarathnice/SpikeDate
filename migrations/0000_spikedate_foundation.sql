@@ -1,3 +1,4 @@
+-- SpikeDate D1 foundation.
 CREATE TABLE `admin_users` (
 	`user_id` text NOT NULL,
 	`role` text NOT NULL,

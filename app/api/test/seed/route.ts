@@ -5,56 +5,56 @@ import { json } from '@/lib/server/http';
 export const runtime = 'edge';
 
 const firstNames = [
-  'Alex',
   'Maya',
-  'Jordan',
-  'Priya',
-  'Leo',
   'Lena',
-  'Avery',
+  'Imani',
+  'Ava',
   'Noah',
-  'Mia',
-  'Ethan',
-  'Sofia',
-  'Kai',
-  'Amara',
   'Mateo',
-  'Zoe',
-  'Ravi',
+  'Jordan',
+  'Elias',
+  'Sofia',
+  'Amara',
   'Chloe',
-  'Owen',
   'Nina',
-  'Jules',
-  'Aria',
-  'Miles',
-  'Ivy',
-  'Theo',
+  'Zoe',
   'Layla',
-  'Ezra',
-  'Sage',
-  'Luca',
-  'Nora',
-  'Finn',
-  'Isla',
-  'Sam',
-  'Elena',
-  'Nico',
-  'Aisha',
-  'Ben',
+  'Camila',
   'Mei',
-  'Drew',
-  'Ana',
-  'Dev',
-  'Ruby',
-  'Cole',
-  'Jade',
-  'Omar',
-  'Elle',
-  'Max',
+  'Fatima',
+  'Grace',
+  'Elena',
   'Tara',
-  'Ian',
-  'Rina',
-  'Hugo',
+  'Jade',
+  'Rhea',
+  'Mila',
+  'Daniel',
+  'Arjun',
+  'Marcus',
+  'Theo',
+  'Liam',
+  'Omar',
+  'Kenji',
+  'Andre',
+  'Samuel',
+  'Rafael',
+  'Ethan',
+  'Dev',
+  'Isaac',
+  'Gabriel',
+  'Mason',
+  'Alexis',
+  'River',
+  'Quinn',
+  'Sage',
+  'Rowan',
+  'Avery',
+  'Jamie',
+  'Morgan',
+  'Taylor',
+  'Casey',
+  'Skyler',
+  'Reese',
 ];
 
 function authorized(request: Request) {
@@ -83,12 +83,7 @@ export async function POST(request: Request) {
           const email = 'test' + suffix + '@spikedate.test';
           const gender =
             index % 3 === 0 ? 'nonbinary' : index % 2 ? 'woman' : 'man';
-          const goals = [
-            'Long-term relationship',
-            'Marriage',
-            'Dating',
-            'Open to short-term',
-          ];
+          const goals = ['Long-term', 'Marriage', 'Dating', 'Short-term'];
           const goal = goals[index % goals.length];
           const birthYear = 1986 + (index % 18);
           return [
@@ -150,6 +145,75 @@ export async function POST(request: Request) {
         }),
       );
     }
+    await db.batch(
+      [2, 3, 4, 5, 6].flatMap((index) => {
+        const suffix = String(index).padStart(3, '0');
+        const matchId = `test-match-001-${suffix}`;
+        const conversationId = `test-conversation-001-${suffix}`;
+        const messageId = `test-message-${suffix}-001`;
+        return [
+          db
+            .prepare(
+              'INSERT OR IGNORE INTO matches ' +
+                '(id, user_a_id, user_b_id, status, matched_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            )
+            .bind(
+              matchId,
+              'test-001',
+              `test-${suffix}`,
+              'active',
+              now,
+              now,
+              now,
+            ),
+          db
+            .prepare(
+              'INSERT OR IGNORE INTO conversations ' +
+                '(id, match_id, last_message_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+            )
+            .bind(conversationId, matchId, now - index * 30_000, now, now),
+          db
+            .prepare(
+              'INSERT OR IGNORE INTO messages ' +
+                '(id, conversation_id, sender_id, body, client_id, delivered_at, created_at, updated_at) ' +
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            )
+            .bind(
+              messageId,
+              conversationId,
+              `test-${suffix}`,
+              `Hi from ${firstNames[index - 1]} — this is a synthetic unread test message.`,
+              `seed-client-${suffix}`,
+              now,
+              now - index * 30_000,
+              now,
+            ),
+        ];
+      }),
+    );
+    await db.batch(
+      [2, 3, 4, 5].map((index) => {
+        const suffix = String(index).padStart(3, '0');
+        return db
+          .prepare(
+            'INSERT OR IGNORE INTO daily_updates ' +
+              '(id, user_id, text, visibility, available_tonight, expires_at, created_at, updated_at) ' +
+              'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          )
+          .bind(
+            `test-update-${suffix}`,
+            `test-${suffix}`,
+            index % 2
+              ? 'Trying a new dinner spot tonight.'
+              : 'Coffee, a walk, and a good conversation?',
+            'discover',
+            index % 2,
+            now + 86_400_000,
+            now,
+            now,
+          );
+      }),
+    );
     const adminId = 'test-001';
     await db
       .prepare(
