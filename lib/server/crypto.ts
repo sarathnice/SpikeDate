@@ -25,7 +25,10 @@ export async function hashPassword(password: string) {
     false,
     ['deriveBits'],
   );
-  const iterations = 210_000;
+  // Cloudflare Workers Web Crypto currently accepts PBKDF2 iteration counts
+  // up to 100,000. Keep the stored iteration count explicit so hashes remain
+  // portable between local development and the deployed Worker runtime.
+  const iterations = 100_000;
   const bits = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
     key,

@@ -10,6 +10,7 @@ describe('server security and product rules', () => {
     const password = 'SpikeDate2026!';
     const hash = await hashPassword(password);
     expect(hash).not.toContain(password);
+    expect(hash).toContain('pbkdf2-sha256$100000$');
     await expect(verifyPassword(password, hash)).resolves.toBe(true);
     await expect(verifyPassword('WrongPassword2026!', hash)).resolves.toBe(
       false,
