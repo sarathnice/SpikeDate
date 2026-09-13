@@ -16,6 +16,13 @@ export default defineConfig({
   ],
   use: {
     baseURL: process.env.SPIKEDATE_UI_URL || 'http://127.0.0.1:3002',
+    ...(process.env.SPIKEDATE_SITES_BYPASS_TOKEN
+      ? {
+          extraHTTPHeaders: {
+            'OAI-Sites-Authorization': `Bearer ${process.env.SPIKEDATE_SITES_BYPASS_TOKEN}`,
+          },
+        }
+      : {}),
     ...(channel ? { channel } : {}),
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
