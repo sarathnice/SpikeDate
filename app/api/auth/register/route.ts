@@ -7,6 +7,10 @@ import {
   passwordSchema,
   validationError,
 } from '@/lib/server/validation';
+import {
+  phoneVerificationRequired,
+  verifyPhoneRegistrationToken,
+} from '@/lib/server/phone-verification';
 
 export const runtime = 'edge';
 
@@ -18,6 +22,7 @@ const schema = z.object({
   gender: z.string().trim().min(1).max(40),
   relationshipGoal: z.string().trim().min(1).max(80),
   termsAccepted: z.literal(true),
+  phoneVerificationToken: z.string().trim().max(4096).optional(),
 });
 
 function isAdult(birthDate: string) {
@@ -46,15 +51,53 @@ export async function POST(request: Request) {
       { status: 400 },
     );
 
+  const phoneProof = parsed.data.phoneVerificationToken
+    ? await verifyPhoneRegistrationToken(
+        request,
+        parsed.data.phoneVerificationToken,
+      )
+    : null;
+  if (phoneVerificationRequired() && !phoneProof)
+    return json(
+      { error: 'Verify your mobile number before creating your account.' },
+      { status: 400 },
+    );
+
   return withDatabase(async () => {
     const db = getDb();
-    const existing = await db
-      .prepare('SELECT id FROM users WHERE email = ? LIMIT 1')
-      .bind(parsed.data.email)
-      .first();
+    const [existing, phoneOwner, challenge] = await Promise.all([
+      db
+        .prepare('SELECT id FROM users WHERE email = ? LIMIT 1')
+        .bind(parsed.data.email)
+        .first(),
+      phoneProof
+        ? db
+            .prepare('SELECT id FROM users WHERE phone_number = ? LIMIT 1')
+            .bind(phoneProof.phoneNumber)
+            .first()
+        : Promise.resolve(null),
+      phoneProof
+        ? db
+            .prepare(
+              "SELECT status FROM phone_verification_challenges WHERE id = ? AND phone_number = ? AND status = 'verified' LIMIT 1",
+            )
+            .bind(phoneProof.challengeId, phoneProof.phoneNumber)
+            .first<{ status: string }>()
+        : Promise.resolve(null),
+    ]);
     if (existing)
       return json(
         { error: 'An account already exists for this email.' },
+        { status: 409 },
+      );
+    if (phoneOwner)
+      return json(
+        { error: 'This mobile number is already connected to an account.' },
+        { status: 409 },
+      );
+    if (phoneProof && !challenge)
+      return json(
+        { error: 'Phone verification expired. Request a new code.' },
         { status: 409 },
       );
 
@@ -65,12 +108,14 @@ export async function POST(request: Request) {
       db
         .prepare(
           'INSERT INTO users ' +
-            '(id, email, password_hash, status, birth_date, terms_version, terms_accepted_at, created_at, updated_at) ' +
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            '(id, email, phone_number, phone_verified_at, password_hash, status, birth_date, terms_version, terms_accepted_at, created_at, updated_at) ' +
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         )
         .bind(
           userId,
           parsed.data.email,
+          phoneProof?.phoneNumber ?? null,
+          phoneProof ? now : null,
           passwordHash,
           'active',
           parsed.data.birthDate,
@@ -82,14 +127,16 @@ export async function POST(request: Request) {
       db
         .prepare(
           'INSERT INTO profiles ' +
-            '(user_id, display_name, gender, relationship_goal, created_at, updated_at) ' +
-            'VALUES (?, ?, ?, ?, ?, ?)',
+            '(user_id, display_name, gender, relationship_goal, discoverable, discoverable_requested, created_at, updated_at) ' +
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         )
         .bind(
           userId,
           parsed.data.displayName,
           parsed.data.gender,
           parsed.data.relationshipGoal,
+          0,
+          1,
           now,
           now,
         ),
@@ -107,11 +154,24 @@ export async function POST(request: Request) {
             'VALUES (?, ?, ?, ?, ?, ?, ?)',
         )
         .bind(userId, 1, 0, 0, 0, now, now),
+      ...(phoneProof
+        ? [
+            db
+              .prepare(
+                "UPDATE phone_verification_challenges SET status = 'consumed', consumed_at = ?, updated_at = ? WHERE id = ? AND status = 'verified'",
+              )
+              .bind(now, now, phoneProof.challengeId),
+          ]
+        : []),
     ]);
     const session = await createSession(db, userId, request);
     return json(
       {
-        user: { id: userId, email: parsed.data.email },
+        user: {
+          id: userId,
+          email: parsed.data.email,
+          phoneVerified: Boolean(phoneProof),
+        },
         profile: { displayName: parsed.data.displayName },
       },
       { status: 201, headers: { 'set-cookie': session.cookie } },

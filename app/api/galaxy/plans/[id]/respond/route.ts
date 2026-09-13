@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { json, readJson } from '@/lib/server/http';
+import { notifyUser } from '@/lib/server/notifications';
 
 export const runtime = 'edge';
 type Context = { params: Promise<{ id: string }> };
@@ -10,6 +11,8 @@ const schema = z.object({
 });
 
 export async function POST(request: Request, context: Context) {
+  if (process.env.SPIKEDATE_DATE_PLANS_ENABLED === 'false')
+    return json({ error: 'Date planning is unavailable.' }, { status: 404 });
   const input = await readJson<unknown>(request);
   if (input instanceof Response) return input;
   const parsed = schema.safeParse(input);
@@ -40,6 +43,18 @@ export async function POST(request: Request, context: Context) {
         )
         .bind(now, id)
         .run();
+    const plan = await db
+      .prepare('SELECT creator_id, name FROM galaxy_plans WHERE id = ? LIMIT 1')
+      .bind(id)
+      .first<{ creator_id: string; name: string }>();
+    if (plan)
+      await notifyUser(db, {
+        userId: plan.creator_id,
+        type: 'plan_update',
+        title: `Plan ${parsed.data.response}`,
+        body: `${plan.name} was ${parsed.data.response}.`,
+        data: { url: '/?tab=Galaxy', planId: id },
+      });
     return json({ invitation: { planId: id, status: parsed.data.response } });
   });
 }

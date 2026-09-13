@@ -17,6 +17,8 @@ export const users = sqliteTable(
   {
     id: text('id').primaryKey(),
     email: text('email').notNull(),
+    phoneNumber: text('phone_number'),
+    phoneVerifiedAt: integer('phone_verified_at', { mode: 'timestamp_ms' }),
     passwordHash: text('password_hash'),
     status: text('status', {
       enum: ['pending', 'active', 'paused', 'suspended', 'deleted'],
@@ -33,6 +35,7 @@ export const users = sqliteTable(
   },
   (table) => [
     uniqueIndex('idx_users_email').on(table.email),
+    uniqueIndex('idx_users_phone_number').on(table.phoneNumber),
     index('idx_users_status_last_active').on(table.status, table.lastActiveAt),
   ],
 );
@@ -86,6 +89,11 @@ export const profiles = sqliteTable(
       .default('unverified'),
     discoverable: integer('discoverable', { mode: 'boolean' })
       .notNull()
+      .default(false),
+    discoverableRequested: integer('discoverable_requested', {
+      mode: 'boolean',
+    })
+      .notNull()
       .default(true),
     completedAt: integer('completed_at', { mode: 'timestamp_ms' }),
     ...timestamps,
@@ -93,6 +101,38 @@ export const profiles = sqliteTable(
   (table) => [
     index('idx_profiles_discoverable_city').on(table.discoverable, table.city),
     index('idx_profiles_goal').on(table.relationshipGoal),
+  ],
+);
+
+export const phoneVerificationChallenges = sqliteTable(
+  'phone_verification_challenges',
+  {
+    id: text('id').primaryKey(),
+    phoneNumber: text('phone_number').notNull(),
+    provider: text('provider', { enum: ['mock', 'firebase'] }).notNull(),
+    providerRef: text('provider_ref').notNull(),
+    status: text('status', {
+      enum: ['pending', 'verified', 'consumed', 'expired', 'blocked'],
+    })
+      .notNull()
+      .default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    ipHash: text('ip_hash').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    verifiedAt: integer('verified_at', { mode: 'timestamp_ms' }),
+    consumedAt: integer('consumed_at', { mode: 'timestamp_ms' }),
+    ...timestamps,
+  },
+  (table) => [
+    index('idx_phone_challenges_phone_created').on(
+      table.phoneNumber,
+      table.createdAt,
+    ),
+    index('idx_phone_challenges_ip_created').on(table.ipHash, table.createdAt),
+    index('idx_phone_challenges_status_expires').on(
+      table.status,
+      table.expiresAt,
+    ),
   ],
 );
 

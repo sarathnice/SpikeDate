@@ -72,6 +72,14 @@ export async function GET(request: Request) {
           'ORDER BY safety_actions.created_at ASC LIMIT 20',
       )
       .all();
+    const moderationQueue = await db
+      .prepare(
+        'SELECT profile_media.id, profile_media.type, profile_media.created_at, profiles.display_name ' +
+          'FROM profile_media JOIN profiles ON profiles.user_id = profile_media.user_id ' +
+          "WHERE profile_media.moderation_status = 'pending' " +
+          'ORDER BY profile_media.explicit DESC, profile_media.created_at ASC LIMIT 20',
+      )
+      .all();
     return json({
       admin: { email: admin.user.email, roles: admin.roles },
       metrics: {
@@ -93,6 +101,7 @@ export async function GET(request: Request) {
         ),
       },
       openCases: openCases.results,
+      moderationQueue: moderationQueue.results,
     });
   });
 }

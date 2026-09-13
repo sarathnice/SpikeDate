@@ -1,5 +1,38 @@
 # SpikeDate UI test report
 
+## September 13, 2026 — premium cost-control implementation
+
+- Formatter, lint, TypeScript, production-shaped build, and **5/5 unit tests**:
+  passed.
+- Live Worker/D1/R2 API suite: **21 passed, 0 failed** across exactly 50
+  synthetic profiles. New coverage verifies phone-verified registration,
+  15-second video enforcement, notification categories, and time-zone-aware
+  quiet hours in addition to the existing connection, safety, billing, media,
+  and admin journeys.
+- Mobile UI suite: **18 passed, 0 failed** across iPhone 13 and Pixel 7.
+  New coverage verifies the premium phone-verification experience and the
+  granular notification/settings layout on both devices.
+- D1 migration `0003_wide_angel.sql` applied successfully to the local Worker
+  database. A pre-migration local backup was retained under `.wrangler/`.
+- Failures found during this pass: one API test setup issue after deleting
+  verification, one rejected-upload stream handling issue, and two mobile test
+  isolation issues. All were fixed and their complete suites passed on rerun.
+- Final failures: **0**.
+
+## September 13, 2026 — safety-first Plan a Date validation
+
+- Formatter, lint, TypeScript validation, production build, and 5 unit tests:
+  passed.
+- Live Worker/D1/R2 API suite: **19 passed, 0 failed**. It verifies the
+  one-match limit, required public-venue/safety acknowledgement, and automatic
+  plan cancellation after a safety report.
+- Focused mobile browser suite: **16 passed, 0 failed** across iPhone 13 and
+  Pixel 7 viewports.
+- The Plan a Date journey verifies public-place browsing, mutual-match-only
+  invitations, the disabled-until-acknowledged send action, and successful
+  private invitation creation on both mobile platforms.
+- Final failures after fixes and rerun: **0**.
+
 Date: September 12, 2026  
 Target: mobile web application at 390 × 844 and 412 × 915 viewports  
 Browser: Microsoft Edge (Chromium), headless UI automation
@@ -56,7 +89,8 @@ journeys pass on iPhone 13 and Pixel 7 dimensions.
 - Galaxy activity selection, browse tiles, filtered profile stack, Like and Super Spike actions, plan creation, activity-filtered venue browsing, shared availability, multi-venue voting, alternate-time proposals, accept/decline, private safety check-ins, review, send, and plan display
 - Heart-with-hidden-S badge placement in Like/Super Spike context, Incoming notifications, sent Likes, chat list, chat header, match confirmation, Galaxy suggestions, and plan invite profiles
 - Navigation labels, icons, active state, touch-target sizing, unread announcements, mobile overflow, and all four themes
-- Voice entry points, feature switches, push-to-talk/live modes, command confirmation, cancellation, briefing, and scheduling
+- Read-only activity briefing, playback, scheduling, deployment switch, and
+  confirmation that microphone/live-AI controls are absent by default
 - Profile Story naming, branded heart-S Super Spike signal, Profile Lift naming, iconography, voice aliases, subscription copy, and active visibility state
 - Today post creation, five daily prompts, 140-character updates, photo validation, three visibility levels, reply controls, matched-chat delivery, 24-hour expiration, unique views, home-card indicators, full-screen viewing, author management, and Like/Super Spike context
 

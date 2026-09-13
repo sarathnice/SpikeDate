@@ -81,6 +81,20 @@ export async function POST(request: Request) {
           JSON.stringify({ reason: parsed.data.reason ?? null }),
           now,
         ),
+      db
+        .prepare(
+          "UPDATE galaxy_plans SET status = 'cancelled', updated_at = ? " +
+            "WHERE status IN ('sent', 'accepted') AND (" +
+            '(creator_id = ? AND id IN (SELECT plan_id FROM galaxy_plan_invites WHERE invitee_id = ?)) OR ' +
+            '(creator_id = ? AND id IN (SELECT plan_id FROM galaxy_plan_invites WHERE invitee_id = ?)))',
+        )
+        .bind(
+          now,
+          user.id,
+          parsed.data.targetUserId,
+          parsed.data.targetUserId,
+          user.id,
+        ),
     ];
     if (parsed.data.action === 'block' || parsed.data.action === 'unmatch')
       statements.push(

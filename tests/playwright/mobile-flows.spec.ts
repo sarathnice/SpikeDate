@@ -4,6 +4,7 @@ import path from 'node:path';
 async function signIn(page: Page) {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
+  await page.context().clearCookies();
   await page.reload();
   await page.getByRole('button', { name: /Fill selected test login/i }).click();
   await page.getByRole('button', { name: 'Sign in to SpikeDate' }).click();
@@ -35,6 +36,33 @@ async function expectImagesLoaded(page: Page) {
     )
     .toBe(true);
 }
+
+test('premium phone verification is clear and mobile friendly', async ({
+  page,
+}, testInfo) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.context().clearCookies();
+  await page.reload();
+  await page
+    .locator('.auth-tabs button')
+    .filter({ hasText: 'Create account' })
+    .click();
+  await expect(page.locator('.auth-phone-verification')).toBeVisible();
+  await page
+    .getByLabel('Mobile number')
+    .fill(
+      testInfo.project.name === 'ios-mobile'
+        ? '+1 202 555 0196'
+        : '+1 202 555 0197',
+    );
+  await page.getByRole('button', { name: 'Send code' }).click();
+  await expect(page.getByText(/Local test code: 123456/i)).toBeVisible();
+  await page.getByLabel('Six-digit verification code').fill('123456');
+  await page.getByRole('button', { name: 'Verify', exact: true }).click();
+  await expect(page.getByText('Verified and kept private')).toBeVisible();
+  await expect(page.getByText(/never appears on your profile/i)).toBeVisible();
+});
 
 test('discovery actions and full profile remain usable', async ({ page }) => {
   await signIn(page);
@@ -122,7 +150,50 @@ test('Galaxy, Chat, and Profile navigation expose primary actions', async ({
   await expect(
     page.getByRole('button', { name: /Preview my card/i }),
   ).toBeVisible();
+  await expect(page.locator('.push-settings-card')).toContainText(
+    'New matches',
+  );
+  await expect(page.locator('.push-settings-card')).toContainText(
+    'Quiet hours',
+  );
+  await expect(page.locator('.voice-settings-card')).toContainText(
+    'Daily announcements',
+  );
   await expect(page.getByRole('button', { name: /Log out/i })).toBeVisible();
+});
+
+test('private date planning requires the safety gate on mobile', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.getByRole('button', { name: 'Galaxy', exact: true }).click();
+  await page.getByRole('button', { name: /Plan a coffee date/i }).click();
+
+  const planner = page.locator('.plan-dialog');
+  await expect(planner).toBeVisible();
+  await expect(
+    planner.getByText(/current or home location stays private/i),
+  ).toBeVisible();
+  await planner.getByRole('button', { name: 'Browse venues' }).click();
+  await expect(planner.getByText(/Public places near/i)).toBeVisible();
+  await planner.locator('.venue-results > button').first().click();
+  await planner.getByRole('button', { name: 'Choose a match' }).click();
+  await expect(
+    planner.getByText(/Only people you mutually matched/i),
+  ).toBeVisible();
+  await planner.locator('.plan-match-picker > button').first().click();
+  await planner.getByRole('button', { name: 'Review invitation' }).click();
+
+  const send = planner.getByRole('button', { name: /Send private invite/i });
+  await expect(send).toBeDisabled();
+  await planner.locator('.plan-safety-consent input').check();
+  await expect(send).toBeEnabled();
+  await send.click();
+
+  await expect(page.locator('.galaxy-upcoming-card').first()).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /trusted contact/i }).first(),
+  ).toBeVisible();
 });
 
 test('photo safety check is accessible and fits the mobile viewport', async ({

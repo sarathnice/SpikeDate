@@ -2,6 +2,7 @@ import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { identifier, json, readJson } from '@/lib/server/http';
 import { z } from 'zod';
+import { requireConnectionReady } from '@/lib/server/profile-readiness';
 
 export const runtime = 'edge';
 
@@ -21,6 +22,13 @@ export async function POST(request: Request) {
     const db = getDb();
     const user = await requireUser(request, db);
     if (user instanceof Response) return user;
+    if (!(await requireConnectionReady(db, user.id)))
+      return json(
+        {
+          error: 'Publish and verify your profile before using Profile Lift.',
+        },
+        { status: 403 },
+      );
     const existing = await db
       .prepare(
         'SELECT id, starts_at, ends_at FROM profile_lift_activations ' +

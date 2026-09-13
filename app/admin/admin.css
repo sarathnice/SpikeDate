@@ -197,6 +197,7 @@ body:has(.admin-shell) {
 }
 
 .admin-case-list button,
+.admin-media-list button,
 .admin-state a {
   border: 1px solid #4c4d58;
   border-radius: 999px;
@@ -204,6 +205,36 @@ body:has(.admin-shell) {
   color: white;
   padding: 0.55rem 0.8rem;
   text-decoration: none;
+}
+.admin-media-list {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1.2rem;
+}
+.admin-media-list > article {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 1rem;
+  align-items: start;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+.admin-media-list img,
+.admin-media-list video {
+  width: 82px;
+  height: 104px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: #0b0c12;
+}
+.admin-media-list > article > div {
+  display: grid;
+  gap: 0.45rem;
+  justify-items: start;
+}
+.admin-media-list span {
+  color: #92939f;
+  font-size: 0.75rem;
 }
 
 .admin-empty,

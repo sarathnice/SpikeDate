@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b6092dbe-16db-460d-8b3b-3208743742de",
-  "prevId": "07b8a0d4-bf7a-47eb-9832-73e04b81ef00",
+  "id": "39807501-9c60-44cf-8fa2-c32b23d4334a",
+  "prevId": "b6092dbe-16db-460d-8b3b-3208743742de",
   "tables": {
     "admin_users": {
       "name": "admin_users",
@@ -1623,6 +1623,118 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "phone_verification_challenges": {
+      "name": "phone_verification_challenges",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "phone_number": {
+          "name": "phone_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provider_ref": {
+          "name": "provider_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "ip_hash": {
+          "name": "ip_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_phone_challenges_phone_created": {
+          "name": "idx_phone_challenges_phone_created",
+          "columns": ["phone_number", "created_at"],
+          "isUnique": false
+        },
+        "idx_phone_challenges_ip_created": {
+          "name": "idx_phone_challenges_ip_created",
+          "columns": ["ip_hash", "created_at"],
+          "isUnique": false
+        },
+        "idx_phone_challenges_status_expires": {
+          "name": "idx_phone_challenges_status_expires",
+          "columns": ["status", "expires_at"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "preferences": {
       "name": "preferences",
       "columns": {
@@ -2107,6 +2219,14 @@
         },
         "discoverable": {
           "name": "discoverable",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "discoverable_requested": {
+          "name": "discoverable_requested",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -2739,6 +2859,20 @@
           "notNull": true,
           "autoincrement": false
         },
+        "phone_number": {
+          "name": "phone_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "phone_verified_at": {
+          "name": "phone_verified_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "password_hash": {
           "name": "password_hash",
           "type": "text",
@@ -2801,6 +2935,11 @@
         "idx_users_email": {
           "name": "idx_users_email",
           "columns": ["email"],
+          "isUnique": true
+        },
+        "idx_users_phone_number": {
+          "name": "idx_users_phone_number",
+          "columns": ["phone_number"],
           "isUnique": true
         },
         "idx_users_status_last_active": {

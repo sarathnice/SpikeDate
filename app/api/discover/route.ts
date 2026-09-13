@@ -113,8 +113,7 @@ export async function GET(request: Request) {
         'photo_verified',
         'identity_verified',
       ].includes(candidate.verification_status);
-      if (verified)
-        reasons.push('verified profile');
+      if (verified) reasons.push('verified profile');
       return [
         {
           id: candidate.user_id,

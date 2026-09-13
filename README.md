@@ -74,7 +74,41 @@ taller iOS and Android screens without distortion.
 
 The protected `/admin` dashboard requires an authenticated SpikeDate admin
 role. Set `SPIKEDATE_ADMIN_ACCESS_REQUIRED=true` in shared environments to also
-require the matching Cloudflare Access identity.
+require the matching Cloudflare Access identity. Pending uploads enter a
+review queue with approve/reject notes and immutable audit records.
+
+## Cost-efficient premium services
+
+- Account creation uses mobile verification. Local development uses code
+  `123456`; shared environments use Firebase Identity Platform through the
+  provider abstraction and registration tokens cannot be reused.
+- Profiles remain hidden until registration, photo verification, and one
+  approved photo are complete. Likes, messages, plans, Super Spikes, and
+  Profile Lifts also enforce connection readiness server-side.
+- Photos are cropped and compressed on-device. Video is limited to one MP4,
+  MOV, or WebM file, 15 seconds and 30 MB, on both client and server.
+- Notifications are always recorded in-app. FCM delivery is optional and is
+  activated only when service-account credentials are configured; users have
+  per-category switches and quiet hours.
+- Venue search opens only inside the plan composer and is debounced. Built-in
+  development venues keep local testing free.
+
+## Safety-first date plans
+
+Galaxy's **Plan a Date** flow is private to one active mutual match. It requires
+a public-place selection and an explicit safety acknowledgement before sending.
+The recipient must accept, changes require confirmation, and accepted plans keep
+trusted-contact sharing and safety options available. Reporting or blocking a
+match cancels shared plans. Plans disappear from normal history 30 days after
+their scheduled time.
+
+Set both `NEXT_PUBLIC_SPIKEDATE_DATE_PLANS_ENABLED=false` and
+`SPIKEDATE_DATE_PLANS_ENABLED=false` to remove the client entry points and block
+the plan API in an environment. Keep both enabled only where the complete safety
+flow is ready.
+
+The first-1,000-user infrastructure estimate is documented in
+[`COST_MODEL_1000_USERS.md`](./COST_MODEL_1000_USERS.md).
 
 ## Photo verification
 
@@ -91,15 +125,22 @@ from that provider or trained manual review, never from the local quality check.
 
 GitHub Actions validates the web build and Docker image, then builds an Android debug APK and an unsigned iOS simulator app. Cloudflare production deployment is intentionally deferred.
 
-## Voice deployment controls
+## Activity briefing controls
 
-SpikeDate includes low-cost push-to-talk and optional continuous live conversation. Copy `.env.example` to `.env.local` locally or configure the same values during deployment:
+SpikeDate defaults to a read-only, device-spoken activity briefing. It
+summarizes likes, matches, messages, and allowances and can be scheduled
+without a paid AI service. Copy `.env.example` to `.env.local` locally or
+configure the same values during deployment:
 
 - `NEXT_PUBLIC_PULSE_VOICE_ENABLED=false` hides all voice features.
-- `NEXT_PUBLIC_PULSE_VOICE_COMMAND_ENABLED=false` disables push-to-talk only.
-- `NEXT_PUBLIC_PULSE_VOICE_LIVE_ENABLED=false` disables live mode while retaining push-to-talk.
+- `NEXT_PUBLIC_PULSE_VOICE_COMMAND_ENABLED=false` keeps microphone commands off.
+- `NEXT_PUBLIC_PULSE_VOICE_LIVE_ENABLED=false` keeps continuous conversation off.
 - `NEXT_PUBLIC_PULSE_VOICE_CLOUD_ENABLED=false` removes the Cloudflare microphone fallback.
 - `PULSE_VOICE_CLOUD_ENABLED=false` blocks cloud transcription server-side and is the production-safe default.
 - `NEXT_PUBLIC_PULSE_VOICE_TEST_MODE=true` uses browser/device voice for charge-free testing.
 
-These public flags contain availability only. AI provider credentials must remain in server-side Cloudflare secrets. Users can also turn Voice or Live conversation off from Profile, but cannot re-enable a feature disabled at deployment.
+These public flags contain availability only. AI provider credentials must
+remain in server-side Cloudflare secrets. Both microphone modes are off by
+default to control cost and reduce interface noise. They remain isolated for
+future experiments; users can turn the scheduled activity briefing off from
+Profile.

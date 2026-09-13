@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { identifier, json, readJson } from '@/lib/server/http';
+import { requireConnectionReady } from '@/lib/server/profile-readiness';
+import { notifyUser } from '@/lib/server/notifications';
 
 export const runtime = 'edge';
 
@@ -31,6 +33,11 @@ export async function GET(request: Request, context: Context) {
     const db = getDb();
     const user = await requireUser(request, db);
     if (user instanceof Response) return user;
+    if (!(await requireConnectionReady(db, user.id)))
+      return json(
+        { error: 'Verify and complete your profile before messaging.' },
+        { status: 403 },
+      );
     const { id } = await context.params;
     if (!(await canAccessConversation(db, id, user.id)))
       return json({ error: 'Conversation not found.' }, { status: 404 });
@@ -101,6 +108,22 @@ export async function POST(request: Request, context: Context) {
         )
         .bind(now, now, id),
     ]);
+    const recipient = await db
+      .prepare(
+        'SELECT CASE WHEN matches.user_a_id = ? THEN matches.user_b_id ELSE matches.user_a_id END AS user_id, ' +
+          'profiles.display_name FROM conversations JOIN matches ON matches.id = conversations.match_id ' +
+          'JOIN profiles ON profiles.user_id = ? WHERE conversations.id = ? LIMIT 1',
+      )
+      .bind(user.id, user.id, id)
+      .first<{ user_id: string; display_name: string }>();
+    if (recipient)
+      await notifyUser(db, {
+        userId: recipient.user_id,
+        type: 'message',
+        title: recipient.display_name || 'New message',
+        body: parsed.data.body.slice(0, 120),
+        data: { url: `/?chat=${id}`, conversationId: id },
+      });
     return json(
       {
         message: {

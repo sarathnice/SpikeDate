@@ -94,6 +94,30 @@ await record('reject under-18 registration', async () => {
 
 await record('complete adult registration and session', async () => {
   const email = 'registration-' + Date.now() + '@spikedate.test';
+  const phoneNumber = '+1202555' + String(Date.now()).slice(-4);
+  let phoneResult = await jsonRequest('/api/auth/phone/start', {
+    method: 'POST',
+    body: JSON.stringify({ phoneNumber }),
+  });
+  assert.equal(
+    phoneResult.response.status,
+    201,
+    JSON.stringify(phoneResult.body),
+  );
+  assert.ok(phoneResult.body.challengeId);
+  phoneResult = await jsonRequest('/api/auth/phone/verify', {
+    method: 'POST',
+    body: JSON.stringify({
+      challengeId: phoneResult.body.challengeId,
+      code: phoneResult.body.testCode || '123456',
+    }),
+  });
+  assert.equal(
+    phoneResult.response.status,
+    200,
+    JSON.stringify(phoneResult.body),
+  );
+  assert.ok(phoneResult.body.registrationToken);
   const { response, body } = await jsonRequest('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify({
@@ -104,6 +128,7 @@ await record('complete adult registration and session', async () => {
       gender: 'woman',
       relationshipGoal: 'Long-term',
       termsAccepted: true,
+      phoneVerificationToken: phoneResult.body.registrationToken,
     }),
   });
   assert.equal(response.status, 201, JSON.stringify(body));
@@ -164,6 +189,30 @@ await record(
     });
     assert.equal(result.response.status, 200, JSON.stringify(result.body));
     assert.equal(result.body.status, 'unverified');
+
+    result = await jsonRequest('/api/verification', {
+      method: 'POST',
+      headers: { cookie: firstCookie },
+      body: JSON.stringify({ action: 'start', consent: true }),
+    });
+    assert.equal(result.response.status, 201, JSON.stringify(result.body));
+    result = await jsonRequest('/api/verification', {
+      method: 'POST',
+      headers: { cookie: firstCookie },
+      body: JSON.stringify({
+        action: 'complete',
+        requestId: result.body.request.id,
+        metrics: {
+          brightness: 128,
+          sharpness: 18,
+          faceCount: 1,
+          frameCount: 1,
+          captureDigest: 'b'.repeat(64),
+        },
+      }),
+    });
+    assert.equal(result.response.status, 200, JSON.stringify(result.body));
+    assert.equal(result.body.status, 'photo_verified');
   },
 );
 
@@ -215,6 +264,53 @@ await record(
       headers: { cookie: firstCookie },
     });
     assert.equal(result.response.status, 200, JSON.stringify(result.body));
+  },
+);
+
+await record(
+  'enforce premium profile-video limits before storage',
+  async () => {
+    const result = await jsonRequest('/api/media', {
+      method: 'POST',
+      headers: {
+        cookie: firstCookie,
+        'content-type': 'video/mp4',
+        'x-spikedate-duration-seconds': '16',
+      },
+      body: Buffer.from('fake-video'),
+    });
+    assert.equal(result.response.status, 413, JSON.stringify(result.body));
+    assert.match(result.body.error, /15 seconds/i);
+  },
+);
+
+await record(
+  'save notification categories and local-time quiet hours',
+  async () => {
+    let result = await jsonRequest('/api/notifications/preferences', {
+      headers: { cookie: firstCookie },
+    });
+    assert.equal(result.response.status, 200, JSON.stringify(result.body));
+    assert.equal(result.body.preferences.newMatches, true);
+    result = await jsonRequest('/api/notifications/preferences', {
+      method: 'PATCH',
+      headers: { cookie: firstCookie },
+      body: JSON.stringify({
+        ...result.body.preferences,
+        activityBriefing: true,
+        quietHours: {
+          start: '22:00',
+          end: '08:00',
+          timeZone: 'America/New_York',
+        },
+      }),
+    });
+    assert.equal(result.response.status, 200, JSON.stringify(result.body));
+    assert.equal(result.body.preferences.activityBriefing, true);
+    assert.equal(
+      result.body.preferences.quietHours.timeZone,
+      'America/New_York',
+    );
   },
 );
 
@@ -355,11 +451,30 @@ await record('create a Galaxy plan for an active match', async () => {
         longitude: -71.06,
       },
       startsAt: Date.now() + 24 * 60 * 60 * 1000,
+      publicVenueConfirmed: true,
+      safetyAcknowledged: true,
       inviteeIds: ['test-002'],
     }),
   });
   assert.equal(response.status, 201, JSON.stringify(body));
   assert.equal(body.plan.status, 'sent');
+});
+
+await record('reject an unsafe or multi-person date plan', async () => {
+  const { response, body } = await jsonRequest('/api/galaxy/plans', {
+    method: 'POST',
+    headers: { cookie: firstCookie },
+    body: JSON.stringify({
+      name: 'Unsafe plan',
+      activity: 'Coffee',
+      venue: { name: 'Public Café', address: '2 Main Street, Boston' },
+      startsAt: Date.now() + 24 * 60 * 60 * 1000,
+      publicVenueConfirmed: true,
+      safetyAcknowledged: false,
+      inviteeIds: ['test-002', 'test-003'],
+    }),
+  });
+  assert.equal(response.status, 400, JSON.stringify(body));
 });
 
 await record('purchase and activate a standalone Profile Lift', async () => {
@@ -406,7 +521,7 @@ await record('report and block a profile', async () => {
     method: 'POST',
     headers: { cookie: firstCookie },
     body: JSON.stringify({
-      targetUserId: 'test-004',
+      targetUserId: 'test-002',
       action: 'report',
       reason: 'Suspicious behavior',
       details: 'Synthetic moderation test.',
@@ -415,6 +530,15 @@ await record('report and block a profile', async () => {
   assert.equal(result.response.status, 201, JSON.stringify(result.body));
   reportId = result.body.actionId;
   assert.ok(reportId, 'report did not return a case id');
+  result = await jsonRequest('/api/galaxy/plans', {
+    headers: { cookie: firstCookie },
+  });
+  assert.equal(result.response.status, 200, JSON.stringify(result.body));
+  assert.equal(
+    result.body.plans.find((plan) => plan.name === 'Saturday coffee')?.status,
+    'cancelled',
+    'reporting a date participant should cancel the shared plan',
+  );
   result = await jsonRequest('/api/safety', {
     method: 'POST',
     headers: { cookie: firstCookie },

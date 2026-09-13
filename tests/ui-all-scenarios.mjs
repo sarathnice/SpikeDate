@@ -276,7 +276,7 @@ await verify('Home header controls have unclipped mobile touch targets', () =>
 );
 await verify('Chat navigation shows the total unread-message count', () =>
   evaluate(
-      `document.querySelector('.tab-badge')?.textContent==='2' && !!document.querySelector('.tabbar button[aria-label="Chat, 2 unread messages"]')`,
+    `document.querySelector('.tab-badge')?.textContent==='2' && !!document.querySelector('.tabbar button[aria-label="Chat, 2 unread messages"]')`,
   ),
 );
 await verify(
@@ -529,7 +529,7 @@ await verify('Opening chat clears unread badge', () =>
 );
 await verify('Opening the unread chat clears the Chat navigation badge', () =>
   evaluate(
-      `!document.querySelector('.tab-badge') && !!document.querySelector('.tabbar button[aria-label="Chat"]')`,
+    `!document.querySelector('.tab-badge') && !!document.querySelector('.tabbar button[aria-label="Chat"]')`,
   ),
 );
 await click('.tabbar button', 'Spike');
@@ -792,68 +792,32 @@ await verify('Profile exposes the weekly Profile Lift', () =>
     `document.querySelector('.global-boost-button')?.getAttribute('aria-label')==='Lift my profile'`,
   ),
 );
-await verify('Profile exposes configurable SpikeDate Voice', () =>
+await verify('Profile exposes configurable activity briefings', () =>
   evaluate(
-    `document.querySelector('.profile-quick-actions')?.textContent.includes('SpikeDate Voice') && document.querySelector('.voice-settings-card')?.textContent.includes('Live conversation')`,
+    `document.querySelector('.profile-quick-actions')?.textContent.includes('Activity briefing') && document.querySelector('.voice-settings-card')?.textContent.includes('Daily announcements')`,
   ),
 );
-await verify('Voice and live mode can be disabled independently', () =>
+await verify('Profile exposes granular push controls and quiet hours', () =>
   evaluate(
-    `!!document.querySelector('[aria-label="Enable SpikeDate Voice"]') && !!document.querySelector('[aria-label="Enable live voice conversation"]')`,
+    `document.querySelector('.push-settings-card')?.textContent.includes('New matches') && document.querySelector('.push-settings-card')?.textContent.includes('Quiet hours')`,
   ),
 );
-await click('.profile-quick-actions button', 'SpikeDate Voice');
+await click('.profile-quick-actions button', 'Activity briefing');
 await verify('Voice briefing summarizes matching activity', () =>
   evaluate(
     `document.querySelector('.voice-briefing-dialog')?.textContent.includes('Incoming') && document.querySelector('.voice-briefing-dialog')?.textContent.includes('Unread') && document.querySelector('.voice-briefing-dialog')?.textContent.includes('Matches')`,
   ),
 );
-await verify('Voice offers push-to-talk and live conversation modes', () =>
+await verify('Briefing removes microphone and conversational controls', () =>
   evaluate(
-    `document.querySelectorAll('.voice-mode-picker button').length===2 && document.querySelector('.voice-mode-picker')?.textContent.includes('Lowest cost') && document.querySelector('.voice-mode-picker')?.textContent.includes('Continuous')`,
-  ),
-);
-await verify('Voice test mode clearly avoids paid AI usage', () =>
-  evaluate(
-    `document.querySelector('.voice-runtime-badge')?.textContent.includes('no AI usage charge')`,
-  ),
-);
-await click('.voice-mode-picker button', 'Live conversation');
-await verify('Live voice mode can be selected', () =>
-  evaluate(
-    `document.querySelector('.voice-mode-picker button[aria-pressed="true"]')?.textContent.includes('Live conversation') && document.querySelector('.voice-mic-button')?.textContent.includes('Start live conversation')`,
-  ),
-);
-await click('.voice-mode-picker button', 'Push to talk');
-await verify('Voice concierge exposes microphone and command fallback', () =>
-  evaluate(
-    `document.querySelector('.voice-mic-button')?.textContent.includes('Ask SpikeDate') && !!document.querySelector('input[aria-label="Voice command"]')`,
-  ),
-);
-await click('.voice-command-chips button', 'Show profiles for today');
-await verify('Voice command brings up a profile and spoken summary', () =>
-  evaluate(
-    `!!document.querySelector('.voice-profile-preview img') && document.querySelector('.voice-response')?.textContent.includes('Would you like to see pictures')`,
-  ),
-);
-await click('.voice-command-chips button', 'Like this profile');
-await verify('Voice Like requires a spoken confirmation', () =>
-  evaluate(
-    `document.querySelector('.voice-response')?.textContent.includes('Say yes to confirm or cancel')`,
-  ),
-);
-await fill('input[aria-label="Voice command"]', 'cancel');
-await click('.voice-command-box button');
-await verify('Voice action can be canceled without sending', () =>
-  evaluate(
-    `document.querySelector('.voice-response')?.textContent.includes('Canceled. Nothing was sent.')`,
+    `!document.querySelector('.voice-mode-picker') && !document.querySelector('.voice-mic-button') && !document.querySelector('input[aria-label="Voice command"]')`,
   ),
 );
 await verify(
   'Voice briefing offers review shortcuts without auto-sending',
   () =>
     evaluate(
-      `document.querySelector('.voice-next-actions')?.textContent.includes('Messages') && document.querySelector('.voice-consent-note')?.textContent.includes('requires a spoken “yes” confirmation')`,
+      `document.querySelector('.voice-next-actions')?.textContent.includes('Messages') && document.querySelector('.voice-consent-note')?.textContent.includes('read-only')`,
     ),
 );
 await click('.voice-schedule-grid button', 'Evening');
@@ -870,16 +834,16 @@ await evaluate(
   `[...document.querySelectorAll('.tabbar button')].find((button)=>button.textContent.includes('Profile'))?.click()`,
 );
 await wait();
-await click('[aria-label="Enable SpikeDate Voice"]');
-await verify('User voice switch hides the SpikeDate Voice entry point', () =>
+await click('[aria-label="Enable activity briefings"]');
+await verify('User briefing switch hides the activity entry point', () =>
   evaluate(
-    `!document.querySelector('.profile-quick-actions')?.textContent.includes('SpikeDate Voice') && document.querySelector('[aria-label="Enable SpikeDate Voice"]')?.getAttribute('aria-checked')==='false'`,
+    `!document.querySelector('.profile-quick-actions')?.textContent.includes('Activity briefing') && document.querySelector('[aria-label="Enable activity briefings"]')?.getAttribute('aria-checked')==='false'`,
   ),
 );
-await click('[aria-label="Enable SpikeDate Voice"]');
-await verify('User can re-enable SpikeDate Voice', () =>
+await click('[aria-label="Enable activity briefings"]');
+await verify('User can re-enable activity briefings', () =>
   evaluate(
-    `document.querySelector('.profile-quick-actions')?.textContent.includes('SpikeDate Voice') && document.querySelector('[aria-label="Enable SpikeDate Voice"]')?.getAttribute('aria-checked')==='true'`,
+    `document.querySelector('.profile-quick-actions')?.textContent.includes('Activity briefing') && document.querySelector('[aria-label="Enable activity briefings"]')?.getAttribute('aria-checked')==='true'`,
   ),
 );
 await click('.global-boost-button');
@@ -1121,9 +1085,9 @@ await verify(
     ),
 );
 await click('.galaxy-plan-action');
-await verify('Create Plan opens date, time and place details', () =>
+await verify('Plan a Date opens date, time and place details', () =>
   evaluate(
-    `document.querySelector('.plan-dialog')?.textContent.includes('Create a music plan') && !!document.querySelector('input[aria-label="Plan date"]') && !!document.querySelector('input[aria-label="Plan time"]')`,
+    `document.querySelector('.plan-dialog')?.textContent.includes('Plan a music date') && !!document.querySelector('input[aria-label="Plan date"]') && !!document.querySelector('input[aria-label="Plan time"]')`,
   ),
 );
 await verify('Plan builder offers an opt-in private safety check-in', () =>
@@ -1174,6 +1138,15 @@ await verify(
     evaluate(
       `document.querySelector('.plan-review')?.textContent.includes('can vote before accepting') && document.querySelector('.plan-review')?.textContent.includes('PRIVATE SAFETY CHECK-IN')`,
     ),
+);
+await verify('Plan invite is blocked until the safety acknowledgement', () =>
+  evaluate(
+    `document.querySelector('.send-plan-invites')?.disabled===true && document.querySelector('.plan-safety-consent')?.textContent.includes('public-place plan')`,
+  ),
+);
+await click('.plan-safety-consent input');
+await verify('Safety acknowledgement enables the private invite', () =>
+  evaluate(`document.querySelector('.send-plan-invites')?.disabled===false`),
 );
 await click('.send-plan-invites');
 await verify('Sent plan appears in Galaxy', () =>
@@ -1263,6 +1236,10 @@ await click('.auth-tabs button', 'Create account');
 await fill('input[aria-label="Email"]', 'new.user@spikedate.app');
 await fill('input[aria-label="Password"]', 'NewSpike1');
 await fill('input[aria-label="Confirm password"]', 'NewSpike1');
+await fill('input[aria-label="Mobile number"]', '+1 202 555 0198');
+await click('.auth-phone-row button', 'Send code');
+await fill('input[aria-label="Six-digit verification code"]', '123456');
+await click('.auth-phone-row.code button', 'Verify');
 await click('.auth-submit');
 await verify('New account opens profile registration', () =>
   evaluate(
@@ -1333,6 +1310,11 @@ await click('.plan-alternate-proposal button', 'Accept new time');
 await verify('Accepted plan offers the private safety completion action', () =>
   evaluate(
     `document.querySelector('.plan-status')?.textContent.toLowerCase().includes('accepted') && document.querySelector('.plan-safe-button')?.textContent.includes('I’m safe')`,
+  ),
+);
+await verify('Accepted plan keeps safety options one tap away', () =>
+  evaluate(
+    `document.querySelector('.plan-safety-options')?.textContent.includes('Safety options')`,
   ),
 );
 await click('.plan-safe-button');

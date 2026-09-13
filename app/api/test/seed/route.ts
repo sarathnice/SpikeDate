@@ -90,12 +90,14 @@ export async function POST(request: Request) {
             db
               .prepare(
                 'INSERT OR IGNORE INTO users ' +
-                  '(id, email, password_hash, status, birth_date, terms_version, terms_accepted_at, last_active_at, created_at, updated_at) ' +
-                  'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                  '(id, email, phone_number, phone_verified_at, password_hash, status, birth_date, terms_version, terms_accepted_at, last_active_at, created_at, updated_at) ' +
+                  'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
               )
               .bind(
                 userId,
                 email,
+                `+1555000${suffix}`,
+                now,
                 passwordHash,
                 'active',
                 String(birthYear) + '-06-15',
@@ -108,8 +110,8 @@ export async function POST(request: Request) {
             db
               .prepare(
                 'INSERT OR IGNORE INTO profiles ' +
-                  '(user_id, display_name, gender, bio, relationship_goal, city, country, verification_status, discoverable, completed_at, created_at, updated_at) ' +
-                  'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                  '(user_id, display_name, gender, bio, relationship_goal, city, country, verification_status, discoverable, discoverable_requested, completed_at, created_at, updated_at) ' +
+                  'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
               )
               .bind(
                 userId,
@@ -122,6 +124,7 @@ export async function POST(request: Request) {
                 index % 2 ? 'Boston' : 'Cambridge',
                 'US',
                 index % 5 ? 'verified' : 'unverified',
+                1,
                 1,
                 now,
                 now,

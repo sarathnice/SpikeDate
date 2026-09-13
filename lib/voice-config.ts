@@ -10,9 +10,9 @@ export const voiceDeployment = {
   enabled: enabled(process.env.NEXT_PUBLIC_PULSE_VOICE_ENABLED, true),
   commandEnabled: enabled(
     process.env.NEXT_PUBLIC_PULSE_VOICE_COMMAND_ENABLED,
-    true,
+    false,
   ),
-  liveEnabled: enabled(process.env.NEXT_PUBLIC_PULSE_VOICE_LIVE_ENABLED, true),
+  liveEnabled: enabled(process.env.NEXT_PUBLIC_PULSE_VOICE_LIVE_ENABLED, false),
   cloudEnabled: enabled(
     process.env.NEXT_PUBLIC_PULSE_VOICE_CLOUD_ENABLED,
     false,

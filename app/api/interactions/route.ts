@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { canonicalPair, identifier, json, readJson } from '@/lib/server/http';
+import { requireConnectionReady } from '@/lib/server/profile-readiness';
+import { notifyUser } from '@/lib/server/notifications';
 
 export const runtime = 'edge';
 
@@ -27,6 +29,17 @@ export async function POST(request: Request) {
     const db = getDb();
     const user = await requireUser(request, db);
     if (user instanceof Response) return user;
+    if (
+      (parsed.data.kind === 'like' || parsed.data.kind === 'super_spike') &&
+      !(await requireConnectionReady(db, user.id))
+    )
+      return json(
+        {
+          error:
+            'Complete your profile, phone verification, and photo verification before connecting.',
+        },
+        { status: 403 },
+      );
     if (user.id === parsed.data.targetUserId)
       return json({ error: 'Choose another profile.' }, { status: 400 });
     const prior = await db
@@ -159,6 +172,45 @@ export async function POST(request: Request) {
       }
     }
     await db.batch(statements);
+    if (parsed.data.kind === 'like' || parsed.data.kind === 'super_spike') {
+      const actor = await db
+        .prepare('SELECT display_name FROM profiles WHERE user_id = ? LIMIT 1')
+        .bind(user.id)
+        .first<{ display_name: string }>();
+      const actorName = actor?.display_name || 'Someone';
+      if (matchId) {
+        await Promise.all([
+          notifyUser(db, {
+            userId: parsed.data.targetUserId,
+            type: 'new_match',
+            title: "It's a Spike",
+            body: `You and ${actorName} liked each other.`,
+            data: { url: '/?tab=Chat', matchId },
+          }),
+          notifyUser(db, {
+            userId: user.id,
+            type: 'new_match',
+            title: "It's a Spike",
+            body: 'You have a new match. Start with something personal.',
+            data: { url: '/?tab=Chat', matchId },
+          }),
+        ]);
+      } else {
+        await notifyUser(db, {
+          userId: parsed.data.targetUserId,
+          type: 'new_like',
+          title:
+            parsed.data.kind === 'super_spike'
+              ? 'New Super Spike'
+              : 'Someone likes you',
+          body:
+            parsed.data.kind === 'super_spike'
+              ? `${actorName} sent you a Super Spike${parsed.data.note ? ' with a note' : ''}.`
+              : `${actorName} liked your profile.`,
+          data: { url: '/?incoming=1', interactionId },
+        });
+      }
+    }
     return json(
       {
         interaction: { id: interactionId, kind: parsed.data.kind },

@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { identifier, json, readJson } from '@/lib/server/http';
+import { reconcileDiscoverability } from '@/lib/server/profile-readiness';
 
 export const runtime = 'edge';
 
@@ -61,26 +62,45 @@ export async function POST(request: Request) {
     : videoTypes.has(contentType)
       ? 'video'
       : null;
-  if (!type)
+  if (!type) {
+    await request.body?.cancel();
     return json(
       { error: 'Use JPEG, PNG, WebP, HEIC, MP4, MOV, or WebM.' },
       { status: 415 },
     );
+  }
   const length = Number(request.headers.get('content-length') || 0);
-  const maximum = type === 'photo' ? 15 * 1024 * 1024 : 100 * 1024 * 1024;
-  if (!length || length > maximum)
+  const maximum = type === 'photo' ? 15 * 1024 * 1024 : 30 * 1024 * 1024;
+  if (!length || length > maximum) {
+    await request.body?.cancel();
     return json(
       {
         error:
           type === 'photo'
             ? 'Photos must be under 15 MB.'
-            : 'Videos must be under 100 MB.',
+            : 'Videos must be under 30 MB.',
       },
       { status: 413 },
     );
+  }
 
   if (!request.body)
     return json({ error: 'The upload was empty.' }, { status: 400 });
+  const durationSeconds = Number(
+    request.headers.get('x-spikedate-duration-seconds') || 0,
+  );
+  if (
+    type === 'video' &&
+    (!Number.isFinite(durationSeconds) ||
+      durationSeconds <= 0 ||
+      durationSeconds > 15.25)
+  ) {
+    await request.body.cancel();
+    return json(
+      { error: 'Profile videos must be 15 seconds or shorter.' },
+      { status: 413 },
+    );
+  }
   const [validationBody, storageBody] = request.body.tee();
   if (type === 'photo') {
     const reader = validationBody.getReader();
@@ -122,9 +142,25 @@ export async function POST(request: Request) {
     const extension = contentType.split('/')[1].replace('quicktime', 'mov');
     const objectKey = 'profiles/' + user.id + '/' + id + '.' + extension;
     const bucket = mediaBucket();
+    const configuredModeration = (
+      env as unknown as { SPIKEDATE_MEDIA_MODERATION_MODE?: string }
+    ).SPIKEDATE_MEDIA_MODERATION_MODE;
+    const hostname = new URL(request.url).hostname;
+    const moderationStatus =
+      configuredModeration === 'mock' ||
+      (!configuredModeration &&
+        (hostname === 'localhost' || hostname === '127.0.0.1'))
+        ? 'approved'
+        : 'pending';
     await bucket.put(objectKey, storageBody, {
       httpMetadata: { contentType },
-      customMetadata: { ownerId: user.id, mediaId: id },
+      customMetadata: {
+        ownerId: user.id,
+        mediaId: id,
+        ...(type === 'video'
+          ? { durationSeconds: String(durationSeconds) }
+          : { variants: 'card,full;format=auto' }),
+      },
     });
     const now = Date.now();
     try {
@@ -140,11 +176,12 @@ export async function POST(request: Request) {
           objectKey,
           type,
           counts?.total ?? 0,
-          'pending',
+          moderationStatus,
           now,
           now,
         )
         .run();
+      await reconcileDiscoverability(db, user.id);
     } catch (error) {
       await bucket.delete(objectKey);
       throw error;
@@ -155,7 +192,7 @@ export async function POST(request: Request) {
           id,
           type,
           position: counts?.total ?? 0,
-          moderationStatus: 'pending',
+          moderationStatus,
           url: '/api/media/' + id,
         },
       },

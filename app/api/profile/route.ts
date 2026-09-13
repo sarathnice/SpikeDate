@@ -2,6 +2,10 @@ import { z } from 'zod';
 import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { json, readJson } from '@/lib/server/http';
+import {
+  getProfileReadiness,
+  reconcileDiscoverability,
+} from '@/lib/server/profile-readiness';
 
 export const runtime = 'edge';
 
@@ -113,6 +117,7 @@ export async function GET(request: Request) {
         .bind(user.id)
         .first(),
     ]);
+    const readiness = await getProfileReadiness(db, user.id);
     return json({
       user,
       profile,
@@ -126,6 +131,7 @@ export async function GET(request: Request) {
       dailyUpdate: update,
       wallet,
       subscription,
+      readiness,
     });
   });
 }
@@ -160,16 +166,16 @@ export async function PATCH(request: Request) {
         pets: 'pets',
         city: 'city',
         country: 'country',
-        discoverable: 'discoverable',
+        discoverable: 'discoverable_requested',
       };
       const assignments = entries.map(([key]) => columns[key] + ' = ?');
       await db
         .prepare(
           'UPDATE profiles SET ' +
             assignments.join(', ') +
-            ', updated_at = ? WHERE user_id = ?',
+            ', completed_at = COALESCE(completed_at, ?), updated_at = ? WHERE user_id = ?',
         )
-        .bind(...entries.map(([, value]) => value), now, user.id)
+        .bind(...entries.map(([, value]) => value), now, now, user.id)
         .run();
     } else if (parsed.data.section === 'preferences') {
       if (parsed.data.data.minAge > parsed.data.data.maxAge)
@@ -263,6 +269,7 @@ export async function PATCH(request: Request) {
         ]),
       ]);
     }
-    return json({ ok: true, section: parsed.data.section });
+    const readiness = await reconcileDiscoverability(db, user.id);
+    return json({ ok: true, section: parsed.data.section, readiness });
   });
 }

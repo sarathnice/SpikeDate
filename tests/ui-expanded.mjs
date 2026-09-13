@@ -169,7 +169,9 @@ await command('Emulation.setDeviceMetricsOverride', {
   deviceScaleFactor: 1,
   mobile: true,
 });
-await evaluate(`localStorage.clear(); localStorage.setItem('pulse-session', 'demo@spikedate.app')`);
+await evaluate(
+  `localStorage.clear(); localStorage.setItem('pulse-session', 'demo@spikedate.app')`,
+);
 await reload();
 
 assert(

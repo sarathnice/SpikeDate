@@ -217,6 +217,14 @@ type EngagementPreferences = {
   super: boolean;
   boost: boolean;
 };
+type PushPreferences = {
+  newLikes: boolean;
+  newMatches: boolean;
+  messages: boolean;
+  planUpdates: boolean;
+  activityBriefing: boolean;
+  quietHours: { start: string; end: string; timeZone?: string } | null;
+};
 type TodayReminderTime = 'morning' | 'afternoon' | 'evening';
 type ActiveBoosts = Record<string, number>;
 type AuthAccount = { email: string; passwordHash: string; createdAt: string };
@@ -274,7 +282,7 @@ type DatingPlan = {
   invitees: string[];
   inviteeEmails?: string[];
   creatorEmail?: string;
-  status: 'sent' | 'accepted' | 'declined' | 'cancelled';
+  status: 'sent' | 'accepted' | 'declined' | 'cancelled' | 'completed';
   venueOptions?: Venue[];
   venueVotes?: Record<string, string>;
   alternateDay?: string;
@@ -282,7 +290,9 @@ type DatingPlan = {
   alternateSuggestedBy?: string;
   safetyCheckInEnabled?: boolean;
   safetyCheckInMinutes?: number;
-  safetyStatus?: 'scheduled' | 'safe';
+  safetyStatus?: 'scheduled' | 'safe' | 'ended';
+  safetyAcknowledgedAt?: string;
+  expiresAt?: string;
 };
 type Venue = {
   id: string;
@@ -310,6 +320,14 @@ const defaultEngagementPreferences: EngagementPreferences = {
   like: true,
   super: true,
   boost: true,
+};
+const defaultPushPreferences: PushPreferences = {
+  newLikes: true,
+  newMatches: true,
+  messages: true,
+  planUpdates: true,
+  activityBriefing: false,
+  quietHours: { start: '22:00', end: '08:00' },
 };
 
 declare global {
@@ -1135,6 +1153,10 @@ const testAccounts: AuthAccount[] = testIdentities.map((identity) => ({
 
 const serverDataEnabled =
   process.env.NEXT_PUBLIC_SPIKEDATE_SERVER_DATA_ENABLED === 'true';
+const datePlansEnabled =
+  process.env.NEXT_PUBLIC_SPIKEDATE_DATE_PLANS_ENABLED !== 'false';
+const phoneVerificationEnabled =
+  process.env.NEXT_PUBLIC_SPIKEDATE_PHONE_VERIFICATION_ENABLED !== 'false';
 
 function normalizeVerificationStatus(value: unknown): PhotoVerificationStatus {
   if (value === 'verified') return 'photo_verified';
@@ -1452,6 +1474,9 @@ export default function HomePage() {
     useState<EngagementNudge | null>(null);
   const [engagementPreferences, setEngagementPreferences] =
     useState<EngagementPreferences>(defaultEngagementPreferences);
+  const [pushPreferences, setPushPreferences] = useState<PushPreferences>(
+    defaultPushPreferences,
+  );
   const [todayReminderTime, setTodayReminderTime] =
     useState<TodayReminderTime>('morning');
   const engagementPrompted = useRef(false);
@@ -1500,6 +1525,8 @@ export default function HomePage() {
   const [planOpen, setPlanOpen] = useState(false);
   const [planActivity, setPlanActivity] = useState('Coffee');
   const [datingPlans, setDatingPlans] = useState<DatingPlan[]>([]);
+  const [planSafetyOpen, setPlanSafetyOpen] = useState(false);
+  const [safetyPlan, setSafetyPlan] = useState<DatingPlan | null>(null);
   const [matchProfile, setMatchProfile] = useState<Profile>(profiles[0]);
   const [composer, setComposer] = useState('');
   const [messagesByContact, setMessagesByContact] =
@@ -2141,6 +2168,52 @@ export default function HomePage() {
     if (!checked && engagementNudge?.kind === key) setEngagementNudge(null);
   };
 
+  const updatePushPreference = (
+    key: Exclude<keyof PushPreferences, 'quietHours'>,
+    checked: boolean,
+  ) => {
+    const next = { ...pushPreferences, [key]: checked };
+    setPushPreferences(next);
+    if (authEmail)
+      window.localStorage.setItem(
+        `spikedate-push-preferences:${authEmail}`,
+        JSON.stringify(next),
+      );
+    if (serverDataEnabled)
+      mirrorToServer(() =>
+        serverJson('/api/notifications/preferences', {
+          method: 'PATCH',
+          body: JSON.stringify(next),
+        }),
+      );
+  };
+
+  const updateQuietHours = (enabled: boolean) => {
+    const next = {
+      ...pushPreferences,
+      quietHours: enabled
+        ? {
+            start: '22:00',
+            end: '08:00',
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }
+        : null,
+    };
+    setPushPreferences(next);
+    if (authEmail)
+      window.localStorage.setItem(
+        `spikedate-push-preferences:${authEmail}`,
+        JSON.stringify(next),
+      );
+    if (serverDataEnabled)
+      mirrorToServer(() =>
+        serverJson('/api/notifications/preferences', {
+          method: 'PATCH',
+          body: JSON.stringify(next),
+        }),
+      );
+  };
+
   const openProfileSafety = (
     profile: Profile,
     mode: 'menu' | 'report' | 'block' = 'menu',
@@ -2148,6 +2221,33 @@ export default function HomePage() {
     setSafetyProfile(profile);
     setSafetyMode(mode);
     setSafetyOpen(true);
+  };
+
+  const removePlansWithProfile = (profile: Profile) => {
+    const targetEmail = identityForProfile(profile)?.email;
+    const belongsToProfile = (plan: DatingPlan) =>
+      plan.invitees.includes(profile.name) ||
+      Boolean(targetEmail && plan.inviteeEmails?.includes(targetEmail));
+    setDatingPlans((items) => {
+      const next = items.filter((plan) => !belongsToProfile(plan));
+      if (authEmail)
+        window.localStorage.setItem(
+          `pulse-plans:${authEmail}`,
+          JSON.stringify(next),
+        );
+      return next;
+    });
+    const allPlans = JSON.parse(
+      window.localStorage.getItem('pulse-all-plans') || '[]',
+    ) as DatingPlan[];
+    window.localStorage.setItem(
+      'pulse-all-plans',
+      JSON.stringify(
+        allPlans.map((plan) =>
+          belongsToProfile(plan) ? { ...plan, status: 'cancelled' } : plan,
+        ),
+      ),
+    );
   };
 
   const blockProfile = (profile: Profile) => {
@@ -2163,6 +2263,7 @@ export default function HomePage() {
     });
     setSafetyOpen(false);
     setProfileOpen(false);
+    removePlansWithProfile(profile);
     const targetUserId =
       profile.id ?? testUserIdForEmail(testEmails[profile.name]);
     if (targetUserId)
@@ -2190,7 +2291,8 @@ export default function HomePage() {
         }),
       );
     setSafetyOpen(false);
-    announce(`${profile.name} reported for review`);
+    removePlansWithProfile(profile);
+    announce(`${profile.name} reported; shared date plans were removed`);
   };
 
   const openChatWith = (text = '', profile = matchProfile) => {
@@ -2287,11 +2389,16 @@ export default function HomePage() {
   };
 
   const openPlanBuilder = (activity: string) => {
+    if (!datePlansEnabled) {
+      announce('Date planning is currently unavailable');
+      return;
+    }
     setPlanActivity(activity);
     setPlanOpen(true);
   };
 
   const sendPlanInvites = (plan: DatingPlan) => {
+    const startsAt = new Date(`${plan.day}T${plan.time}`).getTime();
     const completePlan: DatingPlan = {
       ...plan,
       creatorEmail: authEmail ?? undefined,
@@ -2300,6 +2407,11 @@ export default function HomePage() {
         : [plan.venue],
       venueVotes: authEmail ? { [authEmail]: plan.venue.id } : {},
       safetyStatus: plan.safetyCheckInEnabled ? 'scheduled' : undefined,
+      safetyAcknowledgedAt:
+        plan.safetyAcknowledgedAt ?? new Date().toISOString(),
+      expiresAt:
+        plan.expiresAt ??
+        new Date(startsAt + 30 * 24 * 60 * 60 * 1000).toISOString(),
       inviteeEmails: plan.invitees.flatMap((name) => {
         const email = contacts.find((contact) => contact.name === name)?.email;
         return email ? [email] : [];
@@ -2387,6 +2499,8 @@ export default function HomePage() {
               longitude: plan.venue.longitude,
             },
             startsAt: new Date(`${plan.day}T${plan.time}`).getTime(),
+            publicVenueConfirmed: true,
+            safetyAcknowledged: Boolean(completePlan.safetyAcknowledgedAt),
             inviteeIds: completePlan.inviteeEmails?.flatMap((email) => {
               const id = testUserIdForEmail(email);
               return id ? [id] : [];
@@ -2511,6 +2625,23 @@ export default function HomePage() {
     announce('Safety check-in completed');
   };
 
+  const endDatingPlan = (plan: DatingPlan) => {
+    saveDatingPlans(
+      datingPlans.map((item) =>
+        item.id === plan.id
+          ? { ...item, status: 'completed', safetyStatus: 'ended' }
+          : item,
+      ),
+    );
+    setPlanSafetyOpen(false);
+    announce(`${plan.planName} ended`);
+  };
+
+  const openPlanSafety = (plan: DatingPlan) => {
+    setSafetyPlan(plan);
+    setPlanSafetyOpen(true);
+  };
+
   const openPlanDirections = (plan: DatingPlan) => {
     const query = encodeURIComponent(
       `${plan.venue.name}, ${plan.venue.address}`,
@@ -2523,9 +2654,10 @@ export default function HomePage() {
   };
 
   const shareDatingPlan = async (plan: DatingPlan) => {
-    const text = `${plan.planName}\n${new Date(
+    const match = plan.invitees[0] ? `Meeting ${plan.invitees[0]}\n` : '';
+    const text = `SpikeDate date plan\n${match}${plan.planName}\n${new Date(
       `${plan.day}T${plan.time}`,
-    ).toLocaleString()}\n${plan.venue.name}\n${plan.venue.address}`;
+    ).toLocaleString()}\n${plan.venue.name}\n${plan.venue.address}\n\nShared with you as my trusted contact. This is not live location tracking.`;
     try {
       if (navigator.share)
         await navigator.share({ title: plan.planName, text });
@@ -2647,14 +2779,87 @@ export default function HomePage() {
     setOwnProfileMedia((current) => {
       const base = current.length
         ? current
-        : (signedInIdentity?.profile.media ?? []).slice(0, 5);
-      return [...base, media].slice(0, 6);
+        : (signedInIdentity?.profile.media ?? []);
+      const existingPhotos = base
+        .filter((item) => item.type === 'photo')
+        .slice(0, 5);
+      const video = base.find((item) => item.type === 'video');
+      return [...existingPhotos, media, ...(video ? [video] : [])];
     });
     announce(
       photo.lowResolution
         ? 'Photo added. A higher-resolution original will look sharper.'
         : 'Photo cropped and saved in high quality',
     );
+  };
+
+  const addProfileVideo = async (file: File) => {
+    if (file.size > 30 * 1024 * 1024) {
+      announce('Choose a video smaller than 30 MB');
+      return;
+    }
+    const objectUrl = URL.createObjectURL(file);
+    let duration = 0;
+    try {
+      duration = await new Promise<number>((resolve, reject) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.onloadedmetadata = () => resolve(video.duration);
+        video.onerror = () => reject(new Error('Video metadata unavailable'));
+        video.src = objectUrl;
+      });
+    } catch {
+      URL.revokeObjectURL(objectUrl);
+      announce('This video could not be read. Try MP4, MOV, or WebM.');
+      return;
+    }
+    if (!Number.isFinite(duration) || duration > 15.25) {
+      URL.revokeObjectURL(objectUrl);
+      announce('Profile videos can be up to 15 seconds');
+      return;
+    }
+    let media: MediaItem;
+    if (serverDataEnabled) {
+      const result = await serverJson<{
+        media: {
+          id: string;
+          type: 'video';
+          url: string;
+          moderationStatus: string;
+        };
+      }>('/api/media', {
+        method: 'POST',
+        headers: {
+          'content-type': file.type || 'video/mp4',
+          'x-spikedate-duration-seconds': duration.toFixed(3),
+        },
+        body: file,
+      });
+      URL.revokeObjectURL(objectUrl);
+      media = {
+        id: result.media.id,
+        type: 'video',
+        src: result.media.url,
+        moderationStatus: result.media.moderationStatus,
+      };
+    } else {
+      media = {
+        id: `local-video-${Date.now()}`,
+        type: 'video',
+        src: objectUrl,
+        moderationStatus: 'local',
+      };
+    }
+    setOwnProfileMedia((current) => {
+      const base = current.length
+        ? current
+        : (signedInIdentity?.profile.media ?? []);
+      return [
+        ...base.filter((item) => item.type === 'photo').slice(0, 6),
+        media,
+      ];
+    });
+    announce('15-second profile video added');
   };
 
   const makeMainProfilePhoto = (media: MediaItem) => {
@@ -2682,7 +2887,7 @@ export default function HomePage() {
       mirrorToServer(() =>
         serverJson(`/api/media/${media.id}`, { method: 'DELETE' }),
       );
-    announce('Photo removed');
+    announce(media.type === 'video' ? 'Video removed' : 'Photo removed');
   };
 
   const completeRegistration = (data: RegistrationData) => {
@@ -3531,7 +3736,11 @@ export default function HomePage() {
     return null;
   };
 
-  const createAccount = async (email: string, password: string) => {
+  const createAccount = async (
+    email: string,
+    password: string,
+    phoneVerificationToken?: string,
+  ) => {
     const normalized = email.trim().toLowerCase();
     if (serverDataEnabled) {
       try {
@@ -3545,6 +3754,7 @@ export default function HomePage() {
             gender: 'Prefer not to say',
             relationshipGoal: 'Dating',
             termsAccepted: true,
+            phoneVerificationToken,
           }),
         });
       } catch (error) {
@@ -3887,6 +4097,42 @@ export default function HomePage() {
   }, [authEmail]);
 
   useEffect(() => {
+    if (!authEmail) return;
+    let cancelled = false;
+    const local = window.localStorage.getItem(
+      `spikedate-push-preferences:${authEmail}`,
+    );
+    if (local) {
+      try {
+        setPushPreferences({
+          ...defaultPushPreferences,
+          ...(JSON.parse(local) as Partial<PushPreferences>),
+        });
+      } catch {
+        setPushPreferences(defaultPushPreferences);
+      }
+    }
+    if (serverDataEnabled)
+      void serverJson<{ preferences: PushPreferences }>(
+        '/api/notifications/preferences',
+      )
+        .then(({ preferences }) => {
+          if (cancelled) return;
+          setPushPreferences(preferences);
+          window.localStorage.setItem(
+            `spikedate-push-preferences:${authEmail}`,
+            JSON.stringify(preferences),
+          );
+        })
+        .catch(() => {
+          /* Retain device preferences while the server is unavailable. */
+        });
+    return () => {
+      cancelled = true;
+    };
+  }, [authEmail]);
+
+  useEffect(() => {
     if (
       !authEmail ||
       engagementPrompted.current ||
@@ -4174,9 +4420,11 @@ export default function HomePage() {
       ) as Partial<DatingPlan>[];
       const saved = (shared.length ? shared : own).filter(
         (plan) =>
-          plan.creatorEmail === authEmail ||
-          plan.inviteeEmails?.includes(authEmail) ||
-          (!plan.creatorEmail && own.some((item) => item.id === plan.id)),
+          (!plan.expiresAt ||
+            new Date(plan.expiresAt).getTime() > Date.now()) &&
+          (plan.creatorEmail === authEmail ||
+            plan.inviteeEmails?.includes(authEmail) ||
+            (!plan.creatorEmail && own.some((item) => item.id === plan.id))),
       );
       setDatingPlans(
         saved.flatMap((plan) => {
@@ -4219,6 +4467,8 @@ export default function HomePage() {
               safetyCheckInEnabled: plan.safetyCheckInEnabled,
               safetyCheckInMinutes: plan.safetyCheckInMinutes,
               safetyStatus: plan.safetyStatus,
+              safetyAcknowledgedAt: plan.safetyAcknowledgedAt,
+              expiresAt: plan.expiresAt,
             },
           ];
         }),
@@ -4371,6 +4621,7 @@ export default function HomePage() {
             onAcceptAlternate={acceptAlternatePlan}
             onVoteVenue={voteForPlanVenue}
             onMarkSafe={markPlanSafe}
+            onSafetyOptions={openPlanSafety}
           />
         )}
         {tab === 'Galaxy' && room && (
@@ -4463,6 +4714,9 @@ export default function HomePage() {
             dailyLikesRemaining={dailyLikesRemaining}
             engagementPreferences={engagementPreferences}
             onEngagementPreference={updateEngagementPreference}
+            pushPreferences={pushPreferences}
+            onPushPreference={updatePushPreference}
+            onQuietHours={updateQuietHours}
             todayReminderTime={todayReminderTime}
             onTodayReminderTime={updateTodayReminderTime}
             onVoice={openVoice}
@@ -4611,6 +4865,7 @@ export default function HomePage() {
         singleSection={registrationSingleSection}
         media={effectiveOwnMedia}
         onAddPhoto={addProfilePhoto}
+        onAddVideo={addProfileVideo}
         onMakeMainPhoto={makeMainProfilePhoto}
         onRemovePhoto={removeProfilePhoto}
       />
@@ -4647,12 +4902,21 @@ export default function HomePage() {
           announce('Preferences applied');
         }}
       />
-      <PlanDialog
-        open={planOpen}
-        onOpenChange={setPlanOpen}
-        activity={planActivity}
-        matchedContacts={contacts}
-        onSend={sendPlanInvites}
+      {datePlansEnabled && (
+        <PlanDialog
+          open={planOpen}
+          onOpenChange={setPlanOpen}
+          activity={planActivity}
+          matchedContacts={contacts}
+          onSend={sendPlanInvites}
+        />
+      )}
+      <PlanSafetyDialog
+        open={planSafetyOpen}
+        onOpenChange={setPlanSafetyOpen}
+        plan={safetyPlan}
+        onShare={shareDatingPlan}
+        onEnd={endDatingPlan}
       />
       <TodayComposerDialog
         open={todayComposerOpen}
@@ -6269,6 +6533,7 @@ function RoomsHub({
   onAcceptAlternate,
   onVoteVenue,
   onMarkSafe,
+  onSafetyOptions,
 }: {
   onOpenRoom: (name: string) => void;
   onCreatePlan: (activity: string) => void;
@@ -6283,6 +6548,7 @@ function RoomsHub({
   onAcceptAlternate: (plan: DatingPlan) => void;
   onVoteVenue: (plan: DatingPlan, venueId: string) => void;
   onMarkSafe: (plan: DatingPlan) => void;
+  onSafetyOptions: (plan: DatingPlan) => void;
 }) {
   const [selectedPlan, setSelectedPlan] = useState(galaxyPlans[0]);
   const [suggestingPlanId, setSuggestingPlanId] = useState<number | null>(null);
@@ -6308,63 +6574,77 @@ function RoomsHub({
         <p>Choose the kind of date you’d enjoy.</p>
       </header>
 
-      <section
-        className="galaxy-plan-builder"
-        aria-labelledby="galaxy-plan-title"
-      >
-        <div className="galaxy-section-heading">
-          <div>
-            <p>MAKE A CONNECTION</p>
-            <h2 id="galaxy-plan-title">What sounds good?</h2>
-          </div>
-          <span>Today</span>
-        </div>
-        <div className="galaxy-plan-grid">
-          {galaxyPlans.map((plan) => {
-            const Icon = plan.icon;
-            const active = selectedPlan.name === plan.name;
-            return (
-              <button
-                type="button"
-                key={plan.name}
-                className={`galaxy-plan-tile ${active ? 'selected' : ''}`}
-                aria-pressed={active}
-                onClick={() => setSelectedPlan(plan)}
-              >
-                <Icon size={20} />
-                <strong>{plan.name}</strong>
-                <small>{plan.detail}</small>
-              </button>
-            );
-          })}
-        </div>
-
-        <article className="galaxy-plan-result">
-          <div className="galaxy-plan-result-top">
-            <div className="galaxy-plan-faces" aria-hidden="true">
-              {planProfiles.map((profile) => (
-                <span key={profile.name}>
-                  <Image src={profile.image} alt="" width={42} height={42} />
-                  <ProfileSpikeBadge compact />
-                </span>
-              ))}
+      {datePlansEnabled ? (
+        <section
+          className="galaxy-plan-builder"
+          aria-labelledby="galaxy-plan-title"
+        >
+          <div className="galaxy-section-heading">
+            <div>
+              <p>MAKE A CONNECTION</p>
+              <h2 id="galaxy-plan-title">What sounds good?</h2>
             </div>
-            <span className="galaxy-fit-badge">Best fit</span>
+            <span>Today</span>
           </div>
-          <div className="galaxy-plan-copy" aria-live="polite">
-            <h3>3 people match your {selectedPlan.name.toLowerCase()} plan</h3>
-            <p>Available soon, nearby, and aligned with your preferences.</p>
+          <div className="galaxy-plan-grid">
+            {galaxyPlans.map((plan) => {
+              const Icon = plan.icon;
+              const active = selectedPlan.name === plan.name;
+              return (
+                <button
+                  type="button"
+                  key={plan.name}
+                  className={`galaxy-plan-tile ${active ? 'selected' : ''}`}
+                  aria-pressed={active}
+                  onClick={() => setSelectedPlan(plan)}
+                >
+                  <Icon size={20} />
+                  <strong>{plan.name}</strong>
+                  <small>{plan.detail}</small>
+                </button>
+              );
+            })}
           </div>
-          <button
-            type="button"
-            className="primary-button galaxy-plan-action"
-            onClick={() => onCreatePlan(selectedPlan.name)}
-          >
-            Create {selectedPlan.name.toLowerCase()} plan
-            <ChevronRight size={17} />
-          </button>
-        </article>
-      </section>
+
+          <article className="galaxy-plan-result">
+            <div className="galaxy-plan-result-top">
+              <div className="galaxy-plan-faces" aria-hidden="true">
+                {planProfiles.map((profile) => (
+                  <span key={profile.name}>
+                    <Image src={profile.image} alt="" width={42} height={42} />
+                    <ProfileSpikeBadge compact />
+                  </span>
+                ))}
+              </div>
+              <span className="galaxy-fit-badge">Best fit</span>
+            </div>
+            <div className="galaxy-plan-copy" aria-live="polite">
+              <h3>
+                3 people match your {selectedPlan.name.toLowerCase()} plan
+              </h3>
+              <p>Available soon, nearby, and aligned with your preferences.</p>
+            </div>
+            <button
+              type="button"
+              className="primary-button galaxy-plan-action"
+              onClick={() => onCreatePlan(selectedPlan.name)}
+            >
+              Plan a {selectedPlan.name.toLowerCase()} date
+              <ChevronRight size={17} />
+            </button>
+          </article>
+        </section>
+      ) : (
+        <section className="galaxy-plan-builder plan-feature-paused">
+          <ShieldCheck size={24} />
+          <div>
+            <h2>Date planning is paused</h2>
+            <p>
+              You can still browse Galaxy spaces and chat with your matches.
+            </p>
+          </div>
+        </section>
+      )}
 
       {plans.length > 0 && (
         <section
@@ -6373,8 +6653,8 @@ function RoomsHub({
         >
           <div className="galaxy-browse-heading">
             <div>
-              <p>INVITES SENT</p>
-              <h2 id="galaxy-upcoming-title">Your plans</h2>
+              <p>PRIVATE DATE INVITES</p>
+              <h2 id="galaxy-upcoming-title">Your date plans</h2>
             </div>
             <span>{plans.length}</span>
           </div>
@@ -6427,33 +6707,34 @@ function RoomsHub({
               <span className={`plan-status ${plan.status}`}>
                 {plan.status === 'sent' ? 'Sent' : plan.status}
               </span>
-              {(plan.venueOptions?.length ?? 0) > 1 && (
-                <div className="plan-venue-vote" aria-label="Vote on a venue">
-                  <strong>Vote on a meeting place</strong>
-                  <p>Your choice is shared only with this match.</p>
-                  <div>
-                    {plan.venueOptions!.map((venue) => {
-                      const selected =
-                        plan.venueVotes?.[viewerEmail] === venue.id;
-                      const votes = Object.values(plan.venueVotes ?? {}).filter(
-                        (venueId) => venueId === venue.id,
-                      ).length;
-                      return (
-                        <button
-                          type="button"
-                          key={venue.id}
-                          className={selected ? 'selected' : ''}
-                          aria-pressed={selected}
-                          onClick={() => onVoteVenue(plan, venue.id)}
-                        >
-                          <MapPin size={13} /> {venue.name}
-                          <small>{votes || ''}</small>
-                        </button>
-                      );
-                    })}
+              {(plan.venueOptions?.length ?? 0) > 1 &&
+                plan.status === 'sent' && (
+                  <div className="plan-venue-vote" aria-label="Vote on a venue">
+                    <strong>Vote on a meeting place</strong>
+                    <p>Your choice is shared only with this match.</p>
+                    <div>
+                      {plan.venueOptions!.map((venue) => {
+                        const selected =
+                          plan.venueVotes?.[viewerEmail] === venue.id;
+                        const votes = Object.values(
+                          plan.venueVotes ?? {},
+                        ).filter((venueId) => venueId === venue.id).length;
+                        return (
+                          <button
+                            type="button"
+                            key={venue.id}
+                            className={selected ? 'selected' : ''}
+                            aria-pressed={selected}
+                            onClick={() => onVoteVenue(plan, venue.id)}
+                          >
+                            <MapPin size={13} /> {venue.name}
+                            <small>{votes || ''}</small>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
               {plan.alternateDay && plan.alternateTime && (
                 <div className="plan-alternate-proposal">
                   <span>
@@ -6547,14 +6828,25 @@ function RoomsHub({
               {plan.status === 'accepted' &&
                 plan.safetyCheckInEnabled &&
                 plan.safetyStatus !== 'safe' && (
-                  <button
-                    type="button"
-                    className="plan-safe-button"
-                    onClick={() => onMarkSafe(plan)}
-                  >
-                    <ShieldCheck size={15} /> I’m safe — complete check-in
-                  </button>
+                  <div className="plan-check-in-actions">
+                    <button
+                      type="button"
+                      className="plan-safe-button"
+                      onClick={() => onMarkSafe(plan)}
+                    >
+                      <ShieldCheck size={15} /> I’m safe
+                    </button>
+                  </div>
                 )}
+              {plan.status === 'accepted' && (
+                <button
+                  type="button"
+                  className="plan-safety-options"
+                  onClick={() => onSafetyOptions(plan)}
+                >
+                  <ShieldCheck size={15} /> Safety options
+                </button>
+              )}
               {plan.status !== 'cancelled' &&
                 !(
                   plan.status === 'sent' &&
@@ -6579,9 +6871,9 @@ function RoomsHub({
                     <button
                       type="button"
                       onClick={() => onSharePlan(plan)}
-                      aria-label={`Share ${plan.planName}`}
+                      aria-label={`Share ${plan.planName} with a trusted contact`}
                     >
-                      <Share2 size={15} /> Share
+                      <Share2 size={15} /> Trusted contact
                     </button>
                     <button
                       type="button"
@@ -6678,6 +6970,7 @@ function PlanDialog({
   const [invitees, setInvitees] = useState<string[]>([]);
   const [safetyCheckInEnabled, setSafetyCheckInEnabled] = useState(true);
   const [safetyCheckInMinutes, setSafetyCheckInMinutes] = useState(30);
+  const [safetyAcknowledged, setSafetyAcknowledged] = useState(false);
   const selectedVenue = selectedVenues[0] ?? null;
 
   useEffect(() => {
@@ -6698,6 +6991,7 @@ function PlanDialog({
     setInvitees([]);
     setSafetyCheckInEnabled(true);
     setSafetyCheckInMinutes(30);
+    setSafetyAcknowledged(false);
   }, [open, activity]);
 
   useEffect(() => {
@@ -6776,7 +7070,7 @@ function PlanDialog({
         ? Boolean(selectedVenue)
         : step === 2
           ? invitees.length === 1
-          : true;
+          : safetyAcknowledged;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -6790,7 +7084,7 @@ function PlanDialog({
           <X size={19} />
         </button>
         <div className="plan-dialog-kicker">
-          <Orbit size={15} /> GALAXY PLAN
+          <ShieldCheck size={15} /> PRIVATE DATE PLAN
         </div>
         <div
           className="plan-dialog-progress"
@@ -6802,12 +7096,12 @@ function PlanDialog({
         </div>
         <DialogTitle>
           {step === 0
-            ? `Create a ${activity.toLowerCase()} plan`
+            ? `Plan a ${activity.toLowerCase()} date`
             : step === 1
               ? 'Choose a public place'
               : step === 2
                 ? 'Invite one match'
-                : 'Ready to send?'}
+                : 'Review your date plan'}
         </DialogTitle>
         <DialogDescription>
           {step === 0
@@ -7098,8 +7392,23 @@ function PlanDialog({
               </section>
             )}
             <p className="plan-review-note">
-              They can reply in Chat to confirm or suggest a change.
+              Your match must accept before this plan is confirmed. Any time or
+              venue change requires confirmation again.
             </p>
+            <label className="plan-safety-consent">
+              <input
+                type="checkbox"
+                checked={safetyAcknowledged}
+                onChange={(event) =>
+                  setSafetyAcknowledged(event.target.checked)
+                }
+              />
+              <span>
+                I understand this is a public-place plan with one mutual match.
+                I control my transportation, and SpikeDate cannot guarantee
+                personal safety.
+              </span>
+            </label>
           </div>
         )}
 
@@ -7130,6 +7439,7 @@ function PlanDialog({
             <button
               type="button"
               className="primary-button send-plan-invites"
+              disabled={!canContinue}
               onClick={() =>
                 onSend({
                   id: Date.now(),
@@ -7145,10 +7455,11 @@ function PlanDialog({
                   status: 'sent',
                   safetyCheckInEnabled,
                   safetyCheckInMinutes,
+                  safetyAcknowledgedAt: new Date().toISOString(),
                 })
               }
             >
-              <Send size={17} /> Send plan invite
+              <Send size={17} /> Send private invite
             </button>
           )}
         </div>
@@ -7870,9 +8181,11 @@ function ChatThread({
         <button type="button" onClick={() => onSendPreset('🎙️ Voice message')}>
           <AudioLines size={16} /> Voice
         </button>
-        <button type="button" onClick={onPlan}>
-          <CalendarPlus size={16} /> Plan a date
-        </button>
+        {datePlansEnabled && (
+          <button type="button" onClick={onPlan}>
+            <CalendarPlus size={16} /> Plan a date
+          </button>
+        )}
       </div>
       <form
         className="composer"
@@ -7900,7 +8213,11 @@ function AuthScreen({
   onCreate,
 }: {
   onSignIn: (email: string, password: string) => Promise<string | null>;
-  onCreate: (email: string, password: string) => Promise<string | null>;
+  onCreate: (
+    email: string,
+    password: string,
+    phoneVerificationToken?: string,
+  ) => Promise<string | null>;
 }) {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -7909,11 +8226,91 @@ function AuthScreen({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [testEmail, setTestEmail] = useState(testIdentities[0].email);
+  const [phone, setPhone] = useState('+1 ');
+  const [phoneChallengeId, setPhoneChallengeId] = useState('');
+  const [phoneCode, setPhoneCode] = useState('');
+  const [phoneToken, setPhoneToken] = useState('');
+  const [phoneMasked, setPhoneMasked] = useState('');
+  const [phoneBusy, setPhoneBusy] = useState(false);
+  const [phoneMessage, setPhoneMessage] = useState('');
+  const [resendAt, setResendAt] = useState(0);
+  const [clock, setClock] = useState(Date.now());
+  useEffect(() => {
+    if (!resendAt || resendAt <= Date.now()) return;
+    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [resendAt]);
+  const resendSeconds = Math.max(0, Math.ceil((resendAt - clock) / 1000));
   const chooseMode = (next: 'signin' | 'signup') => {
     setMode(next);
     setError('');
     setPassword('');
     setConfirm('');
+    setPhoneChallengeId('');
+    setPhoneCode('');
+    setPhoneToken('');
+    setPhoneMessage('');
+  };
+  const requestPhoneCode = async () => {
+    setPhoneBusy(true);
+    setError('');
+    setPhoneMessage('');
+    try {
+      if (!serverDataEnabled) {
+        setPhoneChallengeId('local-preview-phone');
+        setPhoneMasked(`••• ••• ${phone.replace(/\D/g, '').slice(-4)}`);
+        setPhoneMessage('Preview code: 123456');
+      } else {
+        const result = await serverJson<{
+          challengeId: string;
+          maskedPhone: string;
+          testCode?: string;
+        }>('/api/auth/phone/start', {
+          method: 'POST',
+          body: JSON.stringify({ phoneNumber: phone }),
+        });
+        setPhoneChallengeId(result.challengeId);
+        setPhoneMasked(result.maskedPhone);
+        setPhoneMessage(
+          result.testCode ? `Local test code: ${result.testCode}` : 'Code sent',
+        );
+      }
+      setClock(Date.now());
+      setResendAt(Date.now() + 30_000);
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setPhoneBusy(false);
+    }
+  };
+  const verifyPhoneCode = async () => {
+    setPhoneBusy(true);
+    setError('');
+    try {
+      if (!serverDataEnabled) {
+        if (phoneCode !== '123456')
+          throw new Error('That code does not match.');
+        setPhoneToken('local-preview-verified');
+      } else {
+        const result = await serverJson<{
+          registrationToken: string;
+          maskedPhone: string;
+        }>('/api/auth/phone/verify', {
+          method: 'POST',
+          body: JSON.stringify({
+            challengeId: phoneChallengeId,
+            code: phoneCode,
+          }),
+        });
+        setPhoneToken(result.registrationToken);
+        setPhoneMasked(result.maskedPhone);
+      }
+      setPhoneMessage('Mobile number verified');
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setPhoneBusy(false);
+    }
   };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -7933,11 +8330,15 @@ function AuthScreen({
       setError('Passwords do not match.');
       return;
     }
+    if (mode === 'signup' && phoneVerificationEnabled && !phoneToken) {
+      setError('Verify your mobile number before creating your account.');
+      return;
+    }
     setBusy(true);
     const message =
       mode === 'signin'
         ? await onSignIn(email, password)
-        : await onCreate(email, password);
+        : await onCreate(email, password, phoneToken || undefined);
     if (message) setError(message);
     setBusy(false);
   };
@@ -7987,6 +8388,97 @@ function AuthScreen({
           </button>
         </div>
         <form className="auth-form" noValidate onSubmit={submit}>
+          {mode === 'signup' && phoneVerificationEnabled && (
+            <section className="auth-phone-verification">
+              <div className="auth-phone-heading">
+                <span>
+                  <small>SECURE YOUR ACCOUNT</small>
+                  <strong>Verify your mobile</strong>
+                </span>
+                {phoneToken && <BadgeCheck size={21} aria-label="Verified" />}
+              </div>
+              {!phoneToken && (
+                <label>
+                  Mobile number
+                  <div className="auth-phone-row">
+                    <input
+                      aria-label="Mobile number"
+                      type="tel"
+                      autoComplete="tel"
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
+                      placeholder="+1 212 555 0188"
+                    />
+                    <button
+                      type="button"
+                      onClick={requestPhoneCode}
+                      disabled={phoneBusy || resendSeconds > 0}
+                    >
+                      {resendSeconds
+                        ? `${resendSeconds}s`
+                        : phoneChallengeId
+                          ? 'Resend'
+                          : 'Send code'}
+                    </button>
+                  </div>
+                </label>
+              )}
+              {phoneChallengeId && !phoneToken && (
+                <label>
+                  Code sent to {phoneMasked}
+                  <div className="auth-phone-row code">
+                    <input
+                      aria-label="Six-digit verification code"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      value={phoneCode}
+                      onChange={(event) =>
+                        setPhoneCode(event.target.value.replace(/\D/g, ''))
+                      }
+                      placeholder="000000"
+                    />
+                    <button
+                      type="button"
+                      onClick={verifyPhoneCode}
+                      disabled={phoneBusy || phoneCode.length !== 6}
+                    >
+                      Verify
+                    </button>
+                  </div>
+                </label>
+              )}
+              {phoneToken && (
+                <div className="auth-phone-success">
+                  <BadgeCheck size={18} />
+                  <span>
+                    <strong>{phoneMasked}</strong>
+                    <small>Verified and kept private</small>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhoneToken('');
+                      setPhoneChallengeId('');
+                      setPhoneCode('');
+                    }}
+                  >
+                    Change
+                  </button>
+                </div>
+              )}
+              {phoneMessage && !phoneToken && (
+                <p className="auth-phone-message" role="status">
+                  {phoneMessage}
+                </p>
+              )}
+              <p className="auth-phone-privacy">
+                <LockKeyhole size={14} /> Your number never appears on your
+                profile.
+              </p>
+            </section>
+          )}
           <label>
             Email
             <input
@@ -8113,6 +8605,9 @@ function YourProfile({
   dailyLikesRemaining,
   engagementPreferences,
   onEngagementPreference,
+  pushPreferences,
+  onPushPreference,
+  onQuietHours,
   todayReminderTime,
   onTodayReminderTime,
   onVoice,
@@ -8149,6 +8644,12 @@ function YourProfile({
     key: keyof EngagementPreferences,
     checked: boolean,
   ) => void;
+  pushPreferences: PushPreferences;
+  onPushPreference: (
+    key: Exclude<keyof PushPreferences, 'quietHours'>,
+    checked: boolean,
+  ) => void;
+  onQuietHours: (enabled: boolean) => void;
   todayReminderTime: TodayReminderTime;
   onTodayReminderTime: (time: TodayReminderTime) => void;
   onVoice: () => void;
@@ -8740,6 +9241,51 @@ function YourProfile({
             </label>
           )}
         </section>
+        <section className="push-settings-card">
+          <div className="setting-heading">
+            <span>
+              <small>NOTIFICATIONS</small>
+              <strong>Only the updates that matter</strong>
+            </span>
+            <Bell size={19} />
+          </div>
+          {(
+            [
+              ['newMatches', 'New matches'],
+              ['messages', 'New messages'],
+              ['newLikes', 'New likes'],
+              ['planUpdates', 'Date-plan updates'],
+              ['activityBriefing', 'Daily activity briefing'],
+            ] as const
+          ).map(([key, title]) => (
+            <div className="push-setting-toggle" key={key}>
+              <span>
+                <strong>{title}</strong>
+                <p>
+                  {key === 'activityBriefing'
+                    ? 'One scheduled summary instead of repeated prompts.'
+                    : 'Delivered in-app; push is used only on registered devices.'}
+                </p>
+              </span>
+              <Switch
+                checked={pushPreferences[key]}
+                onCheckedChange={(checked) => onPushPreference(key, checked)}
+                aria-label={`Enable ${title} notifications`}
+              />
+            </div>
+          ))}
+          <div className="push-setting-toggle">
+            <span>
+              <strong>Quiet hours</strong>
+              <p>Silence non-urgent push alerts from 10 PM to 8 AM.</p>
+            </span>
+            <Switch
+              checked={Boolean(pushPreferences.quietHours)}
+              onCheckedChange={onQuietHours}
+              aria-label="Enable notification quiet hours"
+            />
+          </div>
+        </section>
         {voiceDeploymentEnabled && (
           <section className="voice-settings-card">
             <div className="setting-heading">
@@ -8933,6 +9479,7 @@ function RegistrationDialog({
   singleSection,
   media,
   onAddPhoto,
+  onAddVideo,
   onMakeMainPhoto,
   onRemovePhoto,
 }: {
@@ -8945,6 +9492,7 @@ function RegistrationDialog({
   singleSection: boolean;
   media: MediaItem[];
   onAddPhoto: (photo: CroppedPhoto) => Promise<void>;
+  onAddVideo: (file: File) => Promise<void>;
   onMakeMainPhoto: (media: MediaItem) => void;
   onRemovePhoto: (media: MediaItem) => void;
 }) {
@@ -8966,6 +9514,7 @@ function RegistrationDialog({
   }, [open, initialData, initialStep]);
   const item = registrationSteps[step];
   const photos = media.filter((item) => item.type === 'photo').slice(0, 6);
+  const profileVideo = media.find((item) => item.type === 'video');
   const chooseProfilePhoto = (file?: File) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
@@ -9611,6 +10160,52 @@ function RegistrationDialog({
                   screenshots, heavy filters, and re-uploaded social-media
                   copies.
                 </p>
+                <div className="profile-video-editor">
+                  {profileVideo ? (
+                    <>
+                      <video
+                        src={profileVideo.src}
+                        muted
+                        playsInline
+                        controls
+                        preload="metadata"
+                        aria-label="Your profile video"
+                      />
+                      <span>
+                        <strong>Profile video ready</strong>
+                        <small>
+                          Shown after your photos · maximum 15 seconds
+                        </small>
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Remove profile video"
+                        onClick={() => onRemovePhoto(profileVideo)}
+                      >
+                        <Trash2 size={15} /> Remove
+                      </button>
+                    </>
+                  ) : (
+                    <label>
+                      <Play size={21} />
+                      <span>
+                        <strong>Add profile video</strong>
+                        <small>MP4, MOV, or WebM · 15 sec · 30 MB max</small>
+                      </span>
+                      <Plus size={18} />
+                      <input
+                        type="file"
+                        accept="video/mp4,video/quicktime,video/webm"
+                        aria-label="Add 15-second profile video"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void onAddVideo(file);
+                          event.currentTarget.value = '';
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
               </section>
               <div className="media-rules">
                 <div>
@@ -10439,170 +11034,175 @@ function VoiceBriefingDialog({
           A short spoken summary of what changed since your last visit.
         </DialogDescription>
 
-        <div className="voice-mode-picker" aria-label="Voice mode">
-          {commandEnabled && (
-            <button
-              className={mode === 'command' ? 'selected' : ''}
-              onClick={() => onMode('command')}
-              aria-pressed={mode === 'command'}
-            >
-              <Mic size={17} />
-              <span>
-                <strong>Push to talk</strong>
-                <small>Lowest cost</small>
-              </span>
-            </button>
-          )}
-          {liveEnabled && (
-            <button
-              className={mode === 'live' ? 'selected' : ''}
-              onClick={() => onMode('live')}
-              aria-pressed={mode === 'live'}
-            >
-              <Radio size={17} />
-              <span>
-                <strong>Live conversation</strong>
-                <small>Continuous</small>
-              </span>
-            </button>
-          )}
-        </div>
-        <div className="voice-runtime-badge">
-          <span />
-          {testMode
-            ? micStatus === 'unavailable' && cloudEnabled
-              ? 'Device voice unavailable · Cloudflare fallback ready'
-              : 'Test mode · device voice · no AI usage charge'
-            : 'Production mode · Cloudflare adapter required'}
-        </div>
-
-        <button
-          className={`voice-mic-button ${listening ? 'listening' : ''}`}
-          onClick={onListen}
-          disabled={micStatus === 'requesting'}
-          aria-label={
-            listening ? 'Stop listening' : 'Ask SpikeDate with microphone'
-          }
-        >
-          <Mic size={23} />
-          <span>
-            <strong>
-              {micStatus === 'requesting'
-                ? 'Checking microphone…'
-                : listening
-                  ? 'Listening…'
-                  : mode === 'live'
-                    ? 'Start live conversation'
-                    : 'Ask SpikeDate'}
-            </strong>
-            <small>
-              {micStatus === 'requesting'
-                ? 'Use the browser prompt to allow access'
-                : listening
-                  ? mode === 'live'
-                    ? 'Tap to pause live conversation'
-                    : 'Say your command now'
-                  : mode === 'live'
-                    ? 'Keeps listening between requests'
-                    : 'Tap, then speak naturally'}
-            </small>
-          </span>
-        </button>
-
-        {micStatus !== 'unknown' && (
-          <div className={`voice-mic-status ${micStatus}`} role="status">
-            <span />
-            {micStatus === 'requesting' && 'Waiting for permission'}
-            {micStatus === 'ready' && 'Microphone ready'}
-            {micStatus === 'blocked' && 'Microphone blocked · check settings'}
-            {micStatus === 'unavailable' && 'Speech service unavailable'}
-          </div>
-        )}
-        {testMode &&
-          (micStatus === 'blocked' || micStatus === 'unavailable') && (
-            <div className="voice-fallback-actions">
-              {cloudEnabled && (
+        {(commandEnabled || liveEnabled) && (
+          <>
+            <div className="voice-mode-picker" aria-label="Voice mode">
+              {commandEnabled && (
                 <button
-                  className={`voice-cloud-button ${cloudRecording ? 'recording' : ''}`}
-                  onClick={onCloudListen}
+                  className={mode === 'command' ? 'selected' : ''}
+                  onClick={() => onMode('command')}
+                  aria-pressed={mode === 'command'}
                 >
-                  {cloudRecording ? <X size={15} /> : <Mic size={15} />}
-                  {cloudRecording
-                    ? 'Stop and transcribe'
-                    : 'Use Cloudflare microphone'}
+                  <Mic size={17} />
+                  <span>
+                    <strong>Push to talk</strong>
+                    <small>Lowest cost</small>
+                  </span>
                 </button>
               )}
-              <button
-                className="voice-demo-button"
-                onClick={() =>
-                  onCommand(transcript.trim() || 'Show profiles for today')
-                }
-              >
-                <Play size={15} fill="currentColor" /> Run voice demo
-              </button>
+              {liveEnabled && (
+                <button
+                  className={mode === 'live' ? 'selected' : ''}
+                  onClick={() => onMode('live')}
+                  aria-pressed={mode === 'live'}
+                >
+                  <Radio size={17} />
+                  <span>
+                    <strong>Live conversation</strong>
+                    <small>Continuous</small>
+                  </span>
+                </button>
+              )}
             </div>
-          )}
+            <div className="voice-runtime-badge">
+              <span />
+              {testMode
+                ? micStatus === 'unavailable' && cloudEnabled
+                  ? 'Device voice unavailable · Cloudflare fallback ready'
+                  : 'Test mode · device voice · no AI usage charge'
+                : 'Production mode · Cloudflare adapter required'}
+            </div>
 
-        <form
-          className="voice-command-box"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onCommand(transcript);
-          }}
-        >
-          <input
-            value={transcript}
-            onChange={(event) => onTranscript(event.target.value)}
-            aria-label="Voice command"
-            placeholder="Try “show profiles for today”"
-          />
-          <button type="submit" aria-label="Run voice command">
-            <Send size={17} />
-          </button>
-        </form>
-        <div className="voice-command-chips" aria-label="Example commands">
-          {[
-            'Show profiles for today',
-            'Read basics',
-            'Next profile',
-            'Like this profile',
-          ].map((command) => (
-            <button key={command} onClick={() => onCommand(command)}>
-              {command}
+            <button
+              className={`voice-mic-button ${listening ? 'listening' : ''}`}
+              onClick={onListen}
+              disabled={micStatus === 'requesting'}
+              aria-label={
+                listening ? 'Stop listening' : 'Ask SpikeDate with microphone'
+              }
+            >
+              <Mic size={23} />
+              <span>
+                <strong>
+                  {micStatus === 'requesting'
+                    ? 'Checking microphone…'
+                    : listening
+                      ? 'Listening…'
+                      : mode === 'live'
+                        ? 'Start live conversation'
+                        : 'Ask SpikeDate'}
+                </strong>
+                <small>
+                  {micStatus === 'requesting'
+                    ? 'Use the browser prompt to allow access'
+                    : listening
+                      ? mode === 'live'
+                        ? 'Tap to pause live conversation'
+                        : 'Say your command now'
+                      : mode === 'live'
+                        ? 'Keeps listening between requests'
+                        : 'Tap, then speak naturally'}
+                </small>
+              </span>
             </button>
-          ))}
-        </div>
 
-        <div className="voice-response" role="status" aria-live="polite">
-          <span className={listening ? 'listening-dot' : ''} />
-          <p>{response}</p>
-        </div>
+            {micStatus !== 'unknown' && (
+              <div className={`voice-mic-status ${micStatus}`} role="status">
+                <span />
+                {micStatus === 'requesting' && 'Waiting for permission'}
+                {micStatus === 'ready' && 'Microphone ready'}
+                {micStatus === 'blocked' &&
+                  'Microphone blocked · check settings'}
+                {micStatus === 'unavailable' && 'Speech service unavailable'}
+              </div>
+            )}
+            {testMode &&
+              (micStatus === 'blocked' || micStatus === 'unavailable') && (
+                <div className="voice-fallback-actions">
+                  {cloudEnabled && (
+                    <button
+                      className={`voice-cloud-button ${cloudRecording ? 'recording' : ''}`}
+                      onClick={onCloudListen}
+                    >
+                      {cloudRecording ? <X size={15} /> : <Mic size={15} />}
+                      {cloudRecording
+                        ? 'Stop and transcribe'
+                        : 'Use Cloudflare microphone'}
+                    </button>
+                  )}
+                  <button
+                    className="voice-demo-button"
+                    onClick={() =>
+                      onCommand(transcript.trim() || 'Show profiles for today')
+                    }
+                  >
+                    <Play size={15} fill="currentColor" /> Run voice demo
+                  </button>
+                </div>
+              )}
 
-        {browseMode && (
-          <button
-            className="voice-profile-preview"
-            onClick={() => onCommand('show pictures')}
-          >
-            <span>
-              <Image
-                src={profile.image}
-                alt={profile.name}
-                fill
-                sizes="58px"
-                className="profile-photo"
+            <form
+              className="voice-command-box"
+              onSubmit={(event) => {
+                event.preventDefault();
+                onCommand(transcript);
+              }}
+            >
+              <input
+                value={transcript}
+                onChange={(event) => onTranscript(event.target.value)}
+                aria-label="Voice command"
+                placeholder="Try “show profiles for today”"
               />
-            </span>
-            <p>
-              <strong>
-                {profile.name}, {profile.age}
-              </strong>
-              <small>
-                {profile.place} · {profile.distance}
-              </small>
-              <small>{profile.intent}</small>
-            </p>
-            <ChevronRight size={18} />
-          </button>
+              <button type="submit" aria-label="Run voice command">
+                <Send size={17} />
+              </button>
+            </form>
+            <div className="voice-command-chips" aria-label="Example commands">
+              {[
+                'Show profiles for today',
+                'Read basics',
+                'Next profile',
+                'Like this profile',
+              ].map((command) => (
+                <button key={command} onClick={() => onCommand(command)}>
+                  {command}
+                </button>
+              ))}
+            </div>
+
+            <div className="voice-response" role="status" aria-live="polite">
+              <span className={listening ? 'listening-dot' : ''} />
+              <p>{response}</p>
+            </div>
+
+            {browseMode && (
+              <button
+                className="voice-profile-preview"
+                onClick={() => onCommand('show pictures')}
+              >
+                <span>
+                  <Image
+                    src={profile.image}
+                    alt={profile.name}
+                    fill
+                    sizes="58px"
+                    className="profile-photo"
+                  />
+                </span>
+                <p>
+                  <strong>
+                    {profile.name}, {profile.age}
+                  </strong>
+                  <small>
+                    {profile.place} · {profile.distance}
+                  </small>
+                  <small>{profile.intent}</small>
+                </p>
+                <ChevronRight size={18} />
+              </button>
+            )}
+          </>
         )}
 
         <div className="voice-stats" aria-label="Dating activity summary">
@@ -10799,6 +11399,59 @@ function ThemeDialog({
             </button>
           ))}
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PlanSafetyDialog({
+  open,
+  onOpenChange,
+  plan,
+  onShare,
+  onEnd,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  plan: DatingPlan | null;
+  onShare: (plan: DatingPlan) => void;
+  onEnd: (plan: DatingPlan) => void;
+}) {
+  if (!plan) return null;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="safety-dialog plan-safety-dialog">
+        <DialogTitle>Safety options</DialogTitle>
+        <DialogDescription>
+          SpikeDate does not monitor dates or guarantee personal safety. If you
+          are in immediate danger, contact local emergency services.
+        </DialogDescription>
+        <button
+          type="button"
+          onClick={() => {
+            onShare(plan);
+            onOpenChange(false);
+          }}
+        >
+          <Share2 size={20} /> Share with a trusted contact{' '}
+          <ChevronRight size={17} />
+        </button>
+        <button
+          type="button"
+          className="danger"
+          onClick={() => {
+            window.location.href = 'tel:911';
+          }}
+        >
+          <ShieldCheck size={20} /> Call 911 <ChevronRight size={17} />
+        </button>
+        <button
+          type="button"
+          className="safety-cancel"
+          onClick={() => onEnd(plan)}
+        >
+          <X size={20} /> End this date plan <ChevronRight size={17} />
+        </button>
       </DialogContent>
     </Dialog>
   );

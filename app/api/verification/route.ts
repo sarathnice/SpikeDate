@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { identifier, json, readJson } from '@/lib/server/http';
+import { reconcileDiscoverability } from '@/lib/server/profile-readiness';
 
 export const runtime = 'edge';
 
@@ -220,10 +221,12 @@ export async function POST(request: Request) {
         )
         .bind(status, now, user.id),
     ]);
+    const readiness = await reconcileDiscoverability(db, user.id);
     return json({
       status,
       testMode: pending.provider === 'local-camera-test',
       retainedImage: false,
+      readiness,
     });
   });
 }
@@ -244,6 +247,7 @@ export async function DELETE(request: Request) {
         )
         .bind('unverified', now, user.id),
     ]);
+    await reconcileDiscoverability(db, user.id);
     return json({ ok: true, status: 'unverified' });
   });
 }

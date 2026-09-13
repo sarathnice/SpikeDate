@@ -12,9 +12,10 @@ the local design preview can keep the flag off for a fully offline demo.
 
 ## Phase 2 — Trust, safety, and compliance
 
-Registration enforces age and terms acceptance. Passwords use salted PBKDF2,
+Registration enforces age, terms acceptance, and a short-lived verified-phone
+registration token. Passwords use salted PBKDF2,
 sessions use hashed HttpOnly cookies, blocks apply in both directions, and
-reports enter a role-protected review queue. Moderation decisions are written
+reports and pending media enter role-protected review queues. Decisions are written
 to an immutable audit log. Export/deletion requests and media moderation states
 are represented end to end.
 
@@ -33,7 +34,16 @@ The Worker API supports filtered discovery, Like, Super Spike, pass, save,
 reciprocal matching, mutual-match chat, delivery/read state, daily updates,
 Galaxy plan creation/invites, venue/date/time details, push-token registration,
 and privacy/safety actions. The admin dashboard has RBAC, metrics, a safety queue,
-review notes, warn/suspend/dismiss actions, and audit history.
+review notes, warn/suspend/dismiss actions, and audit history. Notification
+preferences support per-category delivery and quiet hours; FCM is optional and
+in-app delivery remains the reliable baseline.
+
+Galaxy date planning is now a private, one-to-one matched-user flow. It requires
+a public venue and explicit safety acknowledgement, supports mutual confirmation,
+venue voting, alternate-time confirmation, private check-ins, trusted-contact
+sharing, and immediate plan cancellation after report/block actions. A paired
+client/server environment flag can disable the feature without removing code.
+Expired plans stop appearing after 30 days.
 
 ## Phase 5 — Mobile, test, and release readiness
 
@@ -45,6 +55,11 @@ UI journeys for iOS and Android dimensions.
 CI applies the D1 migrations, starts a local Cloudflare Worker, runs the live API
 suite, and then runs the same server-backed UI journeys before building native
 artifacts.
+
+Cost controls include device-side photo preparation, two stable display
+variants, 15-second/30-MB video enforcement, deferred venue search, risk-based
+photo verification, a manual moderation fallback, and read-only device TTS
+briefings with microphone AI disabled by default.
 
 Production is deliberately out of scope for this iteration. Test seeding, mock
 billing, Cloudflare Access policy, store credentials, production venue provider,

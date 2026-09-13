@@ -28,6 +28,12 @@ type Overview = {
     reporter_name: string;
     subject_name: string;
   }>;
+  moderationQueue: Array<{
+    id: string;
+    type: 'photo' | 'video';
+    created_at: number;
+    display_name: string;
+  }>;
 };
 
 const metricDetails = [
@@ -47,6 +53,8 @@ export default function AdminPage() {
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [mediaReviewing, setMediaReviewing] = useState<string | null>(null);
+  const [mediaNote, setMediaNote] = useState('');
   useEffect(() => {
     fetch('/api/admin/overview', { credentials: 'include' })
       .then(async (response) => {
@@ -91,6 +99,46 @@ export default function AdminPage() {
       );
       setReviewing(null);
       setNote('');
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function resolveMedia(id: string, outcome: 'approved' | 'rejected') {
+    if (mediaNote.trim().length < 3) {
+      setError('Add a short media review note before deciding.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/admin/media/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ outcome, note: mediaNote.trim() }),
+      });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok)
+        throw new Error(body.error || 'Unable to save media review.');
+      setOverview((current) =>
+        current
+          ? {
+              ...current,
+              metrics: {
+                ...current.metrics,
+                pendingMedia: Math.max(0, current.metrics.pendingMedia - 1),
+              },
+              moderationQueue: current.moderationQueue.filter(
+                (item) => item.id !== id,
+              ),
+            }
+          : current,
+      );
+      setMediaReviewing(null);
+      setMediaNote('');
     } catch (reason) {
       setError((reason as Error).message);
     } finally {
@@ -227,6 +275,92 @@ export default function AdminPage() {
                 <ShieldCheck aria-hidden />
                 <strong>No open reports</strong>
                 <span>The queue is clear.</span>
+              </div>
+            )}
+          </section>
+          <section className="admin-panel">
+            <div className="admin-panel-title">
+              <div>
+                <span className="admin-eyebrow">Media moderation</span>
+                <h2>Oldest pending uploads</h2>
+              </div>
+              <span>{overview.moderationQueue.length} shown</span>
+            </div>
+            {overview.moderationQueue.length ? (
+              <div className="admin-media-list">
+                {overview.moderationQueue.map((item) => (
+                  <article key={item.id}>
+                    {item.type === 'photo' ? (
+                      <Image
+                        src={`/api/media/${item.id}?variant=card`}
+                        alt={`Pending upload from ${item.display_name}`}
+                        width={82}
+                        height={104}
+                        unoptimized
+                      />
+                    ) : (
+                      <video
+                        src={`/api/media/${item.id}`}
+                        muted
+                        controls
+                        playsInline
+                      />
+                    )}
+                    <div>
+                      <strong>{item.display_name}</strong>
+                      <span>
+                        {item.type} ·{' '}
+                        {new Date(item.created_at).toLocaleString()}
+                      </span>
+                      {mediaReviewing === item.id ? (
+                        <div className="admin-review">
+                          <label htmlFor={`media-note-${item.id}`}>
+                            Review note
+                          </label>
+                          <textarea
+                            id={`media-note-${item.id}`}
+                            value={mediaNote}
+                            onChange={(event) =>
+                              setMediaNote(event.target.value)
+                            }
+                            maxLength={500}
+                            placeholder="Record what was checked…"
+                          />
+                          <div>
+                            <button
+                              disabled={saving}
+                              onClick={() => resolveMedia(item.id, 'approved')}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              disabled={saving}
+                              onClick={() => resolveMedia(item.id, 'rejected')}
+                            >
+                              Reject
+                            </button>
+                            <button onClick={() => setMediaReviewing(null)}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setMediaReviewing(item.id)}
+                        >
+                          Review upload
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="admin-empty">
+                <ShieldCheck aria-hidden />
+                <strong>No pending uploads</strong>
+                <span>The media queue is clear.</span>
               </div>
             )}
           </section>
