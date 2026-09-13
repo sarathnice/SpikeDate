@@ -64,11 +64,7 @@
     #090b14 42%,
     #04050a 82%
   );
-  --topbar-bg: linear-gradient(
-    #090b14 25%,
-    rgba(9, 11, 20, 0.84),
-    transparent
-  );
+  --topbar-bg: linear-gradient(#090b14 25%, rgba(9, 11, 20, 0.84), transparent);
   --nav-bg: rgba(9, 11, 20, 0.97);
   --control-bg: #1b1e2b;
   --composer-bg: #202432;
@@ -893,7 +889,8 @@ button:focus-visible {
 .profile-card .card-photo,
 .profile-film .card-photo {
   object-fit: contain;
-  object-position: center;
+  object-position: center 38%;
+  image-rendering: auto;
   z-index: 1;
 }
 .profile-card .card-photo-backdrop,
@@ -902,6 +899,179 @@ button:focus-visible {
   filter: blur(22px) brightness(0.46) saturate(0.8);
   transform: scale(1.1);
   opacity: 0.78;
+}
+
+/* Photo preparation keeps a sharp 4:5 portrait intact while the adaptive
+   backdrop fills taller iOS and Android screens without stretching it. */
+.photo-crop-dialog {
+  width: min(calc(100% - 16px), 420px);
+  max-height: 96dvh;
+  overflow-y: auto;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, white 20%, var(--ui-border));
+  border-radius: 28px;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), Inter, Arial, sans-serif;
+  scrollbar-width: none;
+}
+.photo-crop-close {
+  position: absolute;
+  z-index: 3;
+  top: 15px;
+  right: 15px;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--ui-border);
+  border-radius: 50%;
+  background: color-mix(in srgb, white 7%, var(--surface));
+  color: var(--foreground);
+  cursor: pointer;
+}
+.photo-crop-kicker {
+  margin: 0 48px 7px 0;
+  color: var(--coral);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+.photo-crop-dialog [data-slot='dialog-title'] {
+  margin: 0;
+  font-family: var(--font-poppins), Poppins, sans-serif;
+  font-size: 1.45rem;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+.photo-crop-dialog [data-slot='dialog-description'] {
+  margin: 6px 0 14px;
+  color: var(--muted-foreground);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+.photo-crop-stage {
+  width: min(100%, 310px);
+  aspect-ratio: 4 / 5;
+  position: relative;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 24px;
+  background: #111217;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.photo-crop-stage:active {
+  cursor: grabbing;
+}
+.photo-crop-stage > img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  transform-origin: center;
+  transition: transform 80ms ease-out;
+  pointer-events: none;
+}
+.photo-crop-safe-zone {
+  position: absolute;
+  inset: 10% 13% 20%;
+  border: 1px dashed rgba(255, 255, 255, 0.58);
+  border-radius: 46% 46% 38% 38%;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.09);
+  pointer-events: none;
+}
+.photo-crop-move-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(5, 6, 10, 0.66);
+  color: white;
+  font-size: 0.7rem;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.photo-crop-zoom {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 20px 42px 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--muted-foreground);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.photo-crop-zoom input {
+  width: 100%;
+  accent-color: var(--coral);
+}
+.photo-crop-quality {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 11px;
+  border: 1px solid color-mix(in srgb, var(--coral) 20%, var(--ui-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--coral) 6%, var(--surface));
+  color: var(--coral);
+}
+.photo-crop-quality span {
+  display: grid;
+  gap: 2px;
+}
+.photo-crop-quality strong {
+  color: var(--foreground);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+.photo-crop-quality small {
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+}
+.photo-crop-error {
+  margin: 9px 0 0;
+  color: #ff8297;
+  font-size: 0.76rem;
+}
+.photo-crop-actions {
+  display: grid;
+  grid-template-columns: 0.72fr 1.28fr;
+  gap: 9px;
+  margin-top: 14px;
+}
+.photo-crop-actions button {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.photo-crop-actions button.primary {
+  border-color: transparent;
+  background: var(--theme-gradient);
+  color: var(--action-foreground);
+}
+.photo-crop-actions button:disabled {
+  opacity: 0.58;
+  cursor: wait;
 }
 .photo-scrim {
   position: absolute;
@@ -1775,7 +1945,8 @@ button:focus-visible {
   border-color: transparent;
   background: var(--super-spike);
   color: #fff;
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--super-spike) 28%, transparent);
+  box-shadow: 0 10px 28px
+    color-mix(in srgb, var(--super-spike) 28%, transparent);
 }
 .note-dialog-actions {
   position: sticky;
@@ -1943,7 +2114,8 @@ button:focus-visible {
   position: sticky;
   z-index: 5;
   bottom: -1px;
-  box-shadow: 0 -12px 28px color-mix(in srgb, var(--background) 76%, transparent);
+  box-shadow: 0 -12px 28px
+    color-mix(in srgb, var(--background) 76%, transparent);
 }
 .billing-toggle {
   display: grid;
@@ -2294,7 +2466,8 @@ button:focus-visible {
   padding: 11px 20px max(13px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--ui-border);
   background: color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow: 0 -14px 32px color-mix(in srgb, var(--background) 70%, transparent);
+  box-shadow: 0 -14px 32px
+    color-mix(in srgb, var(--background) 70%, transparent);
 }
 .subscription-footer .plan-button {
   min-height: 51px;
@@ -7635,6 +7808,133 @@ button:focus-visible {
   border-radius: 15px;
   background: var(--surface);
 }
+.profile-media-editor {
+  display: grid;
+  gap: 10px;
+  margin-top: 17px;
+}
+.profile-media-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.profile-media-heading > span {
+  display: grid;
+  gap: 3px;
+}
+.profile-media-heading strong {
+  color: var(--foreground);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.profile-media-heading small {
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+}
+.profile-media-heading > svg {
+  color: #65d89b;
+}
+.profile-media-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.profile-media-tile,
+.profile-media-add {
+  min-width: 0;
+  aspect-ratio: 4 / 5;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: 15px;
+  background: var(--surface);
+}
+.profile-media-tile > img {
+  object-fit: cover;
+  object-position: center 36%;
+}
+.profile-media-number,
+.profile-media-main,
+.profile-media-main-action,
+.profile-media-remove {
+  position: absolute;
+  z-index: 2;
+}
+.profile-media-number {
+  top: 7px;
+  left: 7px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(5, 6, 10, 0.68);
+  color: white;
+  font-size: 0.68rem;
+}
+.profile-media-main,
+.profile-media-main-action {
+  left: 6px;
+  bottom: 6px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(5, 6, 10, 0.72);
+  color: white;
+  font-family: inherit;
+  font-size: 0.62rem;
+  font-weight: 500;
+}
+.profile-media-main-action {
+  cursor: pointer;
+}
+.profile-media-remove {
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  background: rgba(5, 6, 10, 0.72);
+  color: white;
+  cursor: pointer;
+}
+.profile-media-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-style: dashed;
+  color: var(--coral);
+  cursor: pointer;
+}
+.profile-media-add strong {
+  color: var(--foreground);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+.profile-media-add small {
+  color: var(--muted-foreground);
+  font-size: 0.62rem;
+}
+.profile-media-add input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.profile-media-guidance {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
 .registration-dialog .quality-note strong,
 .registration-dialog .media-rules strong {
   font-weight: 500;
@@ -8111,7 +8411,11 @@ button:focus-visible {
   place-items: center;
   border-radius: 50%;
   color: var(--coral);
-  background: radial-gradient(circle at 50% 45%, var(--control-bg), var(--background) 72%);
+  background: radial-gradient(
+    circle at 50% 45%,
+    var(--control-bg),
+    var(--background) 72%
+  );
   border: 1px solid color-mix(in srgb, var(--coral) 40%, var(--ui-border));
   box-shadow:
     0 0 0 9px color-mix(in srgb, var(--coral) 7%, transparent),
@@ -8820,7 +9124,8 @@ button:focus-visible {
   border-color: transparent;
   background: var(--super-spike);
   color: var(--super-spike-foreground);
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--super-spike) 28%, transparent);
+  box-shadow: 0 10px 28px
+    color-mix(in srgb, var(--super-spike) 28%, transparent);
   backdrop-filter: none;
 }
 

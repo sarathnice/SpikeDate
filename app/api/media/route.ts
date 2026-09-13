@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
-import { identifier, json } from '@/lib/server/http';
+import { identifier, json, readJson } from '@/lib/server/http';
 
 export const runtime = 'edge';
 
@@ -17,6 +17,28 @@ type R2BucketLike = {
   delete: (key: string) => Promise<void>;
 };
 
+function validPhotoSignature(contentType: string, bytes: Uint8Array) {
+  if (contentType === 'image/jpeg')
+    return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (contentType === 'image/png')
+    return (
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47
+    );
+  if (contentType === 'image/webp')
+    return (
+      String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
+      String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP'
+    );
+  if (contentType === 'image/heic' || contentType === 'image/heif') {
+    const brand = String.fromCharCode(...bytes.slice(4, 12));
+    return /ftyp(heic|heix|hevc|hevx|mif1|msf1)/.test(brand);
+  }
+  return false;
+}
+
 function mediaBucket() {
   const bucket = (env as unknown as { MEDIA?: R2BucketLike }).MEDIA;
   if (!bucket)
@@ -31,6 +53,7 @@ export async function POST(request: Request) {
     'image/png',
     'image/webp',
     'image/heic',
+    'image/heif',
   ]);
   const videoTypes = new Set(['video/mp4', 'video/quicktime', 'video/webm']);
   const type = photoTypes.has(contentType)
@@ -55,6 +78,23 @@ export async function POST(request: Request) {
       },
       { status: 413 },
     );
+
+  if (!request.body)
+    return json({ error: 'The upload was empty.' }, { status: 400 });
+  const [validationBody, storageBody] = request.body.tee();
+  if (type === 'photo') {
+    const reader = validationBody.getReader();
+    const first = await reader.read();
+    await reader.cancel();
+    const bytes = first.value?.slice(0, 16) ?? new Uint8Array();
+    if (!validPhotoSignature(contentType, bytes))
+      return json(
+        { error: 'The file contents do not match the selected photo type.' },
+        { status: 415 },
+      );
+  } else {
+    await validationBody.cancel();
+  }
 
   return withDatabase(async () => {
     const db = getDb();
@@ -82,7 +122,7 @@ export async function POST(request: Request) {
     const extension = contentType.split('/')[1].replace('quicktime', 'mov');
     const objectKey = 'profiles/' + user.id + '/' + id + '.' + extension;
     const bucket = mediaBucket();
-    await bucket.put(objectKey, request.body as ReadableStream, {
+    await bucket.put(objectKey, storageBody, {
       httpMetadata: { contentType },
       customMetadata: { ownerId: user.id, mediaId: id },
     });
@@ -121,5 +161,58 @@ export async function POST(request: Request) {
       },
       { status: 201 },
     );
+  });
+}
+
+export async function PATCH(request: Request) {
+  const input = await readJson<{ mediaIds?: unknown }>(request);
+  if (input instanceof Response) return input;
+  if (
+    !Array.isArray(input.mediaIds) ||
+    input.mediaIds.length < 1 ||
+    input.mediaIds.length > 7 ||
+    input.mediaIds.some((id) => typeof id !== 'string') ||
+    new Set(input.mediaIds).size !== input.mediaIds.length
+  )
+    return json({ error: 'Choose a valid media order.' }, { status: 400 });
+  const mediaIds = input.mediaIds as string[];
+
+  return withDatabase(async () => {
+    const db = getDb();
+    const user = await requireUser(request, db);
+    if (user instanceof Response) return user;
+    const owned = await db
+      .prepare(
+        'SELECT id FROM profile_media WHERE user_id = ? ORDER BY position',
+      )
+      .bind(user.id)
+      .all<{ id: string }>();
+    const ownedIds = new Set(owned.results.map((item) => item.id));
+    if (
+      mediaIds.length !== ownedIds.size ||
+      mediaIds.some((id) => !ownedIds.has(id))
+    )
+      return json(
+        { error: 'Media order does not match this profile.' },
+        { status: 403 },
+      );
+    const now = Date.now();
+    await db.batch([
+      ...mediaIds.map((id, index) =>
+        db
+          .prepare(
+            'UPDATE profile_media SET position = ?, updated_at = ? WHERE id = ? AND user_id = ?',
+          )
+          .bind(100 + index, now, id, user.id),
+      ),
+      ...mediaIds.map((id, index) =>
+        db
+          .prepare(
+            'UPDATE profile_media SET position = ?, updated_at = ? WHERE id = ? AND user_id = ?',
+          )
+          .bind(index, now, id, user.id),
+      ),
+    ]);
+    return json({ ok: true, mediaIds });
   });
 }

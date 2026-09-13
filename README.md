@@ -64,6 +64,14 @@ the Site. The complete phase inventory and release gates are documented in
 [`PHASE_IMPLEMENTATION.md`](./PHASE_IMPLEMENTATION.md), with test evidence in
 [`UI_TEST_REPORT.md`](./UI_TEST_REPORT.md).
 
+Profile and Today photo pickers open a mobile 4:5 crop editor before saving.
+The client corrects camera orientation, supports drag/zoom framing, and exports
+a 1440 × 1800 WebP at high quality. Server mode validates the encoded file,
+stores the original prepared portrait privately in R2, and serves it only to
+the owner or after moderation approval. The foreground portrait uses `contain`
+over an adaptive blurred backdrop so the complete crop remains visible on
+taller iOS and Android screens without distortion.
+
 The protected `/admin` dashboard requires an authenticated SpikeDate admin
 role. Set `SPIKEDATE_ADMIN_ACCESS_REQUIRED=true` in shared environments to also
 require the matching Cloudflare Access identity.

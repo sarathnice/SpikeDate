@@ -114,6 +114,57 @@ await record('sign in first synthetic profile', async () => {
   firstCookie = await login('test001@spikedate.test');
 });
 
+await record(
+  'validate, upload, order, serve, and remove profile media',
+  async () => {
+    let result = await jsonRequest('/api/media', {
+      method: 'POST',
+      headers: { cookie: firstCookie, 'content-type': 'image/png' },
+      body: new Uint8Array([
+        0x6e, 0x6f, 0x74, 0x2d, 0x61, 0x2d, 0x70, 0x6e, 0x67,
+      ]),
+    });
+    assert.equal(result.response.status, 415, JSON.stringify(result.body));
+
+    const onePixelPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64',
+    );
+    result = await jsonRequest('/api/media', {
+      method: 'POST',
+      headers: { cookie: firstCookie, 'content-type': 'image/png' },
+      body: onePixelPng,
+    });
+    assert.equal(result.response.status, 201, JSON.stringify(result.body));
+    const uploadedId = result.body.media.id;
+    assert.ok(uploadedId);
+
+    const served = await fetch(baseUrl + '/api/media/' + uploadedId, {
+      headers: { cookie: firstCookie },
+    });
+    assert.equal(served.status, 200);
+    assert.equal(served.headers.get('content-type'), 'image/png');
+
+    result = await jsonRequest('/api/profile', {
+      headers: { cookie: firstCookie },
+    });
+    const mediaIds = result.body.media.map((item) => item.id).reverse();
+    result = await jsonRequest('/api/media', {
+      method: 'PATCH',
+      headers: { cookie: firstCookie },
+      body: JSON.stringify({ mediaIds }),
+    });
+    assert.equal(result.response.status, 200, JSON.stringify(result.body));
+    assert.deepEqual(result.body.mediaIds, mediaIds);
+
+    result = await jsonRequest('/api/media/' + uploadedId, {
+      method: 'DELETE',
+      headers: { cookie: firstCookie },
+    });
+    assert.equal(result.response.status, 200, JSON.stringify(result.body));
+  },
+);
+
 await record('load and edit all profile foundations', async () => {
   let result = await jsonRequest('/api/profile', {
     headers: { cookie: firstCookie },

@@ -19,7 +19,7 @@ Browser: Microsoft Edge (Chromium), headless UI automation
 ## Five-phase readiness validation
 
 - Server unit checks: **4 passed / 4 tested**
-- Live Cloudflare Worker API journeys: **16 passed / 16 tested**
+- Live Cloudflare Worker API journeys: **17 passed / 17 tested**
 - Focused iOS-size journeys: **5 passed / 5 tested**
 - Focused Android-size journeys: **5 passed / 5 tested**
 - D1 migrations: **3 applied successfully**
@@ -29,12 +29,13 @@ Browser: Microsoft Edge (Chromium), headless UI automation
 
 The focused mobile suite verifies discovery and full-profile actions, Like and
 Super Spike note sheets, Galaxy/Chat/Profile navigation, Profile Lift and
-subscription safe-area behavior, and the protected admin dashboard. The live
+subscription safe-area behavior, and profile-photo crop/upload/display/removal
+on both mobile platforms. The live
 API suite additionally verifies age gating, authentication, all profile
 foundations, 24-hour updates, discovery ranking, reciprocal matching,
 message delivery/read state, Galaxy plans, purchase and entitlement accounting,
-Super Spike decrement, report/block enforcement, admin RBAC, and auditable case
-resolution.
+Super Spike decrement, authenticated R2 media validation/upload/order/serve/delete,
+report/block enforcement, admin RBAC, and auditable case resolution.
 
 The server-backed mobile pass initially exposed four stale test assumptions:
 the Chat label includes its unread count, a Profile Lift may already be active,
@@ -48,6 +49,7 @@ journeys pass on iPhone 13 and Pixel 7 dimensions.
 - Complete eight-section registration flow, required fields, profile completion, section editing, profile preview, and media limits
 - Fifty seeded accounts covering women, men, and nonbinary profiles with varied age, distance, relationship intent, family plans, pets, drinking, smoking, interests, values, and preferences
 - Profile image loading, full-profile opening, multiple-photo navigation, compact Profile Story layout, Reply Spike, sharing, reporting, and blocking
+- Mobile 4:5 photo cropping, drag positioning, zoom, EXIF-aware orientation, 1440 × 1800 WebP export, low-resolution guidance, private R2 upload, media ordering, and removal
 - Swipe, touch swipe, pass, Like, optional note, cancellation, Super Spike, weekly allowances, match creation, Incoming, decline, accept, and sent-like history
 - Chat list, unread state, profile navigation, thread navigation, composer contrast, send, unsend, icebreakers, and safety tools
 - Profile Lift explanation, eligibility, activation, visibility status, and subscription presentation

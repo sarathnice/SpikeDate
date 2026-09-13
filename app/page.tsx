@@ -68,6 +68,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
+import { PhotoCropper, type CroppedPhoto } from '@/components/photo-cropper';
 import {
   defaultVoiceMode,
   type VoiceMode,
@@ -107,7 +108,13 @@ type BrowserSpeechRecognition = {
   onend: (() => void) | null;
 };
 type Gender = 'Woman' | 'Man' | 'Nonbinary';
-type MediaItem = { type: 'photo' | 'video'; src: string; poster?: string };
+type MediaItem = {
+  id?: string;
+  type: 'photo' | 'video';
+  src: string;
+  poster?: string;
+  moderationStatus?: string;
+};
 type Profile = {
   id?: string;
   name: string;
@@ -1141,6 +1148,18 @@ async function serverJson<T>(path: string, init?: RequestInit): Promise<T> {
   return body;
 }
 
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('The photo could not be read.'));
+    reader.onload = () =>
+      typeof reader.result === 'string'
+        ? resolve(reader.result)
+        : reject(new Error('The photo could not be read.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
 function testUserIdForEmail(email?: string) {
   const match = email?.match(/^test(\d{3})@spikedate\.test$/);
   return match ? `test-${match[1]}` : null;
@@ -1472,6 +1491,7 @@ export default function HomePage() {
   ]);
   const [savedProfileNames, setSavedProfileNames] = useState<string[]>([]);
   const [serverProfiles, setServerProfiles] = useState<Profile[]>([]);
+  const [ownProfileMedia, setOwnProfileMedia] = useState<MediaItem[]>([]);
   const [declinedIncoming, setDeclinedIncoming] = useState<string[]>([]);
   const [registered, setRegistered] = useState(false);
   const [selfName, setSelfName] = useState('Alex');
@@ -1480,6 +1500,13 @@ export default function HomePage() {
   const [interactions, setInteractions] = useState<ProfileInteraction[]>([]);
   const [storedMessages, setStoredMessages] = useState<StoredMessage[]>([]);
   const signedInIdentity = identityForEmail(authEmail);
+  const effectiveOwnMedia = ownProfileMedia.length
+    ? ownProfileMedia
+    : (signedInIdentity?.profile.media ?? []);
+  const ownProfileImage =
+    effectiveOwnMedia.find((item) => item.type === 'photo')?.src ??
+    signedInIdentity?.profile.image ??
+    '/imani.png';
   const profileSource =
     serverDataEnabled && serverProfiles.length ? serverProfiles : profiles;
   const filteredProfiles = profileSource
@@ -2542,6 +2569,76 @@ export default function HomePage() {
     }
   };
 
+  const addProfilePhoto = async (photo: CroppedPhoto) => {
+    let media: MediaItem;
+    if (serverDataEnabled) {
+      const result = await serverJson<{
+        media: {
+          id: string;
+          type: 'photo';
+          url: string;
+          moderationStatus: string;
+        };
+      }>('/api/media', {
+        method: 'POST',
+        headers: { 'content-type': photo.blob.type },
+        body: photo.blob,
+      });
+      media = {
+        id: result.media.id,
+        type: 'photo',
+        src: result.media.url,
+        moderationStatus: result.media.moderationStatus,
+      };
+    } else {
+      media = {
+        id: `local-photo-${Date.now()}`,
+        type: 'photo',
+        src: await blobToDataUrl(photo.blob),
+        moderationStatus: 'local',
+      };
+    }
+    setOwnProfileMedia((current) => {
+      const base = current.length
+        ? current
+        : (signedInIdentity?.profile.media ?? []).slice(0, 5);
+      return [...base, media].slice(0, 6);
+    });
+    announce(
+      photo.lowResolution
+        ? 'Photo added. A higher-resolution original will look sharper.'
+        : 'Photo cropped and saved in high quality',
+    );
+  };
+
+  const makeMainProfilePhoto = (media: MediaItem) => {
+    setOwnProfileMedia((current) => {
+      const source = current.length
+        ? current
+        : (signedInIdentity?.profile.media ?? []);
+      const next = [media, ...source.filter((item) => item !== media)];
+      const ids = next.flatMap((item) => (item.id ? [item.id] : []));
+      if (serverDataEnabled && ids.length === next.length)
+        mirrorToServer(() =>
+          serverJson('/api/media', {
+            method: 'PATCH',
+            body: JSON.stringify({ mediaIds: ids }),
+          }),
+        );
+      return next;
+    });
+    announce('Main profile photo updated');
+  };
+
+  const removeProfilePhoto = (media: MediaItem) => {
+    setOwnProfileMedia((current) => current.filter((item) => item !== media));
+    if (serverDataEnabled && media.id)
+      mirrorToServer(() =>
+        serverJson(`/api/media/${media.id}`, { method: 'DELETE' }),
+      );
+    announce('Photo removed');
+  };
+
   const completeRegistration = (data: RegistrationData) => {
     setSelfName(data.name || 'Alex');
     setRegistered(true);
@@ -3498,6 +3595,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!serverDataEnabled || !authEmail) {
       setServerProfiles([]);
+      setOwnProfileMedia([]);
       return;
     }
     let cancelled = false;
@@ -3505,6 +3603,12 @@ export default function HomePage() {
       serverJson<{
         profile: Record<string, unknown> | null;
         preferences: Record<string, unknown> | null;
+        media: Array<{
+          id: string;
+          type: 'photo' | 'video';
+          url: string;
+          moderation_status?: string;
+        }>;
         wallet: {
           super_spikes?: number;
           profile_lifts?: number;
@@ -3555,6 +3659,14 @@ export default function HomePage() {
         );
         setMembership(
           account.subscription?.status === 'active' ? 'plus' : 'free',
+        );
+        setOwnProfileMedia(
+          account.media.map((item) => ({
+            id: item.id,
+            type: item.type,
+            src: item.url,
+            moderationStatus: item.moderation_status,
+          })),
         );
         if (liftData.active?.ends_at) {
           setActiveBoosts((currentBoosts) => ({
@@ -4278,7 +4390,7 @@ export default function HomePage() {
           <YourProfile
             name={selfName}
             email={authEmail}
-            image={signedInIdentity?.profile.image ?? '/imani.png'}
+            image={ownProfileImage}
             details={registrationData}
             registered={registered}
             theme={theme}
@@ -4319,6 +4431,7 @@ export default function HomePage() {
           <ProfilePreview
             name={selfName}
             sourceProfile={signedInIdentity?.profile}
+            media={effectiveOwnMedia}
             details={registrationData}
             onBack={() => setPreviewCard(false)}
           />
@@ -4439,6 +4552,10 @@ export default function HomePage() {
         initialStep={registrationStep}
         editing={registered}
         singleSection={registrationSingleSection}
+        media={effectiveOwnMedia}
+        onAddPhoto={addProfilePhoto}
+        onMakeMainPhoto={makeMainProfilePhoto}
+        onRemovePhoto={removeProfilePhoto}
       />
       <FilterDialog
         open={filterOpen}
@@ -4471,7 +4588,7 @@ export default function HomePage() {
         }}
         existing={todayComposerStory ?? undefined}
         replacing={Boolean(ownDailyStory && !todayComposerStory)}
-        profileImage={signedInIdentity?.profile.image ?? '/imani.png'}
+        profileImage={ownProfileImage}
         onPublish={publishDailyStory}
       />
       <TodayFeedDialog
@@ -4613,6 +4730,8 @@ function TodayComposerDialog({
     useState<DailyStoryVisibility>('discover');
   const [repliesEnabled, setRepliesEnabled] = useState(true);
   const [mediaError, setMediaError] = useState('');
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -4632,6 +4751,8 @@ function TodayComposerDialog({
       existing?.repliesEnabled ?? parsedDraft?.repliesEnabled ?? true,
     );
     setMediaError('');
+    setCropFile(null);
+    setCropOpen(false);
   }, [existing, open]);
 
   useEffect(() => {
@@ -4648,16 +4769,13 @@ function TodayComposerDialog({
       setMediaError('Choose a JPG, PNG, or WebP image.');
       return;
     }
-    if (file.size > 1_500_000) {
-      setMediaError('Use an image smaller than 1.5 MB for this prototype.');
+    if (file.size > 15 * 1024 * 1024) {
+      setMediaError('Choose a photo smaller than 15 MB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') setMediaUrl(reader.result);
-      setMediaError('');
-    };
-    reader.readAsDataURL(file);
+    setCropFile(file);
+    setCropOpen(true);
+    setMediaError('');
   };
 
   return (
@@ -4699,7 +4817,7 @@ function TodayComposerDialog({
             <Camera size={17} /> {mediaUrl ? 'Change photo' : 'Add photo'}
             <input
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
               aria-label="Choose Today photo"
               onChange={(event) => choosePhoto(event.target.files?.[0])}
             />
@@ -4715,6 +4833,20 @@ function TodayComposerDialog({
           )}
         </div>
         {mediaError && <p className="today-media-error">{mediaError}</p>}
+
+        <PhotoCropper
+          file={cropFile}
+          open={cropOpen}
+          onOpenChange={setCropOpen}
+          onConfirm={async (photo) => {
+            setMediaUrl(await blobToDataUrl(photo.blob));
+            setMediaError(
+              photo.lowResolution
+                ? 'This photo may look soft. A higher-resolution original is recommended.'
+                : '',
+            );
+          }}
+        />
 
         <label className="today-field">
           Daily prompt
@@ -5307,6 +5439,11 @@ function ProfileCard({
         priority
         draggable={false}
         sizes="(max-width: 480px) 100vw, 390px"
+        quality={90}
+        unoptimized={
+          profile.image.startsWith('/api/media/') ||
+          profile.image.startsWith('data:')
+        }
         className="profile-photo card-photo-backdrop"
         aria-hidden="true"
       />
@@ -5317,6 +5454,11 @@ function ProfileCard({
         priority
         draggable={false}
         sizes="(max-width: 480px) 100vw, 390px"
+        quality={90}
+        unoptimized={
+          profile.image.startsWith('/api/media/') ||
+          profile.image.startsWith('data:')
+        }
         className="profile-photo card-photo"
       />
       <span className="swipe-label pass-label">PASS</span>
@@ -5700,6 +5842,11 @@ function FullProfile({
                   alt=""
                   fill
                   sizes="390px"
+                  quality={90}
+                  unoptimized={
+                    active.src.startsWith('/api/media/') ||
+                    active.src.startsWith('data:')
+                  }
                   className="profile-photo card-photo-backdrop"
                   aria-hidden="true"
                 />
@@ -5708,6 +5855,11 @@ function FullProfile({
                   alt={`${profile.name}'s profile photo ${mediaIndex + 1}`}
                   fill
                   sizes="390px"
+                  quality={90}
+                  unoptimized={
+                    active.src.startsWith('/api/media/') ||
+                    active.src.startsWith('data:')
+                  }
                   className="profile-photo card-photo"
                 />
               </>
@@ -7995,6 +8147,10 @@ function YourProfile({
           fill
           priority
           sizes="(max-width: 560px) 100vw, 460px"
+          quality={90}
+          unoptimized={
+            image.startsWith('/api/media/') || image.startsWith('data:')
+          }
           className="profile-passport-photo"
         />
         <div className="profile-passport-topbar">
@@ -8506,15 +8662,17 @@ function YourProfile({
 function ProfilePreview({
   name,
   sourceProfile,
+  media,
   details,
   onBack,
 }: {
   name: string;
   sourceProfile?: Profile;
+  media: MediaItem[];
   details: RegistrationData;
   onBack: () => void;
 }) {
-  const self: Profile = sourceProfile ?? {
+  const base: Profile = sourceProfile ?? {
     name,
     age: 28,
     gender: 'Nonbinary',
@@ -8534,6 +8692,13 @@ function ProfilePreview({
     drinking: details.drinking,
     smoking: details.smoking,
   };
+  const self: Profile = media.length
+    ? {
+        ...base,
+        image: media.find((item) => item.type === 'photo')?.src ?? base.image,
+        media,
+      }
+    : base;
   return (
     <section className="preview-screen">
       <header className="preview-banner">
@@ -8650,6 +8815,10 @@ function RegistrationDialog({
   initialStep,
   editing,
   singleSection,
+  media,
+  onAddPhoto,
+  onMakeMainPhoto,
+  onRemovePhoto,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -8658,20 +8827,43 @@ function RegistrationDialog({
   initialStep: number;
   editing: boolean;
   singleSection: boolean;
+  media: MediaItem[];
+  onAddPhoto: (photo: CroppedPhoto) => Promise<void>;
+  onMakeMainPhoto: (media: MediaItem) => void;
+  onRemovePhoto: (media: MediaItem) => void;
 }) {
   const [step, setStep] = useState(0);
   const [data, setData] = useState<RegistrationData>(initialData);
   const [validationError, setValidationError] = useState('');
   const [showOptionalAbout, setShowOptionalAbout] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
   useEffect(() => {
     if (open) {
       setStep(Math.max(0, Math.min(registrationSteps.length - 1, initialStep)));
       setData(initialData);
       setValidationError('');
       setShowOptionalAbout(editing && initialStep === 1);
+      setCropFile(null);
+      setCropOpen(false);
     }
   }, [open, initialData, initialStep]);
   const item = registrationSteps[step];
+  const photos = media.filter((item) => item.type === 'photo').slice(0, 6);
+  const chooseProfilePhoto = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setValidationError('Choose a photo from your library or camera.');
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setValidationError('Choose a photo smaller than 15 MB.');
+      return;
+    }
+    setValidationError('');
+    setCropFile(file);
+    setCropOpen(true);
+  };
   const update = <K extends keyof RegistrationData>(
     key: K,
     value: RegistrationData[K],
@@ -9227,6 +9419,83 @@ function RegistrationDialog({
                   />
                 </label>
               </div>
+              <section
+                className="profile-media-editor"
+                aria-label="Profile photos"
+              >
+                <div className="profile-media-heading">
+                  <span>
+                    <strong>Your photos</strong>
+                    <small>
+                      {photos.length} of 6 · first photo is your main photo
+                    </small>
+                  </span>
+                  <Check size={17} />
+                </div>
+                <div className="profile-media-grid">
+                  {photos.map((photo, index) => (
+                    <div
+                      className="profile-media-tile"
+                      key={photo.id ?? photo.src}
+                    >
+                      <Image
+                        src={photo.src}
+                        alt={`Profile photo ${index + 1}`}
+                        fill
+                        sizes="112px"
+                        quality={90}
+                        unoptimized={
+                          photo.src.startsWith('/api/media/') ||
+                          photo.src.startsWith('data:')
+                        }
+                      />
+                      <span className="profile-media-number">{index + 1}</span>
+                      {index === 0 ? (
+                        <span className="profile-media-main">Main</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="profile-media-main-action"
+                          onClick={() => onMakeMainPhoto(photo)}
+                        >
+                          Make main
+                        </button>
+                      )}
+                      {photo.id && (
+                        <button
+                          type="button"
+                          className="profile-media-remove"
+                          aria-label={`Remove profile photo ${index + 1}`}
+                          onClick={() => onRemovePhoto(photo)}
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {photos.length < 6 && (
+                    <label className="profile-media-add">
+                      <ImagePlus size={25} />
+                      <strong>Add photo</strong>
+                      <small>Crop &amp; enhance</small>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                        aria-label="Add and crop profile photo"
+                        onChange={(event) => {
+                          chooseProfilePhoto(event.target.files?.[0]);
+                          event.currentTarget.value = '';
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+                <p className="profile-media-guidance">
+                  Use a clear original with your face in the safe area. Avoid
+                  screenshots, heavy filters, and re-uploaded social-media
+                  copies.
+                </p>
+              </section>
               <div className="media-rules">
                 <div>
                   <Camera size={20} />
@@ -9253,6 +9522,12 @@ function RegistrationDialog({
                   <Check size={17} />
                 </div>
               </div>
+              <PhotoCropper
+                file={cropFile}
+                open={cropOpen}
+                onOpenChange={setCropOpen}
+                onConfirm={onAddPhoto}
+              />
             </>
           )}
         </div>

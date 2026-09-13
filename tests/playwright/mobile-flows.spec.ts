@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import path from 'node:path';
 
 async function signIn(page: Page) {
   await page.goto('/');
@@ -153,4 +154,52 @@ test('Profile Lift and subscription sheets fit between safe areas', async ({
   expect(viewport).not.toBeNull();
   expect(bounds!.y).toBeGreaterThanOrEqual(0);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport!.height);
+});
+
+test('profile photo crop, upload, display, and cleanup work on mobile', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.getByRole('button', { name: 'Profile', exact: true }).click();
+  await page.getByRole('button', { name: /Edit preferences & media/i }).click();
+  const registration = page.getByRole('dialog', {
+    name: 'Preferences & media',
+  });
+  await expect(registration).toBeVisible();
+  const before = await registration.locator('.profile-media-tile').count();
+  await registration
+    .getByLabel('Add and crop profile photo')
+    .setInputFiles(path.resolve('public/maya.png'));
+
+  const cropper = page.getByRole('dialog', { name: 'Frame your best shot' });
+  await expect(cropper).toBeVisible();
+  const cropBounds = await cropper.locator('.photo-crop-stage').boundingBox();
+  expect(cropBounds).not.toBeNull();
+  expect(cropBounds!.width / cropBounds!.height).toBeCloseTo(0.8, 1);
+  await cropper.getByLabel('Photo zoom').fill('1.18');
+  const uploaded = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/media') &&
+      response.request().method() === 'POST',
+  );
+  await cropper.getByRole('button', { name: 'Use photo' }).click();
+  expect((await uploaded).status()).toBe(201);
+  await expect(cropper).toBeHidden();
+  await expect(registration.locator('.profile-media-tile')).toHaveCount(
+    before + 1,
+  );
+  await expectImagesLoaded(page);
+
+  const lastPhoto = registration.locator('.profile-media-tile').last();
+  const remove = lastPhoto.getByRole('button', {
+    name: /Remove profile photo/i,
+  });
+  const removed = page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/media/') &&
+      response.request().method() === 'DELETE',
+  );
+  await remove.click();
+  expect((await removed).status()).toBe(200);
+  await expect(registration.locator('.profile-media-tile')).toHaveCount(before);
 });
