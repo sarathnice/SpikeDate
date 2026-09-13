@@ -108,7 +108,12 @@ export async function GET(request: Request) {
         );
       if (goals.includes(candidate.relationship_goal))
         reasons.push('same relationship goal');
-      if (candidate.verification_status === 'verified')
+      const verified = [
+        'verified',
+        'photo_verified',
+        'identity_verified',
+      ].includes(candidate.verification_status);
+      if (verified)
         reasons.push('verified profile');
       return [
         {
@@ -119,7 +124,7 @@ export async function GET(request: Request) {
           bio: candidate.bio,
           city: candidate.city,
           relationshipGoal: candidate.relationship_goal,
-          verified: candidate.verification_status === 'verified',
+          verified,
           profileLiftActive: Boolean(candidate.lift_ends_at),
           today: candidate.daily_text,
           availableTonight: Boolean(candidate.available_tonight),

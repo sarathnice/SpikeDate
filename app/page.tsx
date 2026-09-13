@@ -70,6 +70,10 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { PhotoCropper, type CroppedPhoto } from '@/components/photo-cropper';
 import {
+  PhotoVerificationDialog,
+  type PhotoVerificationStatus,
+} from '@/components/photo-verification-dialog';
+import {
   defaultVoiceMode,
   type VoiceMode,
   voiceDeployment,
@@ -135,6 +139,7 @@ type Profile = {
   wantsKids: string;
   drinking: string;
   smoking: string;
+  verified?: boolean;
   tonight?: {
     plan: string;
     expiresAt: string;
@@ -1131,6 +1136,19 @@ const testAccounts: AuthAccount[] = testIdentities.map((identity) => ({
 const serverDataEnabled =
   process.env.NEXT_PUBLIC_SPIKEDATE_SERVER_DATA_ENABLED === 'true';
 
+function normalizeVerificationStatus(value: unknown): PhotoVerificationStatus {
+  if (value === 'verified') return 'photo_verified';
+  if (
+    value === 'pending' ||
+    value === 'needs_review' ||
+    value === 'needs_retry' ||
+    value === 'photo_verified' ||
+    value === 'identity_verified'
+  )
+    return value;
+  return 'unverified';
+}
+
 type ApiErrorBody = { error?: string };
 
 async function serverJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -1474,6 +1492,9 @@ export default function HomePage() {
   const [activeBoosts, setActiveBoosts] = useState<ActiveBoosts>({});
   const [boostClock, setBoostClock] = useState(() => Date.now());
   const [themeOpen, setThemeOpen] = useState(false);
+  const [verificationOpen, setVerificationOpen] = useState(false);
+  const [verificationStatus, setVerificationStatus] =
+    useState<PhotoVerificationStatus>('unverified');
   const [theme, setTheme] = useState<ThemeName>('default');
   const [filterOpen, setFilterOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
@@ -1507,6 +1528,30 @@ export default function HomePage() {
     effectiveOwnMedia.find((item) => item.type === 'photo')?.src ??
     signedInIdentity?.profile.image ??
     '/imani.png';
+  useEffect(() => {
+    if (!authEmail) {
+      setVerificationStatus('unverified');
+      return;
+    }
+    if (serverDataEnabled) return;
+    const saved = window.localStorage.getItem(
+      `spikedate-photo-verification:${authEmail}`,
+    );
+    if (
+      saved === 'unverified' ||
+      saved === 'pending' ||
+      saved === 'needs_review' ||
+      saved === 'needs_retry' ||
+      saved === 'photo_verified' ||
+      saved === 'identity_verified'
+    ) {
+      setVerificationStatus(saved);
+      return;
+    }
+    setVerificationStatus(
+      identityForEmail(authEmail) ? 'photo_verified' : 'unverified',
+    );
+  }, [authEmail]);
   const profileSource =
     serverDataEnabled && serverProfiles.length ? serverProfiles : profiles;
   const filteredProfiles = profileSource
@@ -2320,6 +2365,7 @@ export default function HomePage() {
           ];
         },
       );
+
       if (inviteMessages.length)
         setStoredMessages((items) => {
           const next = [...items, ...inviteMessages];
@@ -3547,6 +3593,8 @@ export default function HomePage() {
     allowanceOwner.current = null;
     boostOwner.current = null;
     setAuthEmail(null);
+    setVerificationStatus('unverified');
+    setVerificationOpen(false);
     setPurchasedBoosts(0);
     setRegistered(false);
     setSelfName('Alex');
@@ -3628,6 +3676,7 @@ export default function HomePage() {
           imageUrl?: string | null;
           today?: string | null;
           availableTonight?: boolean;
+          verified?: boolean;
         }>;
       }>('/api/discover?limit=50'),
       serverJson<{
@@ -3689,6 +3738,7 @@ export default function HomePage() {
                 age: candidate.age,
                 place: candidate.city || known.place,
                 intent: candidate.relationshipGoal || known.intent,
+                verified: candidate.verified,
                 tonight: candidate.today
                   ? {
                       plan: candidate.today,
@@ -3728,6 +3778,7 @@ export default function HomePage() {
               wantsKids: 'Not shared',
               drinking: 'Not shared',
               smoking: 'Not shared',
+              verified: candidate.verified,
               tonight: candidate.today
                 ? {
                     plan: candidate.today,
@@ -3776,6 +3827,10 @@ export default function HomePage() {
             education: profileText('education', currentData.education),
           }));
         }
+        if (profile)
+          setVerificationStatus(
+            normalizeVerificationStatus(profile.verification_status),
+          );
       })
       .catch(() => announce('Server data is temporarily unavailable.'));
     return () => {
@@ -4401,6 +4456,8 @@ export default function HomePage() {
             onEditSection={openRegistrationAt}
             onTheme={() => setThemeOpen(true)}
             onSubscription={() => setSubscriptionOpen(true)}
+            verificationStatus={verificationStatus}
+            onVerification={() => setVerificationOpen(true)}
             superPulsesRemaining={superPulsesRemaining}
             membership={membership}
             dailyLikesRemaining={dailyLikesRemaining}
@@ -4556,6 +4613,23 @@ export default function HomePage() {
         onAddPhoto={addProfilePhoto}
         onMakeMainPhoto={makeMainProfilePhoto}
         onRemovePhoto={removeProfilePhoto}
+      />
+      <PhotoVerificationDialog
+        open={verificationOpen}
+        onOpenChange={setVerificationOpen}
+        status={verificationStatus}
+        serverEnabled={serverDataEnabled}
+        accountKey={authEmail ?? 'signed-out'}
+        onStatusChange={(next) => {
+          setVerificationStatus(next);
+          announce(
+            next === 'photo_verified' || next === 'identity_verified'
+              ? 'Your profile is Photo Verified'
+              : next === 'needs_review'
+                ? 'Your camera check is ready for review'
+                : 'Photo verification updated',
+          );
+        }}
       />
       <FilterDialog
         open={filterOpen}
@@ -5482,12 +5556,14 @@ function ProfileCard({
           <h1>
             {profile.name}, {profile.age}
           </h1>
-          <BadgeCheck
-            size={22}
-            fill="#FF4D6D"
-            color="#0E0E10"
-            aria-label="Verified"
-          />
+          {profile.verified !== false && (
+            <BadgeCheck
+              size={22}
+              fill="#FF4D6D"
+              color="#0E0E10"
+              aria-label="Photo Verified"
+            />
+          )}
         </div>
         <p className="distance">
           {profile.place} · {profile.distance}
@@ -5903,7 +5979,14 @@ function FullProfile({
                   <h2>
                     {profile.name}, {profile.age}
                   </h2>
-                  <BadgeCheck size={21} fill="#FF4D6D" color="#0E0E10" />
+                  {profile.verified !== false && (
+                    <BadgeCheck
+                      size={21}
+                      fill="#FF4D6D"
+                      color="#0E0E10"
+                      aria-label="Photo Verified"
+                    />
+                  )}
                 </div>
                 <button
                   className="profile-reply-pulse"
@@ -8024,6 +8107,8 @@ function YourProfile({
   onEditSection,
   onTheme,
   onSubscription,
+  verificationStatus,
+  onVerification,
   superPulsesRemaining,
   membership,
   dailyLikesRemaining,
@@ -8055,6 +8140,8 @@ function YourProfile({
   onEditSection: (step: number) => void;
   onTheme: () => void;
   onSubscription: () => void;
+  verificationStatus: PhotoVerificationStatus;
+  onVerification: () => void;
   superPulsesRemaining: number;
   membership: Membership;
   dailyLikesRemaining: number;
@@ -8169,7 +8256,11 @@ function YourProfile({
         <div className="profile-passport-identity self-row">
           <div>
             <h1>
-              {name}, {profileAge} <BadgeCheck size={19} />
+              {name}, {profileAge}{' '}
+              {(verificationStatus === 'photo_verified' ||
+                verificationStatus === 'identity_verified') && (
+                <BadgeCheck size={19} aria-label="Photo Verified" />
+              )}
             </h1>
             <p>
               {details.city}
@@ -8525,6 +8616,32 @@ function YourProfile({
       <div className="profile-account-tools" id="profile-settings">
         <p className="profile-tools-label">APP &amp; ACCOUNT</p>
         <div className="profile-quick-actions lower-profile-tools">
+          <button className="verification-entry" onClick={onVerification}>
+            <ShieldCheck size={20} />
+            <span>
+              <strong>
+                {verificationStatus === 'photo_verified' ||
+                verificationStatus === 'identity_verified'
+                  ? 'Photo Verified'
+                  : verificationStatus === 'needs_review' ||
+                      verificationStatus === 'pending'
+                    ? 'Camera check pending'
+                    : 'Verify your photos'}
+              </strong>
+              <small>
+                {verificationStatus === 'photo_verified' ||
+                verificationStatus === 'identity_verified'
+                  ? 'A live camera check matches this profile'
+                  : 'Private camera check · no selfie on your profile'}
+              </small>
+            </span>
+            {verificationStatus === 'photo_verified' ||
+            verificationStatus === 'identity_verified' ? (
+              <BadgeCheck size={19} className="verification-entry-badge" />
+            ) : (
+              <ChevronRight size={17} />
+            )}
+          </button>
           <button onClick={onSubscription}>
             <Star size={19} fill="currentColor" />
             <span>

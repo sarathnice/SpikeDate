@@ -110,6 +110,34 @@ test('Galaxy, Chat, and Profile navigation expose primary actions', async ({
   await expect(page.getByRole('button', { name: /Log out/i })).toBeVisible();
 });
 
+test('photo safety check is accessible and fits the mobile viewport', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.getByRole('button', { name: 'Profile', exact: true }).click();
+  await page
+    .getByRole('button', { name: /Photo Verified|Verify your photos/i })
+    .click();
+  const verification = page.getByRole('dialog', {
+    name: /Your photos are verified|Confirm you match your photos/i,
+  });
+  await expect(verification).toBeVisible();
+  await expect(
+    verification.getByRole('button', { name: /Close photo verification/i }),
+  ).toBeVisible();
+  await expect(
+    verification
+      .getByText(/Never adds this selfie to your profile/i)
+      .or(verification.getByText(/Photo Verified badge/i)),
+  ).toBeVisible();
+  const bounds = await verification.boundingBox();
+  const viewport = page.viewportSize();
+  expect(bounds).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport!.height);
+});
+
 test('Profile Lift and subscription sheets fit between safe areas', async ({
   page,
 }) => {

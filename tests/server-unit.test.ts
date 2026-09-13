@@ -3,6 +3,7 @@ import { hashPassword, verifyPassword } from '@/lib/server/crypto';
 import { canonicalPair } from '@/lib/server/http';
 import { passwordSchema } from '@/lib/server/validation';
 import { products } from '@/lib/server/products';
+import { assessCameraFrame } from '@/components/photo-verification-dialog';
 
 describe('server security and product rules', () => {
   it('hashes and verifies passwords without storing plaintext', async () => {
@@ -30,5 +31,20 @@ describe('server security and product rules', () => {
       type: 'consumable',
       profileLifts: 3,
     });
+  });
+
+  it('measures camera brightness and focus without retaining an image', () => {
+    const variedFrame = new Uint8ClampedArray(64);
+    for (let index = 0; index < variedFrame.length; index += 4) {
+      const value = index % 32 === 0 ? 40 : 210;
+      variedFrame[index] = value;
+      variedFrame[index + 1] = value;
+      variedFrame[index + 2] = value;
+      variedFrame[index + 3] = 255;
+    }
+    const metrics = assessCameraFrame(variedFrame);
+    expect(metrics.brightness).toBeGreaterThan(40);
+    expect(metrics.brightness).toBeLessThan(210);
+    expect(metrics.sharpness).toBeGreaterThan(4.5);
   });
 });

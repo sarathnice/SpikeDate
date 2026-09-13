@@ -115,6 +115,59 @@ await record('sign in first synthetic profile', async () => {
 });
 
 await record(
+  'require consent, verify camera quality, expose status, and delete verification',
+  async () => {
+    let result = await jsonRequest('/api/verification', {
+      method: 'POST',
+      headers: { cookie: firstCookie },
+      body: JSON.stringify({ action: 'start', consent: false }),
+    });
+    assert.equal(result.response.status, 400, JSON.stringify(result.body));
+
+    result = await jsonRequest('/api/verification', {
+      method: 'POST',
+      headers: { cookie: firstCookie },
+      body: JSON.stringify({ action: 'start', consent: true }),
+    });
+    assert.equal(result.response.status, 201, JSON.stringify(result.body));
+    assert.ok(result.body.request?.id, 'camera check did not create a request');
+    const requestId = result.body.request.id;
+
+    result = await jsonRequest('/api/verification', {
+      method: 'POST',
+      headers: { cookie: firstCookie },
+      body: JSON.stringify({
+        action: 'complete',
+        requestId,
+        metrics: {
+          brightness: 128,
+          sharpness: 18,
+          faceCount: 1,
+          frameCount: 1,
+          captureDigest: 'a'.repeat(64),
+        },
+      }),
+    });
+    assert.equal(result.response.status, 200, JSON.stringify(result.body));
+    assert.equal(result.body.status, 'photo_verified');
+    assert.equal(result.body.retainedImage, false);
+
+    result = await jsonRequest('/api/verification', {
+      headers: { cookie: firstCookie },
+    });
+    assert.equal(result.response.status, 200, JSON.stringify(result.body));
+    assert.equal(result.body.status, 'photo_verified');
+
+    result = await jsonRequest('/api/verification', {
+      method: 'DELETE',
+      headers: { cookie: firstCookie },
+    });
+    assert.equal(result.response.status, 200, JSON.stringify(result.body));
+    assert.equal(result.body.status, 'unverified');
+  },
+);
+
+await record(
   'validate, upload, order, serve, and remove profile media',
   async () => {
     let result = await jsonRequest('/api/media', {

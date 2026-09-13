@@ -76,6 +76,19 @@ The protected `/admin` dashboard requires an authenticated SpikeDate admin
 role. Set `SPIKEDATE_ADMIN_ACCESS_REQUIRED=true` in shared environments to also
 require the matching Cloudflare Access identity.
 
+## Photo verification
+
+Profile → **Verify your photos** opens the mobile camera safety check. The user
+must consent before camera access, place one face inside the guide, and pass
+lighting and focus checks. The captured frame is analyzed in memory and is not
+saved or uploaded; the server stores only the check status and a one-way SHA-256
+digest in the existing `verification_requests` audit table.
+
+Set `SPIKEDATE_FACE_VERIFICATION_MODE=mock` only for local automated testing.
+Use `manual` in shared environments until a production liveness and
+profile-photo comparison provider is connected. Production approval must come
+from that provider or trained manual review, never from the local quality check.
+
 GitHub Actions validates the web build and Docker image, then builds an Android debug APK and an unsigned iOS simulator app. Cloudflare production deployment is intentionally deferred.
 
 ## Voice deployment controls
