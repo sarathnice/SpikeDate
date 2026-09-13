@@ -4364,6 +4364,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!authEmail) return;
+    if (serverDataEnabled) return;
     if (!identityForEmail(authEmail)) {
       setContacts([...chatContacts]);
       setMessagesByContact(demoChatMessages);

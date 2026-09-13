@@ -8488,6 +8488,8 @@ button:focus-visible {
 
 /* Option A — compact mobile preferences quick sheet. */
 .filter-dialog.quick-filter-sheet {
+  --tw-translate-x: 0px !important;
+  --tw-translate-y: 0px !important;
   top: auto !important;
   right: 0 !important;
   bottom: 0;
