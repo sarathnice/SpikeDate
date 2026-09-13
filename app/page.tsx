@@ -25,6 +25,7 @@ import {
   LogOut,
   MapPin,
   MessageCircle,
+  MessageCircleReply,
   Mic,
   Moon,
   Music2,
@@ -6273,13 +6274,6 @@ function FullProfile({
                     />
                   )}
                 </div>
-                <button
-                  className="profile-reply-pulse"
-                  onClick={onLike}
-                  aria-label={`Reply to ${profile.name} with a Spike`}
-                >
-                  <BrandHeartMark size={18} /> Reply Spike
-                </button>
               </div>
               <p>
                 {profile.place} · {profile.distance}
@@ -6389,6 +6383,14 @@ function FullProfile({
             </div>
           </div>
         </div>
+        <button
+          className="profile-reply-spike-float"
+          onClick={onLike}
+          aria-label={`Reply to ${profile.name} with a Spike`}
+        >
+          <MessageCircleReply size={19} aria-hidden="true" />
+          <span>Reply Spike</span>
+        </button>
         <div className="sheet-actions">
           <ActionRow onPass={onPass} onLike={onLike} onPriority={onPriority} />
         </div>

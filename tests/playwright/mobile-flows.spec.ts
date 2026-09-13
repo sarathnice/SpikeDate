@@ -110,8 +110,23 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
     'object-fit',
     'contain',
   );
+  const replySpike = dialog.getByRole('button', {
+    name: /Reply to .* with a Spike/,
+  });
+  await expect(replySpike).toBeVisible();
+  await expect(replySpike.locator('.lucide-message-circle-reply')).toBeVisible();
+  const replyPositionBeforeScroll = await replySpike.boundingBox();
+  expect(replyPositionBeforeScroll).not.toBeNull();
   await dialog.getByRole('button', { name: 'Report' }).scrollIntoViewIfNeeded();
   await expect(dialog.getByRole('button', { name: 'Report' })).toBeVisible();
+  const replyPositionAfterScroll = await replySpike.boundingBox();
+  expect(replyPositionAfterScroll).not.toBeNull();
+  expect(
+    Math.abs(
+      (replyPositionAfterScroll?.y ?? 0) -
+        (replyPositionBeforeScroll?.y ?? 0),
+    ),
+  ).toBeLessThan(2);
   await expect(dialog.getByRole('button', { name: 'Block' })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Like' })).toBeVisible();
   await expect(
