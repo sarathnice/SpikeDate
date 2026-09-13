@@ -25,7 +25,7 @@ jobs:
       - name: Test Cloudflare APIs and mobile UI
         shell: bash
         run: |
-          for migration in migrations/*.sql; do
+          for migration in drizzle/*.sql; do
             npx wrangler d1 execute DB --local --persist-to .wrangler/state --config dist/server/wrangler.json --file "$migration"
           done
           npx wrangler dev --config dist/server/wrangler.json --ip 127.0.0.1 --port 3002 --persist-to .wrangler/state \
