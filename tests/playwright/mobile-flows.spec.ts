@@ -48,7 +48,20 @@ test('premium phone verification is clear and mobile friendly', async ({
     .locator('.auth-tabs button')
     .filter({ hasText: 'Create account' })
     .click();
+  const authShell = page.locator('.auth-shell');
+  await expect(authShell).toHaveCSS('overflow-y', 'auto');
   await expect(page.locator('.auth-phone-verification')).toBeVisible();
+  await expect(page.getByLabel('Mobile number')).toBeVisible();
+  await expect(page.getByLabel('Email')).toBeVisible();
+  await page.locator('.auth-submit').scrollIntoViewIfNeeded();
+  await expect(page.locator('.auth-submit')).toBeInViewport();
+  const shellCanReachBottom = await authShell.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    return (
+      element.scrollHeight <= element.clientHeight + 1 || element.scrollTop > 0
+    );
+  });
+  expect(shellCanReachBottom).toBe(true);
   await page
     .getByLabel('Mobile number')
     .fill(
@@ -57,7 +70,9 @@ test('premium phone verification is clear and mobile friendly', async ({
         : '+1 202 555 0197',
     );
   await page.getByRole('button', { name: 'Send code' }).click();
-  await expect(page.getByText(/Local test code: 123456/i)).toBeVisible();
+  await expect(
+    page.getByText(/(?:Local test code|Preview code): 123456/i),
+  ).toBeVisible();
   await page.getByLabel('Six-digit verification code').fill('123456');
   await page.getByRole('button', { name: 'Verify', exact: true }).click();
   await expect(page.getByText('Verified and kept private')).toBeVisible();

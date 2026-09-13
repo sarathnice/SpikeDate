@@ -269,10 +269,19 @@ button:focus-visible {
   background: var(--app-backdrop);
 }
 .auth-shell {
-  min-height: 100dvh;
+  height: 100dvh;
+  min-height: 0;
   display: grid;
-  place-items: center;
-  padding: 20px;
+  place-items: start center;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding:
+    max(20px, env(safe-area-inset-top))
+    20px
+    max(20px, env(safe-area-inset-bottom));
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
   background:
     radial-gradient(
       circle at 50% 14%,
@@ -283,12 +292,47 @@ button:focus-visible {
 }
 .auth-card {
   width: min(100%, 410px);
+  margin-block: auto;
   padding: 29px 25px 22px;
   border: 1px solid var(--ui-border);
   border-radius: 30px;
   background: color-mix(in srgb, var(--background) 94%, transparent);
   box-shadow: 0 28px 90px rgba(0, 0, 0, 0.38);
   backdrop-filter: blur(22px);
+}
+
+@media (max-width: 480px) {
+  .auth-shell {
+    padding:
+      max(10px, env(safe-area-inset-top))
+      10px
+      max(10px, env(safe-area-inset-bottom));
+  }
+
+  .auth-card {
+    padding: 22px 20px 18px;
+    border-radius: 26px;
+  }
+
+  .auth-copy {
+    margin-top: 20px;
+  }
+
+  .auth-copy h1 {
+    font-size: 1.95rem;
+  }
+
+  .auth-tabs {
+    margin: 18px 0 14px;
+  }
+
+  .auth-form {
+    gap: 10px;
+  }
+
+  .auth-phone-verification {
+    padding: 12px;
+  }
 }
 .auth-brand {
   display: flex;
