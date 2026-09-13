@@ -4354,8 +4354,10 @@ button:focus-visible {
   cursor: pointer;
 }
 .chat-conversation {
+  display: block;
   width: 100%;
   min-width: 0;
+  overflow: hidden;
   padding: 0;
   border: 0;
   background: transparent;
@@ -4388,6 +4390,9 @@ button:focus-visible {
   font-weight: 500;
 }
 .chat-row small {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -8484,17 +8489,18 @@ button:focus-visible {
 /* Option A — compact mobile preferences quick sheet. */
 .filter-dialog.quick-filter-sheet {
   top: auto !important;
-  right: auto !important;
+  right: 0 !important;
   bottom: 0;
-  left: 50% !important;
+  left: 0 !important;
   width: min(100%, 430px);
   height: min(620px, calc(100dvh - 10px));
   max-width: 430px;
   max-height: none;
   display: block;
   padding: 22px 18px 84px;
-  translate: 0 0 !important;
-  transform: translateX(-50%) !important;
+  margin-inline: auto;
+  translate: none !important;
+  transform: none !important;
   overflow: hidden;
   border: 1px solid var(--ui-border);
   border-bottom: 0;

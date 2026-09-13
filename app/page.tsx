@@ -201,7 +201,7 @@ type RegistrationData = {
   maxAge: number;
   maxDistance: number;
 };
-type ChatMessage = { id: number; text: string; mine: boolean };
+type ChatMessage = { id: number | string; text: string; mine: boolean };
 type NoteMode = 'like' | 'super';
 type NoteTarget = string;
 type Membership = 'free' | 'plus';
@@ -2703,7 +2703,7 @@ export default function HomePage() {
     announce('Calendar event created');
   };
 
-  const openExistingChat = (contact: ChatContact) => {
+  const openExistingChat = async (contact: ChatContact) => {
     setActiveChat({ ...contact, unread: 0 });
     setContacts((items) =>
       items.map((item) =>
@@ -2725,6 +2725,27 @@ export default function HomePage() {
       });
     }
     setChatOpen(true);
+    if (serverDataEnabled && contact.conversationId) {
+      try {
+        const result = await serverJson<{
+          messages: Array<{
+            id: string;
+            sender_id: string;
+            body: string;
+          }>;
+        }>(`/api/conversations/${contact.conversationId}/messages`);
+        setMessagesByContact((items) => ({
+          ...items,
+          [contact.name]: result.messages.map((message) => ({
+            id: message.id,
+            text: message.body,
+            mine: message.sender_id !== contact.userId,
+          })),
+        }));
+      } catch {
+        announce('Messages are temporarily unavailable.');
+      }
+    }
   };
 
   const shareProfile = async (profile: Profile) => {
@@ -8030,7 +8051,7 @@ function ChatThread({
   viewerEmail,
 }: {
   contact: ChatContact;
-  messages: { id: number; text: string; mine: boolean }[];
+  messages: ChatMessage[];
   plan?: DatingPlan;
   composer: string;
   onComposer: (text: string) => void;
@@ -8040,7 +8061,7 @@ function ChatThread({
   onBack: () => void;
   onProfile: () => void;
   onSafety: () => void;
-  onUnsend: (id: number) => void;
+  onUnsend: (id: number | string) => void;
   onPlanDirections: (plan: DatingPlan) => void;
   onPlanCalendar: (plan: DatingPlan) => void;
   onPlanShare: (plan: DatingPlan) => void;
@@ -9151,7 +9172,7 @@ function YourProfile({
               <small>
                 {membership === 'plus'
                   ? `Unlimited Likes · ${superPulsesRemaining} of 3 Super Spikes`
-                  : `${dailyLikesRemaining} Likes today · ${superPulsesRemaining} of 1 Super Spike`}
+                  : `${dailyLikesRemaining} Likes today · ${superPulsesRemaining} Super Spikes available`}
               </small>
             </span>
             <ChevronRight size={17} />
@@ -10628,7 +10649,7 @@ function SubscriptionDialog({
             <strong>
               {membership === 'plus'
                 ? `Unlimited Likes · ${superPulsesRemaining}/3 Super Spikes this week`
-                : `${dailyLikesRemaining}/10 Likes today · ${superPulsesRemaining}/1 Super Spike this week`}
+                : `${dailyLikesRemaining}/10 Likes today · ${superPulsesRemaining} Super Spikes available`}
             </strong>
           </div>
           <div className="billing-toggle" aria-label="Billing period">
