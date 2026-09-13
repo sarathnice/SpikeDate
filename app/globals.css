@@ -886,19 +886,60 @@ button:focus-visible {
 .profile-photo {
   object-fit: cover;
 }
-.profile-card .card-photo,
-.profile-film .card-photo {
-  object-fit: contain;
+.cinematic-photo-stack {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #08090d;
+  pointer-events: none;
+  isolation: isolate;
+}
+.cinematic-photo-stack > .cinematic-photo-main {
+  z-index: 1;
+  object-fit: contain !important;
   object-position: center 38%;
   image-rendering: auto;
-  z-index: 1;
+  filter: brightness(1.015) contrast(1.045) saturate(1.075);
 }
-.profile-card .card-photo-backdrop,
-.profile-film .card-photo-backdrop {
-  object-fit: cover;
-  filter: blur(22px) brightness(0.46) saturate(0.8);
-  transform: scale(1.1);
-  opacity: 0.78;
+.cinematic-photo-stack > .cinematic-photo-backdrop {
+  z-index: 0;
+  object-fit: cover !important;
+  object-position: center 38%;
+  filter: blur(28px) brightness(0.49) contrast(1.06) saturate(1.16);
+  transform: scale(1.16);
+  opacity: 0.9;
+}
+.cinematic-photo-grade {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse at 50% 35%,
+      transparent 34%,
+      rgba(3, 4, 8, 0.035) 59%,
+      rgba(3, 4, 8, 0.2) 100%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(3, 4, 8, 0.1),
+      transparent 16%,
+      transparent 84%,
+      rgba(3, 4, 8, 0.1)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    inset 0 0 42px rgba(3, 4, 8, 0.12);
+}
+.profile-film .cinematic-photo-grade {
+  background:
+    radial-gradient(
+      ellipse at 50% 34%,
+      transparent 40%,
+      rgba(3, 4, 8, 0.04) 68%,
+      rgba(3, 4, 8, 0.22) 100%
+    ),
+    linear-gradient(180deg, rgba(2, 3, 7, 0.03), transparent 58%);
 }
 
 /* Photo preparation keeps a sharp 4:5 portrait intact while the adaptive
@@ -1079,8 +1120,8 @@ button:focus-visible {
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgba(0, 0, 0, 0.04) 35%,
-    rgba(5, 5, 7, 0.16) 58%,
+    transparent 48%,
+    rgba(5, 5, 7, 0.12) 66%,
     rgba(5, 5, 7, 0.94) 100%
   );
 }

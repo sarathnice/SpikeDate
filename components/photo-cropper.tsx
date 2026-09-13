@@ -78,7 +78,7 @@ async function cropPhoto(
           ? resolve(result)
           : reject(new Error('This browser could not export the photo.')),
       'image/webp',
-      0.9,
+      0.93,
     );
   });
   return {
@@ -247,7 +247,9 @@ export function PhotoCropper({
           <Check size={16} />
           <span>
             <strong>High-quality export</strong>
-            <small>1440 × 1800 · WebP · camera orientation corrected</small>
+            <small>
+              1440 × 1800 · high-detail WebP · camera orientation corrected
+            </small>
           </span>
         </div>
         {error && (

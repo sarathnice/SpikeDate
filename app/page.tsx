@@ -5377,6 +5377,48 @@ function DiscoverScreen({
   );
 }
 
+function CinematicPortrait({
+  src,
+  alt,
+  sizes,
+  priority = false,
+}: {
+  src: string;
+  alt: string;
+  sizes: string;
+  priority?: boolean;
+}) {
+  const unoptimized = src.startsWith('/api/media/') || src.startsWith('data:');
+  return (
+    <div className="cinematic-photo-stack">
+      <Image
+        src={src}
+        alt=""
+        fill
+        priority={priority}
+        draggable={false}
+        sizes={sizes}
+        quality={95}
+        unoptimized={unoptimized}
+        className="profile-photo cinematic-photo-backdrop"
+        aria-hidden="true"
+      />
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        priority={priority}
+        draggable={false}
+        sizes={sizes}
+        quality={95}
+        unoptimized={unoptimized}
+        className="profile-photo cinematic-photo-main"
+      />
+      <span className="cinematic-photo-grade" aria-hidden="true" />
+    </div>
+  );
+}
+
 function ProfileCard({
   profile,
   story,
@@ -5506,34 +5548,11 @@ function ProfileCard({
         if (touch) finishGesture(touch.clientX, touch.clientY);
       }}
     >
-      <Image
-        src={profile.image}
-        alt=""
-        fill
-        priority
-        draggable={false}
-        sizes="(max-width: 480px) 100vw, 390px"
-        quality={90}
-        unoptimized={
-          profile.image.startsWith('/api/media/') ||
-          profile.image.startsWith('data:')
-        }
-        className="profile-photo card-photo-backdrop"
-        aria-hidden="true"
-      />
-      <Image
+      <CinematicPortrait
         src={profile.image}
         alt={`${profile.name}'s profile`}
-        fill
         priority
-        draggable={false}
         sizes="(max-width: 480px) 100vw, 390px"
-        quality={90}
-        unoptimized={
-          profile.image.startsWith('/api/media/') ||
-          profile.image.startsWith('data:')
-        }
-        className="profile-photo card-photo"
       />
       <span className="swipe-label pass-label">PASS</span>
       <span className="swipe-label like-label">LIKE</span>
@@ -5913,30 +5932,10 @@ function FullProfile({
               />
             ) : (
               <>
-                <Image
-                  src={active.src}
-                  alt=""
-                  fill
-                  sizes="390px"
-                  quality={90}
-                  unoptimized={
-                    active.src.startsWith('/api/media/') ||
-                    active.src.startsWith('data:')
-                  }
-                  className="profile-photo card-photo-backdrop"
-                  aria-hidden="true"
-                />
-                <Image
+                <CinematicPortrait
                   src={active.src}
                   alt={`${profile.name}'s profile photo ${mediaIndex + 1}`}
-                  fill
                   sizes="390px"
-                  quality={90}
-                  unoptimized={
-                    active.src.startsWith('/api/media/') ||
-                    active.src.startsWith('data:')
-                  }
-                  className="profile-photo card-photo"
                 />
               </>
             )}

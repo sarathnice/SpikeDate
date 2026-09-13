@@ -39,6 +39,16 @@ async function expectImagesLoaded(page: Page) {
 test('discovery actions and full profile remain usable', async ({ page }) => {
   await signIn(page);
   await expectImagesLoaded(page);
+  const homePortrait = page.locator('.profile-card .cinematic-photo-main');
+  await expect(homePortrait).toBeVisible();
+  await expect(homePortrait).toHaveCSS('object-fit', 'contain');
+  await expect(homePortrait).not.toHaveCSS('filter', 'none');
+  await expect(
+    page.locator('.profile-card .cinematic-photo-backdrop'),
+  ).toHaveCSS('object-fit', 'cover');
+  await expect(
+    page.locator('.profile-card .cinematic-photo-grade'),
+  ).toBeVisible();
   await expect(
     page.getByRole('button', { name: /Like .*$/ }).first(),
   ).toBeVisible();
@@ -52,6 +62,11 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
   await page.getByRole('button', { name: /Open .* full profile/ }).click();
   const dialog = page.getByRole('dialog', { name: /full profile/i });
   await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.cinematic-photo-main')).toBeVisible();
+  await expect(dialog.locator('.cinematic-photo-main')).toHaveCSS(
+    'object-fit',
+    'contain',
+  );
   await dialog.getByRole('button', { name: 'Report' }).scrollIntoViewIfNeeded();
   await expect(dialog.getByRole('button', { name: 'Report' })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Block' })).toBeVisible();
