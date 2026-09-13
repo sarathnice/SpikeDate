@@ -15,6 +15,12 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === 'seatbelt';
 const localBindingConfig = {
   main: 'vinext/server/fetch-handler',
   compatibility_flags: ['nodejs_compat'],
+  // Keep local UI previews offline by default. Add the paid remote binding only
+  // when a deployment or voice test explicitly opts in.
+  ai:
+    process.env.PULSE_REMOTE_AI === 'true'
+      ? { binding: 'AI', remote: true }
+      : undefined,
   d1_databases: d1
     ? [
         {
@@ -43,6 +49,7 @@ export default defineConfig(async () => {
 
   // Wrangler snapshots its log path while the Cloudflare plugin is imported.
   const { cloudflare } = await import('@cloudflare/vite-plugin');
+  const localPreview = process.env.PULSE_LOCAL_PREVIEW === 'true';
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
@@ -52,10 +59,14 @@ export default defineConfig(async () => {
     plugins: [
       vinext(),
       sites(),
-      cloudflare({
-        viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
-        config: localBindingConfig,
-      }),
+      ...(localPreview
+        ? []
+        : [
+            cloudflare({
+              viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
+              config: localBindingConfig,
+            }),
+          ]),
     ],
   };
 });

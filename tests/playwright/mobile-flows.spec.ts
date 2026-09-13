@@ -1,0 +1,146 @@
+import { expect, test, type Page } from '@playwright/test';
+
+async function signIn(page: Page) {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByRole('button', { name: /Fill selected test login/i }).click();
+  await page.getByRole('button', { name: 'Sign in to SpikeDate' }).click();
+  await expect(page.locator('.phone-frame')).toBeVisible();
+  const dismiss = page.getByRole('button', { name: /^Dismiss /i });
+  if (
+    await dismiss
+      .first()
+      .isVisible()
+      .catch(() => false)
+  )
+    await dismiss.first().click();
+}
+
+async function expectImagesLoaded(page: Page) {
+  await expect
+    .poll(() =>
+      page
+        .locator('img')
+        .evaluateAll((images) =>
+          images.every(
+            (image) =>
+              (image as HTMLImageElement).complete &&
+              (image as HTMLImageElement).naturalWidth > 0,
+          ),
+        ),
+    )
+    .toBe(true);
+}
+
+test('discovery actions and full profile remain usable', async ({ page }) => {
+  await signIn(page);
+  await expectImagesLoaded(page);
+  await expect(
+    page.getByRole('button', { name: /Like .*$/ }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /Send .* a Super Spike/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /Save .* privately/ }),
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: /Open .* full profile/ }).click();
+  const dialog = page.getByRole('dialog', { name: /full profile/i });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Report' }).scrollIntoViewIfNeeded();
+  await expect(dialog.getByRole('button', { name: 'Report' })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Block' })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Like' })).toBeVisible();
+  await expect(
+    dialog.getByRole('button', { name: 'Super Spike' }),
+  ).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close full profile' }).click();
+});
+
+test('Like and Super Spike note sheets expose clear close controls', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page
+    .getByRole('button', { name: /^Like [A-Za-z]/ })
+    .first()
+    .click();
+  let dialog = page.getByRole('dialog', { name: /^Like /i });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('textarea')).toBeVisible();
+  await expect(dialog.locator('textarea')).toHaveCSS(
+    'border-top-style',
+    'solid',
+  );
+  await dialog.getByRole('button', { name: /Close note sheet/i }).click();
+
+  await page.getByRole('button', { name: /Send .* a Super Spike/ }).click();
+  dialog = page.getByRole('dialog', { name: /^Super Spike /i });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('textarea')).toBeVisible();
+  await expect(
+    dialog.getByRole('button', { name: /Send Super Spike/i }),
+  ).toBeVisible();
+  await dialog.getByRole('button', { name: /Close note sheet/i }).click();
+});
+
+test('Galaxy, Chat, and Profile navigation expose primary actions', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.getByRole('button', { name: 'Galaxy', exact: true }).click();
+  await expect(page.getByText('Start with a plan')).toBeVisible();
+  await expect(page.getByText('Browse the Galaxy')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Chat', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Chats' })).toBeVisible();
+  await expect(
+    page.locator('.chat-row').first().or(page.getByText('No matches yet')),
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: 'Profile', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: /Preview my card/i }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: /Log out/i })).toBeVisible();
+});
+
+test('Profile Lift and subscription sheets fit between safe areas', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.getByRole('button', { name: /Lift my profile/i }).click();
+  const lift = page.getByRole('dialog', { name: /Be seen sooner/i });
+  await expect(lift).toBeVisible();
+  await expect(
+    lift.getByRole('button', { name: /Start .* Profile Lift/i }),
+  ).toBeVisible();
+  await expect(
+    lift.getByRole('button', { name: /Close Profile Lift/i }),
+  ).toBeVisible();
+  await lift.getByRole('button', { name: /Close Profile Lift/i }).click();
+
+  await page.getByRole('button', { name: 'Profile', exact: true }).click();
+  await page.getByRole('button', { name: /SpikeDate\+/i }).click();
+  const subscription = page.getByRole('dialog', {
+    name: /More signal\. Less noise\./i,
+  });
+  await expect(subscription).toBeVisible();
+  await expect(
+    subscription.getByRole('button', { name: /Close/i }),
+  ).toBeVisible();
+  await expect(
+    subscription
+      .getByRole('button', { name: /Subscribe/i })
+      .or(subscription.getByRole('button', { name: /SpikeDate\+ is active/i })),
+  ).toBeVisible();
+
+  const bounds = await subscription.boundingBox();
+  const viewport = page.viewportSize();
+  expect(bounds).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport!.height);
+});

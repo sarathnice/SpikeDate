@@ -10,6 +10,9 @@
 
 # testing
 /coverage
+/.codex-*/
+/.codex-dev*.log
+/tsconfig.tsbuildinfo
 
 # next.js
 /.next/
@@ -28,6 +31,7 @@ yarn-error.log*
 
 # local environment
 .env*
+!.env.example
 
 # deployment and generated files
 .vercel
@@ -36,6 +40,10 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/*.tar.gz
+/tests/*.png
+/test-results/
+/playwright-report/
 
 # native build outputs
 /android/.gradle/

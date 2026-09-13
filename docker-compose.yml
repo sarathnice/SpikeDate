@@ -6,20 +6,34 @@ services:
       target: development
     command: npm run dev -- --host 0.0.0.0
     ports:
-      - "3000:3000"
+      - '3000:3000'
     volumes:
       - .:/app
       - pulse_node_modules:/app/node_modules
     environment:
       NODE_ENV: development
+      NEXT_PUBLIC_PULSE_VOICE_ENABLED: ${NEXT_PUBLIC_PULSE_VOICE_ENABLED:-true}
+      NEXT_PUBLIC_PULSE_VOICE_COMMAND_ENABLED: ${NEXT_PUBLIC_PULSE_VOICE_COMMAND_ENABLED:-true}
+      NEXT_PUBLIC_PULSE_VOICE_LIVE_ENABLED: ${NEXT_PUBLIC_PULSE_VOICE_LIVE_ENABLED:-true}
+      NEXT_PUBLIC_PULSE_VOICE_CLOUD_ENABLED: ${NEXT_PUBLIC_PULSE_VOICE_CLOUD_ENABLED:-true}
+      NEXT_PUBLIC_PULSE_VOICE_TEST_MODE: ${NEXT_PUBLIC_PULSE_VOICE_TEST_MODE:-true}
+      PULSE_VOICE_CLOUD_ENABLED: ${PULSE_VOICE_CLOUD_ENABLED:-true}
 
   pulse-staging:
     profiles: [staging]
     build:
       context: .
       target: staging
+      args:
+        NEXT_PUBLIC_PULSE_VOICE_ENABLED: ${NEXT_PUBLIC_PULSE_VOICE_ENABLED:-true}
+        NEXT_PUBLIC_PULSE_VOICE_COMMAND_ENABLED: ${NEXT_PUBLIC_PULSE_VOICE_COMMAND_ENABLED:-true}
+        NEXT_PUBLIC_PULSE_VOICE_LIVE_ENABLED: ${NEXT_PUBLIC_PULSE_VOICE_LIVE_ENABLED:-true}
+        NEXT_PUBLIC_PULSE_VOICE_CLOUD_ENABLED: ${NEXT_PUBLIC_PULSE_VOICE_CLOUD_ENABLED:-false}
+        NEXT_PUBLIC_PULSE_VOICE_TEST_MODE: ${NEXT_PUBLIC_PULSE_VOICE_TEST_MODE:-true}
+    environment:
+      PULSE_VOICE_CLOUD_ENABLED: ${PULSE_VOICE_CLOUD_ENABLED:-false}
     ports:
-      - "3000:3000"
+      - '3000:3000'
     restart: unless-stopped
 
 volumes:

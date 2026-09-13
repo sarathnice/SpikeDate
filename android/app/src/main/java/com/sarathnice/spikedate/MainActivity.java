@@ -1,4 +1,4 @@
-package com.sarathnice.pulse;
+package com.sarathnice.spikedate;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -1,10 +1,13 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
-const stagingUrl = process.env.PULSE_STAGING_URL ?? 'http://localhost:3000';
+const stagingUrl =
+  process.env.SPIKEDATE_STAGING_URL ??
+  process.env.PULSE_STAGING_URL ??
+  'http://localhost:3000';
 
 const config: CapacitorConfig = {
-  appId: 'com.sarathnice.pulse',
-  appName: 'PULSE',
+  appId: 'com.sarathnice.spikedate',
+  appName: 'SpikeDate',
   webDir: 'mobile-public',
   server: {
     url: stagingUrl,
@@ -13,10 +16,10 @@ const config: CapacitorConfig = {
   },
   android: {
     allowMixedContent: stagingUrl.startsWith('http://'),
-    backgroundColor: '#0e0e10',
+    backgroundColor: '#0b0c12',
   },
   ios: {
-    backgroundColor: '#0e0e10',
+    backgroundColor: '#0b0c12',
     contentInset: 'automatic',
   },
 };

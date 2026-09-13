@@ -1,0 +1,289 @@
+:root {
+  color-scheme: dark;
+}
+
+body:has(.admin-shell) {
+  margin: 0;
+  background:
+    radial-gradient(
+      circle at 15% -10%,
+      rgb(227 27 54 / 20%),
+      transparent 38rem
+    ),
+    #090a12;
+  color: #f8f8fb;
+  font-family: var(--font-inter), sans-serif;
+}
+
+.admin-shell {
+  min-height: 100vh;
+  padding: clamp(1rem, 3vw, 2.5rem);
+}
+
+.admin-header,
+.admin-intro,
+.admin-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-header {
+  max-width: 1180px;
+  margin: auto;
+  padding-bottom: 3rem;
+}
+
+.admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.admin-brand img {
+  width: 2.6rem;
+  height: 2.6rem;
+}
+
+.admin-brand div,
+.admin-identity {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.admin-brand strong {
+  font:
+    500 1.2rem var(--font-poppins),
+    sans-serif;
+}
+
+.admin-brand span,
+.admin-identity span,
+.admin-identity small,
+.admin-panel-title > span {
+  color: #a7a8b4;
+  font-size: 0.8rem;
+}
+
+.admin-identity {
+  text-align: right;
+}
+
+.admin-intro,
+.admin-metrics,
+.admin-panel,
+.admin-state {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+.admin-intro h1 {
+  margin: 0.35rem 0;
+  font:
+    500 clamp(2rem, 5vw, 4rem) / 1.02 var(--font-poppins),
+    sans-serif;
+  letter-spacing: -0.045em;
+}
+
+.admin-intro p {
+  margin: 0;
+  color: #a7a8b4;
+}
+
+.admin-eyebrow {
+  color: #ff8a2b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.admin-health {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #2d2e3a;
+  border-radius: 999px;
+  padding: 0.65rem 0.9rem;
+  color: #d7d7df;
+  font-size: 0.82rem;
+}
+
+.admin-health i {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #92fa73;
+  box-shadow: 0 0 0 0.25rem rgb(146 250 115 / 12%);
+}
+
+.admin-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-block: 2.5rem;
+}
+
+.admin-metrics article,
+.admin-panel,
+.admin-state {
+  border: 1px solid rgb(255 255 255 / 9%);
+  background: rgb(255 255 255 / 4%);
+  backdrop-filter: blur(18px);
+}
+
+.admin-metrics article {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem 0.75rem;
+  border-radius: 1.1rem;
+  padding: 1rem;
+}
+
+.admin-metrics svg {
+  grid-row: span 2;
+  align-self: center;
+  width: 1.2rem;
+  color: #ff5a45;
+}
+
+.admin-metrics strong {
+  font-size: 1.55rem;
+  font-weight: 450;
+}
+
+.admin-metrics span {
+  color: #a7a8b4;
+  font-size: 0.78rem;
+}
+
+.admin-panel {
+  border-radius: 1.4rem;
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.admin-panel h2 {
+  margin: 0.25rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 500;
+}
+
+.admin-case-list {
+  margin-top: 1.2rem;
+}
+
+.admin-case-list article {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr auto auto;
+  align-items: center;
+  gap: 1rem;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+  padding-block: 0.85rem;
+}
+
+.admin-case-list article div {
+  display: grid;
+}
+
+.admin-case-list article span,
+.admin-case-list article time {
+  color: #92939f;
+  font-size: 0.75rem;
+}
+
+.admin-case-list article p {
+  margin: 0;
+}
+
+.admin-case-list button,
+.admin-state a {
+  border: 1px solid #4c4d58;
+  border-radius: 999px;
+  background: transparent;
+  color: white;
+  padding: 0.55rem 0.8rem;
+  text-decoration: none;
+}
+
+.admin-empty,
+.admin-state {
+  display: grid;
+  place-items: center;
+  gap: 0.5rem;
+  min-height: 14rem;
+  text-align: center;
+}
+
+.admin-empty span,
+.admin-state p {
+  color: #92939f;
+}
+
+.admin-state {
+  border-radius: 1.4rem;
+  padding: 2rem;
+}
+
+.admin-spin {
+  animation: admin-spin 1.2s linear infinite;
+}
+
+@keyframes admin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.admin-review {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.55rem;
+  width: 100%;
+}
+
+.admin-review label {
+  color: #aeb4c9;
+  font-size: 0.78rem;
+}
+
+.admin-review textarea {
+  min-height: 92px;
+  resize: vertical;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 14px;
+  padding: 0.8rem;
+  background: rgb(255 255 255 / 6%);
+  color: #fff;
+  font: inherit;
+}
+
+.admin-review > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (max-width: 780px) {
+  .admin-header {
+    padding-bottom: 2rem;
+  }
+
+  .admin-identity,
+  .admin-health {
+    display: none;
+  }
+
+  .admin-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-case-list article {
+    grid-template-columns: 1fr auto;
+  }
+
+  .admin-case-list article p,
+  .admin-case-list article time {
+    grid-column: 1;
+  }
+}

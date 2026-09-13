@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">PULSE</string>
-    <string name="title_activity_main">PULSE</string>
-    <string name="package_name">com.sarathnice.pulse</string>
-    <string name="custom_url_scheme">com.sarathnice.pulse</string>
+    <string name="app_name">SpikeDate</string>
+    <string name="title_activity_main">SpikeDate</string>
+    <string name="package_name">com.sarathnice.spikedate</string>
+    <string name="custom_url_scheme">com.sarathnice.spikedate</string>
 </resources>
