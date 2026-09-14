@@ -6082,6 +6082,25 @@ button:focus-visible {
   cursor: pointer;
   pointer-events: auto;
 }
+.today-card-combined {
+  width: min(100%, 310px);
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 13px;
+  background: rgba(8, 9, 14, 0.1);
+  pointer-events: auto;
+}
+.today-card-combined .today-card-pill,
+.today-card-combined .tonight-card-status {
+  margin: 0;
+}
+.today-card-combined .tonight-card-status:not(:first-child) {
+  padding-top: 3px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
 .today-card-pill:focus-visible {
   outline: 2px solid var(--coral);
   outline-offset: 2px;
@@ -6402,12 +6421,12 @@ button:focus-visible {
   font-style: normal;
 }
 .today-profile-actions {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
   gap: 6px;
   margin-top: 7px;
 }
 .today-profile-actions button {
+  flex: 1;
   min-height: 36px;
   display: flex;
   align-items: center;
@@ -6599,6 +6618,103 @@ button:focus-visible {
   bottom: 7px;
   color: var(--muted-foreground);
   font-size: 0.65rem;
+}
+.today-availability-composer {
+  display: grid;
+  gap: 11px;
+  margin-top: 13px;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 17px;
+  background: color-mix(in srgb, white 4%, var(--surface));
+}
+.today-availability-composer header > span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.today-availability-composer header > span > svg {
+  color: var(--coral);
+}
+.today-availability-composer header span span {
+  display: grid;
+  gap: 2px;
+}
+.today-availability-composer header strong {
+  font-size: 0.79rem;
+  font-weight: 520;
+}
+.today-availability-composer header small {
+  color: var(--muted-foreground);
+  font-size: 0.66rem;
+}
+.today-availability-choices {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 7px;
+}
+.today-availability-choices button {
+  min-height: 38px;
+  padding: 0 9px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+  font-weight: 450;
+}
+.today-availability-choices button.selected {
+  border-color: color-mix(in srgb, var(--coral) 65%, transparent);
+  background: color-mix(in srgb, var(--coral) 12%, transparent);
+  color: var(--foreground);
+}
+.today-availability-fields,
+.today-availability-fields > div {
+  display: grid;
+  gap: 8px;
+}
+.today-availability-fields > div {
+  grid-template-columns: 1fr 1fr;
+}
+.today-availability-fields label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted-foreground);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.today-availability-fields input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--background);
+  color: var(--foreground);
+  color-scheme: dark;
+  font: inherit;
+  font-size: 0.78rem;
+  text-transform: none;
+}
+.today-availability-composer > p {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.65rem;
+  line-height: 1.4;
+}
+.today-availability-composer > p svg {
+  flex: 0 0 auto;
+  color: var(--lime);
+}
+.today-submit-error {
+  margin: 8px 2px 0;
+  color: #ff8d9d;
+  font-size: 0.7rem;
 }
 .today-replies-control {
   min-height: 56px;

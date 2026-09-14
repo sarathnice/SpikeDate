@@ -278,6 +278,7 @@ type DailyStoryDraft = Pick<
   DailyStory,
   'mediaUrl' | 'caption' | 'prompt' | 'visibility' | 'repliesEnabled'
 >;
+type TodayAvailabilityChoice = 'none' | 'tonight' | 'tomorrow' | 'custom';
 type DatingPlan = {
   id: number;
   planName: string;
@@ -1579,7 +1580,6 @@ export default function HomePage() {
     useState<Record<string, ChatMessage[]>>(demoChatMessages);
   const [dailyAvailability, setDailyAvailability] =
     useState<DailyAvailability>();
-  const [availabilityOpen, setAvailabilityOpen] = useState(false);
   const [previewCard, setPreviewCard] = useState(false);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [sentLikes, setSentLikes] = useState<Profile[]>([
@@ -1909,13 +1909,41 @@ export default function HomePage() {
     setTodayComposerOpen(true);
   };
 
-  const publishDailyStory = (draft: DailyStoryDraft, storyId?: string) => {
-    if (!authEmail) return;
+  const publishDailyStory = async (
+    draft: DailyStoryDraft,
+    storyId?: string,
+    availability?: DailyAvailability | null,
+  ) => {
+    if (!authEmail) return 'Sign in to share your Today.';
+    const availabilityError = availability
+      ? await saveDailyAvailability(availability)
+      : await clearDailyAvailability();
+    if (availabilityError) return availabilityError;
     const storyBeingEdited = storyId
       ? dailyStories.find(
           (story) => story.id === storyId && story.authorEmail === authEmail,
         )
       : undefined;
+    const hasPost = Boolean(draft.caption.trim() || draft.mediaUrl);
+    if (storyBeingEdited && !hasPost) {
+      if (
+        !saveDailyStories(
+          dailyStories.filter((story) => story.id !== storyBeingEdited.id),
+        )
+      )
+        return 'Could not remove the Today update.';
+      mirrorToServer(() =>
+        serverJson('/api/daily-update', { method: 'DELETE' }),
+      );
+      setTodayComposerOpen(false);
+      setTodayComposerStory(null);
+      announce(
+        availability
+          ? 'Today availability saved; the written update was removed'
+          : 'Your Today status was cleared',
+      );
+      return '';
+    }
     if (storyBeingEdited) {
       const updatedStory = { ...storyBeingEdited, ...draft };
       const next = dailyStories.map((story) =>
@@ -1938,7 +1966,17 @@ export default function HomePage() {
         }),
       );
       announce('Your Today post was updated');
-      return;
+      return '';
+    }
+    if (!hasPost) {
+      setTodayComposerOpen(false);
+      setTodayComposerStory(null);
+      announce(
+        availability
+          ? 'Your Today availability is now visible to matches'
+          : 'Your Today status is not shared',
+      );
+      return '';
     }
     const nextStory: DailyStory = {
       ...draft,
@@ -1967,6 +2005,7 @@ export default function HomePage() {
       }),
     );
     announce('Your new Today post is live for 24 hours');
+    return '';
   };
 
   const openDailyStory = (story: DailyStory) => {
@@ -4854,7 +4893,6 @@ export default function HomePage() {
             registered={registered}
             theme={theme}
             availability={dailyAvailability}
-            onAvailability={() => setAvailabilityOpen(true)}
             onPreview={() => setPreviewCard(true)}
             onRegistration={() => openRegistrationAt(0, false)}
             onEditSection={openRegistrationAt}
@@ -4888,7 +4926,6 @@ export default function HomePage() {
             onCreateToday={openNewToday}
             onEditToday={openEditToday}
             onDeleteToday={deleteOwnDailyStory}
-            onOpenToday={openDailyStory}
           />
         )}
         {tab === 'Profile' && previewCard && (
@@ -5064,13 +5101,6 @@ export default function HomePage() {
           onSend={sendPlanInvites}
         />
       )}
-      <AvailabilityDialog
-        open={availabilityOpen}
-        onOpenChange={setAvailabilityOpen}
-        existing={dailyAvailability}
-        onSave={saveDailyAvailability}
-        onClear={clearDailyAvailability}
-      />
       <PlanSafetyDialog
         open={planSafetyOpen}
         onOpenChange={setPlanSafetyOpen}
@@ -5087,6 +5117,7 @@ export default function HomePage() {
         existing={todayComposerStory ?? undefined}
         replacing={Boolean(ownDailyStory && !todayComposerStory)}
         profileImage={ownProfileImage}
+        existingAvailability={dailyAvailability}
         onPublish={publishDailyStory}
       />
       <TodayFeedDialog
@@ -5212,6 +5243,7 @@ function TodayComposerDialog({
   existing,
   replacing,
   profileImage,
+  existingAvailability,
   onPublish,
 }: {
   open: boolean;
@@ -5219,7 +5251,12 @@ function TodayComposerDialog({
   existing?: DailyStory;
   replacing: boolean;
   profileImage: string;
-  onPublish: (draft: DailyStoryDraft, storyId?: string) => void;
+  existingAvailability?: DailyAvailability;
+  onPublish: (
+    draft: DailyStoryDraft,
+    storyId?: string,
+    availability?: DailyAvailability | null,
+  ) => Promise<string | undefined>;
 }) {
   const [prompt, setPrompt] = useState(todayPrompts[0]);
   const [caption, setCaption] = useState('');
@@ -5230,6 +5267,13 @@ function TodayComposerDialog({
   const [mediaError, setMediaError] = useState('');
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
+  const [availabilityChoice, setAvailabilityChoice] =
+    useState<TodayAvailabilityChoice>('none');
+  const [availableDay, setAvailableDay] = useState(dateInputValue());
+  const [availableFrom, setAvailableFrom] = useState('19:00');
+  const [availableUntil, setAvailableUntil] = useState('22:00');
+  const [submitError, setSubmitError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -5251,7 +5295,34 @@ function TodayComposerDialog({
     setMediaError('');
     setCropFile(null);
     setCropOpen(false);
-  }, [existing, open]);
+    const activeAvailability =
+      existingAvailability &&
+      new Date(existingAvailability.endAt).getTime() > Date.now()
+        ? existingAvailability
+        : undefined;
+    setAvailabilityChoice(
+      !activeAvailability
+        ? 'none'
+        : activeAvailability.localDate === dateInputValue()
+          ? 'tonight'
+          : activeAvailability.localDate === dateInputValue(1)
+            ? 'tomorrow'
+            : 'custom',
+    );
+    setAvailableDay(activeAvailability?.localDate ?? dateInputValue());
+    setAvailableFrom(
+      activeAvailability
+        ? availabilityTimeInput(activeAvailability.startAt)
+        : '19:00',
+    );
+    setAvailableUntil(
+      activeAvailability
+        ? availabilityTimeInput(activeAvailability.endAt)
+        : '22:00',
+    );
+    setSubmitError('');
+    setSaving(false);
+  }, [existing, existingAvailability, open]);
 
   useEffect(() => {
     if (!open || existing) return;
@@ -5274,6 +5345,53 @@ function TodayComposerDialog({
     setCropFile(file);
     setCropOpen(true);
     setMediaError('');
+  };
+
+  const chooseAvailability = (choice: TodayAvailabilityChoice) => {
+    setAvailabilityChoice(choice);
+    if (choice === 'tonight') setAvailableDay(dateInputValue());
+    if (choice === 'tomorrow') setAvailableDay(dateInputValue(1));
+    setSubmitError('');
+  };
+
+  const submitToday = async () => {
+    let availability: DailyAvailability | null = null;
+    if (availabilityChoice !== 'none') {
+      const startAt = new Date(`${availableDay}T${availableFrom}:00`);
+      const endAt = new Date(`${availableDay}T${availableUntil}:00`);
+      if (
+        !availableDay ||
+        !availableFrom ||
+        !availableUntil ||
+        !Number.isFinite(startAt.getTime()) ||
+        endAt <= startAt ||
+        endAt.getTime() <= Date.now()
+      ) {
+        setSubmitError('Choose an upcoming end time after your start time.');
+        return;
+      }
+      availability = {
+        localDate: availableDay,
+        startAt: startAt.toISOString(),
+        endAt: endAt.toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      };
+    }
+    setSaving(true);
+    const message = await onPublish(
+      {
+        mediaUrl,
+        caption: caption.trim(),
+        prompt,
+        visibility,
+        repliesEnabled,
+      },
+      existing?.id,
+      availability,
+    );
+    setSaving(false);
+    if (message) setSubmitError(message);
+    else window.localStorage.removeItem('spikedate-today-draft');
   };
 
   return (
@@ -5369,6 +5487,82 @@ function TodayComposerDialog({
           />
           <small>{caption.length}/140</small>
         </label>
+        <section className="today-availability-composer">
+          <header>
+            <span>
+              <CalendarDays size={17} />
+              <span>
+                <strong>When are you available?</strong>
+                <small>Optional · shown only to mutual matches</small>
+              </span>
+            </span>
+          </header>
+          <div
+            className="today-availability-choices"
+            role="group"
+            aria-label="Today availability"
+          >
+            {(
+              [
+                ['none', 'Not available'],
+                ['tonight', 'Tonight'],
+                ['tomorrow', 'Tomorrow'],
+                ['custom', 'Choose date'],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                type="button"
+                key={value}
+                className={availabilityChoice === value ? 'selected' : ''}
+                aria-pressed={availabilityChoice === value}
+                onClick={() => chooseAvailability(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {availabilityChoice !== 'none' && (
+            <div className="today-availability-fields">
+              {availabilityChoice === 'custom' && (
+                <label>
+                  Date
+                  <input
+                    type="date"
+                    aria-label="Available date"
+                    value={availableDay}
+                    min={dateInputValue()}
+                    max={dateInputValue(7)}
+                    onChange={(event) => setAvailableDay(event.target.value)}
+                  />
+                </label>
+              )}
+              <div>
+                <label>
+                  From
+                  <input
+                    type="time"
+                    aria-label="Available from"
+                    value={availableFrom}
+                    onChange={(event) => setAvailableFrom(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Until
+                  <input
+                    type="time"
+                    aria-label="Available until"
+                    value={availableUntil}
+                    onChange={(event) => setAvailableUntil(event.target.value)}
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+          <p>
+            <ShieldCheck size={15} /> Your time is shared without your current
+            or home location.
+          </p>
+        </section>
         <label className="today-field">
           Who can see this?
           <select
@@ -5397,28 +5591,25 @@ function TodayComposerDialog({
         <button
           type="button"
           className="primary-button today-publish-button"
-          disabled={!caption.trim() && !mediaUrl}
-          onClick={() => {
-            window.localStorage.removeItem('spikedate-today-draft');
-            onPublish(
-              {
-                mediaUrl,
-                caption: caption.trim(),
-                prompt,
-                visibility,
-                repliesEnabled,
-              },
-              existing?.id,
-            );
-          }}
+          disabled={
+            saving ||
+            (!caption.trim() &&
+              !mediaUrl &&
+              availabilityChoice === 'none' &&
+              !existingAvailability)
+          }
+          onClick={submitToday}
         >
           <Send size={17} />
-          {existing
-            ? 'Save changes'
-            : replacing
-              ? 'Post new for 24 hours'
-              : 'Post for 24 hours'}
+          {saving
+            ? 'Sharing…'
+            : existing || existingAvailability
+              ? 'Save Today'
+              : replacing
+                ? 'Share new Today'
+                : 'Share Today'}
         </button>
+        {submitError && <p className="today-submit-error">{submitError}</p>}
       </DialogContent>
     </Dialog>
   );
@@ -5990,7 +6181,7 @@ function ProfileCard({
             : `Open ${profile.name}'s full profile`
         }
       />
-      <div className={`card-content ${story && !preview ? 'has-today' : ''}`}>
+      <div className={`card-content ${story || tonight ? 'has-today' : ''}`}>
         {room && <p className="room-caption">You’re both in {room}</p>}
         {!preview && (
           <p className="tap-hint">Tap the photo for the full profile</p>
@@ -6018,41 +6209,54 @@ function ProfileCard({
           ))}
         </div>
         <p className="card-story">{profile.prompt}</p>
-        {story && !preview && (
-          <button
-            type="button"
-            className="today-card-pill"
-            aria-label={`View ${profile.name}'s Today post`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpenStory?.(story);
-            }}
+        {(story || tonight) && !preview && (
+          <div
+            className="today-card-combined"
+            aria-label={`${profile.name}'s Today`}
           >
-            <span className="today-card-icon" aria-hidden="true">
-              <Sun size={14} />
-            </span>
-            <span>
-              <small>TODAY</small>
-              <strong>{story.caption}</strong>
-            </span>
-            <ChevronRight size={14} />
-          </button>
-        )}
-        {tonight && !preview && (
-          <button
-            type="button"
-            className="tonight-card-status"
-            aria-label={`${profile.name} is available tonight for ${tonight.plan}. Send a Super Spike`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onTonight?.();
-            }}
-          >
-            <Moon size={14} fill="currentColor" aria-hidden="true" />
-            <span>
-              <strong>Available tonight</strong>
-            </span>
-          </button>
+            {story && (
+              <button
+                type="button"
+                className="today-card-pill"
+                aria-label={`View ${profile.name}'s Today post`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenStory?.(story);
+                }}
+              >
+                <span className="today-card-icon" aria-hidden="true">
+                  <Sun size={14} />
+                </span>
+                <span>
+                  <small>TODAY</small>
+                  <strong>{story.caption}</strong>
+                </span>
+                <ChevronRight size={14} />
+              </button>
+            )}
+            {tonight && (
+              <button
+                type="button"
+                className="tonight-card-status"
+                aria-label={`${profile.name} is available tonight. Send a Super Spike`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onTonight?.();
+                }}
+              >
+                <Moon size={14} fill="currentColor" aria-hidden="true" />
+                <span>
+                  <strong>Available tonight</strong>
+                  {profile.availability && (
+                    <small>
+                      {formatAvailabilityTime(profile.availability.startAt)}–
+                      {formatAvailabilityTime(profile.availability.endAt)}
+                    </small>
+                  )}
+                </span>
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -7086,146 +7290,6 @@ function RoomsHub({
         Galaxy
       </p>
     </section>
-  );
-}
-
-function AvailabilityDialog({
-  open,
-  onOpenChange,
-  existing,
-  onSave,
-  onClear,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  existing?: DailyAvailability;
-  onSave: (availability: DailyAvailability) => Promise<string | undefined>;
-  onClear: () => Promise<string | undefined>;
-}) {
-  const [day, setDay] = useState(dateInputValue());
-  const [start, setStart] = useState('19:00');
-  const [end, setEnd] = useState('22:00');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setDay(existing?.localDate ?? dateInputValue());
-    setStart(existing ? availabilityTimeInput(existing.startAt) : '19:00');
-    setEnd(existing ? availabilityTimeInput(existing.endAt) : '22:00');
-    setError('');
-  }, [existing, open]);
-
-  const submit = async () => {
-    const startDate = new Date(`${day}T${start}:00`);
-    const endDate = new Date(`${day}T${end}:00`);
-    if (
-      !day ||
-      !start ||
-      !end ||
-      !Number.isFinite(startDate.getTime()) ||
-      endDate <= startDate
-    ) {
-      setError('Choose an end time after your start time.');
-      return;
-    }
-    setSaving(true);
-    const message = await onSave({
-      localDate: day,
-      startAt: startDate.toISOString(),
-      endAt: endDate.toISOString(),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-    });
-    setSaving(false);
-    if (message) setError(message);
-    else onOpenChange(false);
-  };
-
-  const clear = async () => {
-    setSaving(true);
-    const message = await onClear();
-    setSaving(false);
-    if (message) setError(message);
-    else onOpenChange(false);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="availability-dialog">
-        <button
-          type="button"
-          className="match-close"
-          onClick={() => onOpenChange(false)}
-          aria-label="Close availability"
-        >
-          <X size={19} />
-        </button>
-        <div className="plan-dialog-kicker">
-          <LockKeyhole size={15} /> MATCHES ONLY
-        </div>
-        <DialogTitle>When are you free?</DialogTitle>
-        <DialogDescription>
-          Share one time window for today or another day this week. It expires
-          automatically when the window ends.
-        </DialogDescription>
-        <div className="availability-fields">
-          <label>
-            Date
-            <input
-              type="date"
-              aria-label="Available date"
-              value={day}
-              min={dateInputValue()}
-              max={dateInputValue(7)}
-              onChange={(event) => setDay(event.target.value)}
-            />
-          </label>
-          <div className="availability-time-grid">
-            <label>
-              From
-              <input
-                type="time"
-                aria-label="Available from"
-                value={start}
-                onChange={(event) => setStart(event.target.value)}
-              />
-            </label>
-            <label>
-              Until
-              <input
-                type="time"
-                aria-label="Available until"
-                value={end}
-                onChange={(event) => setEnd(event.target.value)}
-              />
-            </label>
-          </div>
-        </div>
-        <p className="availability-privacy">
-          <ShieldCheck size={17} /> Mutual matches see only this time window.
-          Your current and home locations stay private.
-        </p>
-        {error && <p className="dialog-error">{error}</p>}
-        <button
-          type="button"
-          className="primary-button"
-          onClick={submit}
-          disabled={saving}
-        >
-          {saving ? 'Saving…' : 'Share availability'}
-        </button>
-        {existing && (
-          <button
-            type="button"
-            className="availability-clear"
-            onClick={clear}
-            disabled={saving}
-          >
-            Stop sharing
-          </button>
-        )}
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -8915,7 +8979,6 @@ function YourProfile({
   registered,
   theme,
   availability,
-  onAvailability,
   onPreview,
   onRegistration,
   onEditSection,
@@ -8942,7 +9005,6 @@ function YourProfile({
   onCreateToday,
   onEditToday,
   onDeleteToday,
-  onOpenToday,
 }: {
   name: string;
   email: string;
@@ -8951,7 +9013,6 @@ function YourProfile({
   registered: boolean;
   theme: ThemeName;
   availability?: DailyAvailability;
-  onAvailability: () => void;
   onPreview: () => void;
   onRegistration: () => void;
   onEditSection: (step: number) => void;
@@ -8984,7 +9045,6 @@ function YourProfile({
   onCreateToday: () => void;
   onEditToday: (story: DailyStory) => void;
   onDeleteToday: () => void;
-  onOpenToday: (story: DailyStory) => void;
 }) {
   const [todayDeleteConfirm, setTodayDeleteConfirm] = useState(false);
   useEffect(() => setTodayDeleteConfirm(false), [todayStory?.id]);
@@ -9072,8 +9132,13 @@ function YourProfile({
           >
             <UserRound size={15} /> Profile preview
           </button>
-          <button type="button" onClick={onCreateToday}>
-            <Plus size={15} /> {todayStory ? 'Replace Today' : 'Post Today'}
+          <button
+            type="button"
+            onClick={() =>
+              todayStory ? onEditToday(todayStory) : onCreateToday()
+            }
+          >
+            <Plus size={15} /> Today
           </button>
         </div>
         <div className="profile-passport-identity self-row">
@@ -9096,12 +9161,12 @@ function YourProfile({
           </button>
         </div>
       </header>
-      <section className="today-profile-manager" aria-label="Your Today post">
+      <section className="today-profile-manager" aria-label="Your Today status">
         <button
           type="button"
-          className={`today-profile-card ${todayStory ? 'has-story' : ''}`}
+          className={`today-profile-card ${todayStory || availability ? 'has-story' : ''}`}
           onClick={() =>
-            todayStory ? onOpenToday(todayStory) : onCreateToday()
+            todayStory ? onEditToday(todayStory) : onCreateToday()
           }
         >
           <span className="today-profile-preview">
@@ -9116,30 +9181,44 @@ function YourProfile({
           </span>
           <span>
             <small>YOUR TODAY</small>
-            <strong>{todayStory?.caption || dailyPrompt}</strong>
+            <strong>
+              {todayStory?.caption ||
+                (availability
+                  ? availabilitySummary(availability)
+                  : dailyPrompt)}
+            </strong>
             <em>
-              {todayStory
-                ? `${todayStory.viewedBy.length} views · ${todayHoursLeft}h left`
-                : 'One active post · disappears in 24 hours'}
+              {[
+                todayStory
+                  ? `${todayStory.viewedBy.length} views · ${todayHoursLeft}h left`
+                  : '',
+                availability ? availabilitySummary(availability) : '',
+              ]
+                .filter(Boolean)
+                .join(' · ') || 'Share an update, your availability, or both'}
             </em>
           </span>
           <ChevronRight size={17} />
         </button>
-        {todayStory && (
+        {(todayStory || availability) && (
           <div className="today-profile-actions" aria-label="Manage Today post">
-            <button type="button" onClick={() => onEditToday(todayStory)}>
-              <Edit3 size={15} /> Edit
-            </button>
-            <button type="button" onClick={onCreateToday}>
-              <Plus size={15} /> Replace
-            </button>
             <button
               type="button"
-              className="danger"
-              onClick={() => setTodayDeleteConfirm(true)}
+              onClick={() =>
+                todayStory ? onEditToday(todayStory) : onCreateToday()
+              }
             >
-              <Trash2 size={15} /> Delete
+              <Edit3 size={15} /> Edit Today
             </button>
+            {todayStory && (
+              <button
+                type="button"
+                className="danger"
+                onClick={() => setTodayDeleteConfirm(true)}
+              >
+                <Trash2 size={15} /> Delete update
+              </button>
+            )}
           </div>
         )}
         {todayStory && todayDeleteConfirm && (
@@ -9421,16 +9500,6 @@ function YourProfile({
           </div>
           <button className="section-edit" onClick={() => onEditSection(7)}>
             <Edit3 size={15} /> Edit preferences & media
-          </button>
-        </section>
-        <section className="availability-setting">
-          <span>
-            <small>AVAILABILITY</small>
-            <strong>{availabilitySummary(availability)}</strong>
-            <p>Shared only with your matches · expires automatically.</p>
-          </span>
-          <button type="button" onClick={onAvailability}>
-            <CalendarDays size={16} /> {availability ? 'Edit' : 'Set time'}
           </button>
         </section>
       </div>
