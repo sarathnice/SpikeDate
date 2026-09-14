@@ -160,30 +160,34 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
   await expect(
     dialog.getByRole('button', { name: /Super Spike/i }),
   ).toHaveCount(0);
-  await dialog.getByRole('button', { name: 'Close full profile' }).click();
+  await dialog.getByRole('button', { name: 'Like' }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole('dialog', { name: /^Like /i })).toHaveCount(0);
 });
 
-test('Like and Spike note sheets expose clear close and priority controls', async ({
+test('Like advances immediately while Spike keeps the note composer', async ({
   page,
 }) => {
   await signIn(page);
-  await page
+  const likeButton = page
     .getByRole('button', { name: /^Like [A-Za-z]/ })
-    .first()
-    .click();
-  let dialog = page.getByRole('dialog', { name: /^Like /i });
-  await expect(dialog).toBeVisible();
-  await expect(dialog.locator('textarea')).toBeVisible();
-  await expect(dialog.locator('textarea')).toHaveCSS(
-    'border-top-style',
-    'solid',
-  );
-  await dialog.getByRole('button', { name: /Close note sheet/i }).click();
+    .first();
+  const firstLikeLabel = await likeButton.getAttribute('aria-label');
+  await likeButton.click();
+  await expect(page.getByRole('dialog', { name: /^Like /i })).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page
+        .getByRole('button', { name: /^Like [A-Za-z]/ })
+        .first()
+        .getAttribute('aria-label'),
+    )
+    .not.toBe(firstLikeLabel);
 
   await page
     .getByRole('button', { name: /Send .* a Spike introduction/ })
     .click();
-  dialog = page.getByRole('dialog', { name: /^Spike /i });
+  const dialog = page.getByRole('dialog', { name: /^Spike /i });
   await expect(dialog).toBeVisible();
   await expect(
     dialog.getByRole('button', { name: /Send Spike/i }),

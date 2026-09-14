@@ -214,7 +214,6 @@ type RegistrationData = {
   maxDistance: number;
 };
 type ChatMessage = { id: number | string; text: string; mine: boolean };
-type NoteMode = 'like' | 'spark';
 type InteractionKind = 'like' | 'super';
 type NoteTarget = string;
 type Membership = 'free' | 'plus';
@@ -1472,7 +1471,6 @@ export default function HomePage() {
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [matchOpen, setMatchOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
-  const [noteMode, setNoteMode] = useState<NoteMode>('like');
   const [noteTarget, setNoteTarget] = useState<NoteTarget>('Lifestyle');
   const [noteMessage, setNoteMessage] = useState('');
   const [actionProfile, setActionProfile] = useState<Profile>(profiles[0]);
@@ -2019,12 +2017,19 @@ export default function HomePage() {
     setViewedDailyStory(next.find((item) => item.id === story.id) ?? story);
   };
 
-  const reactToDailyStory = (story: DailyStory, mode: NoteMode) => {
+  const spikeDailyStory = (story: DailyStory) => {
     const profile = identityForEmail(story.authorEmail)?.profile;
     if (!profile) return;
     setViewedDailyStory(null);
-    openNote(mode, profile);
+    openNote(profile);
     setNoteTarget(`Today · ${story.prompt}`);
+  };
+
+  const likeDailyStory = (story: DailyStory) => {
+    const profile = identityForEmail(story.authorEmail)?.profile;
+    if (!profile) return;
+    setViewedDailyStory(null);
+    completeLike(profile);
   };
 
   const replyToDailyStory = (story: DailyStory, message: string) => {
@@ -2198,11 +2203,10 @@ export default function HomePage() {
     }
   };
 
-  const openNote = (mode: NoteMode, profile = current) => {
+  const openNote = (profile = current) => {
     setEngagementNudge(null);
     setProfileOpen(false);
     setActionProfile(profile);
-    setNoteMode(mode);
     setNoteTarget(profile.tags[0]);
     setNoteMessage('');
     setNoteOpen(true);
@@ -2211,7 +2215,7 @@ export default function HomePage() {
   const sendNoteAction = (priority = false) => {
     if (!priority) {
       setNoteOpen(false);
-      completeLike(actionProfile, undefined, noteMode);
+      completeLike(actionProfile, undefined, 'spark');
       return;
     }
     if (superPulsesRemaining <= 0) {
@@ -2294,7 +2298,7 @@ export default function HomePage() {
       announce('Profiles ready — take your time and choose thoughtfully');
       return;
     }
-    openNote('spark', nudge.profile);
+    openNote(nudge.profile);
   };
 
   const updateTodayReminderTime = (time: TodayReminderTime) => {
@@ -4798,16 +4802,16 @@ export default function HomePage() {
                 ownDailyStory ? openEditToday(ownDailyStory) : openNewToday()
               }
               onPass={nextProfile}
-              onLike={() => openNote('like', current)}
+              onLike={() => completeLike(current)}
               onSpark={() => {
                 if (matchedProfiles.some((item) => item.name === current.name))
                   openChatWith('', current);
-                else openNote('spark', current);
+                else openNote(current);
               }}
               matched={matchedProfiles.some(
                 (item) => item.name === current.name,
               )}
-              onTonight={() => openNote('spark', current)}
+              onTonight={() => openNote(current)}
               saved={savedProfileNames.includes(current.name)}
               onToggleSaved={() => toggleSavedProfile(current)}
             />
@@ -4839,8 +4843,8 @@ export default function HomePage() {
             onBack={() => setRoom(null)}
             onOpen={() => openFullProfile(current)}
             onPass={nextProfile}
-            onLike={() => openNote('like', current)}
-            onSpark={() => openNote('spark', current)}
+            onLike={() => completeLike(current)}
+            onSpark={() => openNote(current)}
           />
         )}
         {tab === 'Likes' && (
@@ -5016,12 +5020,12 @@ export default function HomePage() {
         open={profileOpen}
         onOpenChange={closeOrUpdateFullProfile}
         onPass={nextProfile}
-        onLike={() => openNote('like', selectedProfile ?? current)}
+        onLike={() => completeLike(selectedProfile ?? current)}
         onSpark={() => {
           const profile = selectedProfile ?? current;
           if (matchedProfiles.some((item) => item.name === profile.name))
             openChatWith('', profile);
-          else openNote('spark', profile);
+          else openNote(profile);
         }}
         onBoost={() => {
           setProfileOpen(false);
@@ -5044,7 +5048,6 @@ export default function HomePage() {
       />
       <NoteDialog
         profile={actionProfile}
-        mode={noteMode}
         open={noteOpen}
         onOpenChange={setNoteOpen}
         target={noteTarget}
@@ -5167,8 +5170,8 @@ export default function HomePage() {
         onOpenChange={(open) => {
           if (!open) setViewedDailyStory(null);
         }}
-        onLike={(story) => reactToDailyStory(story, 'like')}
-        onSpike={(story) => reactToDailyStory(story, 'spark')}
+        onLike={likeDailyStory}
+        onSpike={spikeDailyStory}
         onReply={replyToDailyStory}
         onProfile={(story) => {
           const profile = identityForEmail(story.authorEmail)?.profile;
@@ -6803,7 +6806,6 @@ function FullProfile({
 
 function NoteDialog({
   profile,
-  mode,
   open,
   onOpenChange,
   target,
@@ -6816,7 +6818,6 @@ function NoteDialog({
   onCancel,
 }: {
   profile: Profile;
-  mode: NoteMode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   target: NoteTarget;
@@ -6828,7 +6829,6 @@ function NoteDialog({
   onPrioritySend: () => void;
   onCancel: () => void;
 }) {
-  const isSpark = mode === 'spark';
   const targets: NoteTarget[] = ['Photo 1', profile.tags[0], 'Two truths'];
   const noteContext = target === 'Photo 1' ? 'photo' : 'prompt';
   return (
@@ -6836,7 +6836,7 @@ function NoteDialog({
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className={`note-dialog note-sheet ${isSpark ? 'spark-note' : 'like-note'}`}
+        className="note-dialog note-sheet spark-note"
       >
         <button
           className="note-sheet-handle"
@@ -6847,27 +6847,19 @@ function NoteDialog({
         </button>
         <div className="note-sheet-header">
           <span className="note-sheet-action-mark" aria-hidden="true">
-            {isSpark ? (
-              <MessageCirclePlus className="note-sheet-spark" size={24} />
-            ) : (
-              <BrandHeartMark className="note-sheet-heart" size={23} />
-            )}
+            <MessageCirclePlus className="note-sheet-spark" size={24} />
           </span>
           <span className="note-sheet-heading">
-            <SheetTitle>
-              {isSpark ? `Spike ${profile.name}` : `Like ${profile.name}`}
-            </SheetTitle>
+            <SheetTitle>{`Spike ${profile.name}`}</SheetTitle>
             <SheetDescription>
-              {isSpark
-                ? 'Send a thoughtful introduction with your Like.'
-                : 'Add something personal to stand out.'}
+              Send a thoughtful introduction with your Like.
             </SheetDescription>
           </span>
           <button
             type="button"
             className="note-sheet-close"
             onClick={onCancel}
-            aria-label={`Close ${isSpark ? 'Spike' : 'Like'}`}
+            aria-label="Close Spike"
           >
             <X size={20} />
           </button>
@@ -6919,44 +6911,34 @@ function NoteDialog({
             maxLength={140}
             value={message}
             onChange={(event) => onMessage(event.target.value)}
-            placeholder={
-              isSpark
-                ? `Introduce yourself to ${profile.name}…`
-                : `Say something about this ${noteContext}…`
-            }
+            placeholder={`Introduce yourself to ${profile.name}…`}
           />
           <small className="note-character-count">{message.length}/140</small>
         </label>
         <div className="note-dialog-actions">
           <button className="primary-button" onClick={onSend}>
-            {isSpark ? (
-              <MessageCirclePlus size={20} />
-            ) : (
-              <BrandHeartMark size={20} />
-            )}
-            {isSpark ? 'Send Spike' : 'Send Like'}
+            <MessageCirclePlus size={20} />
+            Send Spike
           </button>
-          {isSpark && (
-            <button
-              className="priority-spike-option"
-              onClick={onPrioritySend}
-              aria-label={`Prioritize this Spike. ${remaining} remaining this week`}
-            >
-              <span className="priority-spike-icon" aria-hidden="true">
-                <MessageCirclePlus size={19} />
-                <ArrowUp size={12} />
-              </span>
-              <span>
-                <strong>Prioritize this Spike</strong>
-                <small>
-                  Moves it to the top of Likes · {remaining} left this week
-                </small>
-              </span>
-              <ChevronRight size={18} />
-            </button>
-          )}
+          <button
+            className="priority-spike-option"
+            onClick={onPrioritySend}
+            aria-label={`Prioritize this Spike. ${remaining} remaining this week`}
+          >
+            <span className="priority-spike-icon" aria-hidden="true">
+              <MessageCirclePlus size={19} />
+              <ArrowUp size={12} />
+            </span>
+            <span>
+              <strong>Prioritize this Spike</strong>
+              <small>
+                Moves it to the top of Likes · {remaining} left this week
+              </small>
+            </span>
+            <ChevronRight size={18} />
+          </button>
           <button className="text-button note-skip" onClick={onSend}>
-            {isSpark ? 'Spike without a note' : 'Like without a note'}
+            Spike without a note
           </button>
         </div>
       </SheetContent>
