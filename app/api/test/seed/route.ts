@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { hashPassword } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { json } from '@/lib/server/http';
@@ -58,9 +59,13 @@ const firstNames = [
 ];
 
 function authorized(request: Request) {
-  const expected = process.env.SPIKEDATE_TEST_SEED_SECRET;
+  const runtimeEnv = env as unknown as {
+    SPIKEDATE_TEST_SEED_ENABLED?: string;
+    SPIKEDATE_TEST_SEED_SECRET?: string;
+  };
+  const expected = runtimeEnv.SPIKEDATE_TEST_SEED_SECRET;
   return (
-    process.env.SPIKEDATE_TEST_SEED_ENABLED === 'true' &&
+    runtimeEnv.SPIKEDATE_TEST_SEED_ENABLED === 'true' &&
     !!expected &&
     request.headers.get('x-spikedate-seed-secret') === expected
   );

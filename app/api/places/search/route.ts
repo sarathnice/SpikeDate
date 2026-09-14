@@ -1,3 +1,5 @@
+import { env } from 'cloudflare:workers';
+
 export const runtime = 'edge';
 
 type PlaceFeature = {
@@ -25,7 +27,8 @@ const categoryByActivity: Record<string, string> = {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const token = process.env.MAPBOX_ACCESS_TOKEN;
+  const token = (env as unknown as { MAPBOX_ACCESS_TOKEN?: string })
+    .MAPBOX_ACCESS_TOKEN;
   if (!token) return Response.json({ configured: false, venues: [] });
 
   const activity = url.searchParams.get('activity') || 'Coffee';

@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { z } from 'zod';
 import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
@@ -11,7 +12,10 @@ const schema = z.object({
 });
 
 export async function POST(request: Request, context: Context) {
-  if (process.env.SPIKEDATE_DATE_PLANS_ENABLED === 'false')
+  if (
+    (env as unknown as { SPIKEDATE_DATE_PLANS_ENABLED?: string })
+      .SPIKEDATE_DATE_PLANS_ENABLED === 'false'
+  )
     return json({ error: 'Date planning is unavailable.' }, { status: 404 });
   const input = await readJson<unknown>(request);
   if (input instanceof Response) return input;

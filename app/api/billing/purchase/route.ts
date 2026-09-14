@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { z } from 'zod';
 import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
@@ -26,7 +27,8 @@ export async function POST(request: Request) {
     return json({ error: 'Purchase details are invalid.' }, { status: 400 });
   if (
     parsed.data.provider === 'mock' &&
-    process.env.SPIKEDATE_BILLING_MODE !== 'mock'
+    (env as unknown as { SPIKEDATE_BILLING_MODE?: string })
+      .SPIKEDATE_BILLING_MODE !== 'mock'
   )
     return json({ error: 'Mock billing is disabled.' }, { status: 403 });
   if (parsed.data.provider !== 'mock')

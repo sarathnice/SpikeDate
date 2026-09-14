@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import type { D1DatabaseLike } from './db';
 import { requireUser } from './auth';
 import { json } from './http';
@@ -20,7 +21,10 @@ export async function requireAdmin(
 ) {
   const user = await requireUser(request, db);
   if (user instanceof Response) return user;
-  if (process.env.SPIKEDATE_ADMIN_ACCESS_REQUIRED === 'true') {
+  if (
+    (env as unknown as { SPIKEDATE_ADMIN_ACCESS_REQUIRED?: string })
+      .SPIKEDATE_ADMIN_ACCESS_REQUIRED === 'true'
+  ) {
     const accessEmail = request.headers
       .get('cf-access-authenticated-user-email')
       ?.toLowerCase();

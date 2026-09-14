@@ -18,6 +18,8 @@
     "mobile:open:android": "cap open android",
     "mobile:open:ios": "cap open ios",
     "db:generate": "drizzle-kit generate",
+    "db:migrate:staging": "wrangler d1 migrations apply DB --remote --config wrangler.stage.jsonc",
+    "deploy:cloudflare:staging": "npm run build:staging && npm run db:migrate:staging && wrangler deploy --config wrangler.stage.jsonc",
     "test": "vitest run",
     "test:ui": "playwright test",
     "test:all": "npm run lint && npm run test && npm run build && npm run test:ui",

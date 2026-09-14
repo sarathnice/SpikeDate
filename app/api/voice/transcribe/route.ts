@@ -14,7 +14,10 @@ type WorkersAi = {
 };
 
 export async function POST(request: Request) {
-  if (process.env.PULSE_VOICE_CLOUD_ENABLED !== 'true')
+  if (
+    (env as unknown as { PULSE_VOICE_CLOUD_ENABLED?: string })
+      .PULSE_VOICE_CLOUD_ENABLED !== 'true'
+  )
     return Response.json(
       { error: 'Cloud voice is disabled for this deployment.' },
       { status: 404 },

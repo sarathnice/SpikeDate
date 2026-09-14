@@ -1,0 +1,49 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "spikedate-stage",
+  "workers_dev": true,
+  "preview_urls": true,
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-09-07",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "dist/client"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "NEXT_PUBLIC_PULSE_VOICE_CLOUD_ENABLED": "false",
+    "NEXT_PUBLIC_PULSE_VOICE_COMMAND_ENABLED": "false",
+    "NEXT_PUBLIC_PULSE_VOICE_ENABLED": "true",
+    "NEXT_PUBLIC_PULSE_VOICE_LIVE_ENABLED": "false",
+    "NEXT_PUBLIC_PULSE_VOICE_TEST_MODE": "true",
+    "NEXT_PUBLIC_SPIKEDATE_DATE_PLANS_ENABLED": "true",
+    "NEXT_PUBLIC_SPIKEDATE_PHONE_VERIFICATION_ENABLED": "true",
+    "NEXT_PUBLIC_SPIKEDATE_SERVER_DATA_ENABLED": "true",
+    "PULSE_VOICE_CLOUD_ENABLED": "false",
+    "SPIKEDATE_ADMIN_ACCESS_REQUIRED": "false",
+    "SPIKEDATE_BILLING_MODE": "mock",
+    "SPIKEDATE_DATE_PLANS_ENABLED": "true",
+    "SPIKEDATE_FACE_VERIFICATION_MODE": "manual",
+    "SPIKEDATE_MEDIA_MODERATION_MODE": "manual",
+    "SPIKEDATE_PHONE_VERIFICATION_PROVIDER": "mock",
+    "SPIKEDATE_PHONE_VERIFICATION_REQUIRED": "true",
+    "SPIKEDATE_PUSH_PROVIDER": "in_app",
+    "SPIKEDATE_TEST_SEED_ENABLED": "true"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "spikedate-stage",
+      "database_id": "ca142a34-ff1e-4772-8f86-8580c744b86a",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "spikedate-media-stage"
+    }
+  ]
+}

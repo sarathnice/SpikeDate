@@ -1,6 +1,28 @@
 # SpikeDate staging on Cloudflare
 
-## Current managed staging environment
+## Direct Cloudflare account staging
+
+- Cloudflare account: `d22cf985cee89b0a3aa4618f2cb77370`
+- Worker: `spikedate-stage`
+- D1 database: `spikedate-stage`
+- D1 database ID: `ca142a34-ff1e-4772-8f86-8580c744b86a`
+- R2 bucket: `spikedate-media-stage`
+- Worker configuration: `wrangler.stage.jsonc`
+- Source repository: `https://github.com/sarathnice/SpikeDate`
+- Source branch: `codex/staging-mobile`
+
+The direct environment is intentionally isolated from all `pellichupulu`
+resources. Deploy the exact checked-in staging revision with:
+
+```bash
+npm run deploy:cloudflare:staging
+```
+
+That command builds the staging client and Worker, applies all pending D1
+migrations remotely, and deploys the Worker with its D1 and R2 bindings.
+Runtime secrets are stored through Wrangler and are never committed.
+
+## Managed staging environment
 
 - Site title: `SpikeDate Staging`
 - Site project ID: `appgprj_6a9eeb9869c0819187015dfddf41addb`
@@ -66,16 +88,14 @@ manual photo/media review, in-app notifications, mock billing, and test seeding.
 Voice commands and cloud transcription remain disabled. Secret values are
 stored in the hosting environment and are never committed to Git.
 
-## Viewing the deployment
+## Viewing the managed deployment
 
 The current staging URL is hosted on Cloudflare infrastructure through the
 managed Sites service. Its physical Worker, D1 database ID, and R2 bucket ID do
 not appear in a personal Cloudflare dashboard because the service owns those
 resources.
 
-To make a future environment visible directly in your Cloudflare dashboard,
-authenticate this repository with your Cloudflare account using `wrangler
-login` or a scoped `CLOUDFLARE_API_TOKEN`, then create separate resources such
-as `spikedate-stage-db` and `spikedate-stage-media`. Do not reuse production
-resources for staging. The direct-account environment should be added only
-after authentication is complete and its account/zone are confirmed.
+The direct account environment above appears in the personal Cloudflare
+dashboard under Workers & Pages, D1, and R2. The managed Site remains a useful
+owner-only comparison environment, but it does not share data with the direct
+account deployment.

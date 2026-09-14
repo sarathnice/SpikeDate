@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { z } from 'zod';
 import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
@@ -23,7 +24,10 @@ const schema = z.object({
 });
 
 function plansDisabled() {
-  return process.env.SPIKEDATE_DATE_PLANS_ENABLED === 'false';
+  return (
+    (env as unknown as { SPIKEDATE_DATE_PLANS_ENABLED?: string })
+      .SPIKEDATE_DATE_PLANS_ENABLED === 'false'
+  );
 }
 
 export async function GET(request: Request) {
