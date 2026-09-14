@@ -20,12 +20,13 @@ import {
   Edit3,
   Flag,
   Footprints,
+  Heart,
   ImagePlus,
   LockKeyhole,
   LogOut,
   MapPin,
   MessageCircle,
-  MessageCircleReply,
+  MessageCirclePlus,
   Mic,
   Moon,
   Music2,
@@ -82,7 +83,7 @@ import {
 } from '@/lib/voice-config';
 import { initializeMobileRuntime } from '@/lib/mobile-runtime';
 
-type Tab = 'Pulse' | 'Galaxy' | 'Chat' | 'Profile';
+type Tab = 'Pulse' | 'Galaxy' | 'Likes' | 'Chat' | 'Profile';
 type ThemeName = 'default' | 'aurora' | 'velvet' | 'solar' | 'liquid' | 'lime';
 type VoiceSchedule = 'off' | 'morning' | 'evening' | 'twice';
 type VoiceMicStatus =
@@ -212,7 +213,8 @@ type RegistrationData = {
   maxDistance: number;
 };
 type ChatMessage = { id: number | string; text: string; mine: boolean };
-type NoteMode = 'like' | 'super';
+type NoteMode = 'like' | 'spark' | 'super';
+type InteractionKind = 'like' | 'super';
 type NoteTarget = string;
 type Membership = 'free' | 'plus';
 type BillingPeriod = 'weekly' | 'monthly' | 'annual';
@@ -247,7 +249,7 @@ type ProfileInteraction = {
   id: string;
   fromEmail: string;
   toEmail: string;
-  kind: NoteMode;
+  kind: InteractionKind;
   target: string;
   note: string;
   status: 'pending' | 'accepted' | 'declined';
@@ -1108,6 +1110,7 @@ const demoVenues: Venue[] = [
 const tabIcons = {
   Pulse: BrandHeartMark,
   Galaxy: Orbit,
+  Likes: Heart,
   Chat: MessageCircle,
   Profile: UserRound,
 };
@@ -1484,7 +1487,6 @@ export default function HomePage() {
   const [profileIndex, setProfileIndex] = useState(0);
   const [profileOpen, setProfileOpen] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
-  const [incomingOpen, setIncomingOpen] = useState(false);
   const [matchOpen, setMatchOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteMode, setNoteMode] = useState<NoteMode>('like');
@@ -1752,6 +1754,18 @@ export default function HomePage() {
     const profile = allProfiles.find((item) => item.name === name);
     return profile ? [profile] : [];
   });
+  const matchedProfiles = [
+    ...accountSentLikes
+      .filter(({ status }) => status === 'accepted')
+      .map(({ profile }) => profile),
+    ...contacts.flatMap((contact) => {
+      const profile = allProfiles.find((item) => item.name === contact.name);
+      return profile ? [profile] : [];
+    }),
+  ].filter(
+    (profile, index, list) =>
+      list.findIndex((item) => item.name === profile.name) === index,
+  );
   const ownBoostEndsAt = authEmail ? (activeBoosts[authEmail] ?? 0) : 0;
   const boostActive = ownBoostEndsAt > boostClock;
   const voiceAvailable = voiceDeployment.enabled && voiceUserEnabled;
@@ -2107,7 +2121,7 @@ export default function HomePage() {
 
   const recordInteraction = (
     profile: Profile,
-    kind: NoteMode,
+    kind: InteractionKind,
     note: string,
     target: string,
   ) => {
@@ -2156,6 +2170,7 @@ export default function HomePage() {
   const completeLike = (
     profile = actionProfile,
     voiceNote?: { message: string; target: string },
+    source: 'like' | 'spark' = 'like',
   ) => {
     const actionMessage = voiceNote?.message ?? noteMessage;
     const actionTarget = voiceNote?.target ?? noteTarget;
@@ -2181,13 +2196,21 @@ export default function HomePage() {
     if (membership === 'free' && !alreadySent)
       setDailyLikesRemaining((remaining) => Math.max(0, remaining - 1));
     if (recordInteraction(profile, 'like', actionMessage, actionTarget)) {
-      announce(`Like sent to ${profile.name} — they’ll see it in Incoming`);
+      announce(
+        source === 'spark'
+          ? `Spark sent to ${profile.name} — your introduction is in their Likes`
+          : `Like sent to ${profile.name} — they’ll see it in Likes`,
+      );
       nextProfile();
     } else if (profile.name === 'Maya') {
       setMatchProfile(profile);
       setMatchOpen(true);
     } else {
-      announce(`Like sent to ${profile.name} — track it in You liked`);
+      announce(
+        source === 'spark'
+          ? `Spark sent to ${profile.name} — track it in You liked`
+          : `Like sent to ${profile.name} — track it in You liked`,
+      );
       nextProfile();
     }
   };
@@ -2203,9 +2226,9 @@ export default function HomePage() {
   };
 
   const sendNoteAction = () => {
-    if (noteMode === 'like') {
+    if (noteMode === 'like' || noteMode === 'spark') {
       setNoteOpen(false);
-      completeLike(actionProfile);
+      completeLike(actionProfile, undefined, noteMode);
       return;
     }
     if (superPulsesRemaining <= 0) {
@@ -2443,7 +2466,6 @@ export default function HomePage() {
 
   const openChatWith = (text = '', profile = matchProfile) => {
     setMatchOpen(false);
-    setIncomingOpen(false);
     const contact = {
       name: profile.name,
       image: profile.image,
@@ -2476,7 +2498,6 @@ export default function HomePage() {
           item.id === interactionId ? { ...item, status: 'accepted' } : item,
         ),
       );
-    setIncomingOpen(false);
     setMatchProfile(profile);
     setMatchOpen(true);
   };
@@ -3609,8 +3630,8 @@ export default function HomePage() {
     }
     if (normalized.includes('incoming') || normalized.includes('who liked')) {
       setVoiceOpen(false);
-      setIncomingOpen(true);
-      speakVoiceResponse('Opening Incoming likes and Super Spikes.');
+      handleTab('Likes');
+      speakVoiceResponse('Opening Likes and Super Spikes.');
       return;
     }
     if (
@@ -4332,7 +4353,6 @@ export default function HomePage() {
       tab !== 'Pulse' ||
       profileOpen ||
       noteOpen ||
-      incomingOpen ||
       matchOpen ||
       subscriptionOpen ||
       boostOpen
@@ -4403,7 +4423,6 @@ export default function HomePage() {
     dailyLikesRemaining,
     engagementNudge,
     engagementPreferences,
-    incomingOpen,
     matchOpen,
     membership,
     noteOpen,
@@ -4705,7 +4724,10 @@ export default function HomePage() {
       inputSchema: {
         type: 'object',
         properties: {
-          tab: { type: 'string', enum: ['Pulse', 'Galaxy', 'Chat', 'Profile'] },
+          tab: {
+            type: 'string',
+            enum: ['Pulse', 'Galaxy', 'Likes', 'Chat', 'Profile'],
+          },
         },
         required: ['tab'],
         additionalProperties: false,
@@ -4753,28 +4775,28 @@ export default function HomePage() {
   return (
     <main className="app-shell" data-theme={theme}>
       <div className="phone-frame">
-        <button
-          className={`global-boost-button ${tab === 'Pulse' ? 'with-incoming' : ''}`}
-          aria-label={
-            boostActive ? 'View active Profile Lift' : 'Lift my profile'
-          }
-          onClick={() => setBoostOpen(true)}
-        >
-          <ProfileLiftMark size={21} />
-          <span className="sr-only">
-            {boostActive
-              ? 'Profile Lift active'
-              : `${boostsRemaining} Profile Lifts left`}
-          </span>
-        </button>
+        {tab === 'Pulse' && (
+          <button
+            className={`global-boost-button ${boostActive ? 'active' : ''}`}
+            aria-label={
+              boostActive ? 'View active Profile Lift' : 'Lift my profile'
+            }
+            onClick={() => setBoostOpen(true)}
+          >
+            <Rocket size={21} />
+            <span className="sr-only">
+              {boostActive
+                ? 'Profile Lift active'
+                : `${boostsRemaining} Profile Lifts left`}
+            </span>
+          </button>
+        )}
         {tab === 'Pulse' && (
           <DiscoverHeader
-            onIncoming={() => setIncomingOpen(true)}
             onFilters={() => setFilterOpen(true)}
             onVoice={openVoice}
             voiceEnabled={voiceAvailable}
             activeFilterCount={activeFilterCount}
-            incomingLikeCount={incomingLikeCount}
           />
         )}
         {tab === 'Pulse' &&
@@ -4792,6 +4814,14 @@ export default function HomePage() {
               }
               onPass={nextProfile}
               onLike={() => openNote('like', current)}
+              onSpark={() => {
+                if (matchedProfiles.some((item) => item.name === current.name))
+                  openChatWith('', current);
+                else openNote('spark', current);
+              }}
+              matched={matchedProfiles.some(
+                (item) => item.name === current.name,
+              )}
               onPriority={() => openNote('super', current)}
               onTonight={() => openNote('super', current)}
               saved={savedProfileNames.includes(current.name)}
@@ -4827,6 +4857,44 @@ export default function HomePage() {
             onPass={nextProfile}
             onLike={() => openNote('like', current)}
             onPriority={() => openNote('super', current)}
+          />
+        )}
+        {tab === 'Likes' && (
+          <LikesScreen
+            sentLikes={
+              signedInIdentity
+                ? accountSentLikes
+                : sentLikes.map((profile) => ({
+                    profile,
+                    status:
+                      profile.name === 'Maya'
+                        ? ('accepted' as const)
+                        : ('pending' as const),
+                  }))
+            }
+            incomingRows={signedInIdentity ? accountIncomingRows : undefined}
+            matchedProfiles={matchedProfiles}
+            declined={declinedIncoming}
+            onLikeBack={likeBack}
+            onPass={(name, interactionId) => {
+              if (interactionId)
+                saveInteractions((current) =>
+                  current.map((item) =>
+                    item.id === interactionId
+                      ? { ...item, status: 'declined' }
+                      : item,
+                  ),
+                );
+              setDeclinedIncoming((items) => [...items, name]);
+              announce(`${name} marked Not for me`);
+            }}
+            onMessage={(profile) => openChatWith('', profile)}
+            onProfile={openFullProfile}
+            savedProfiles={savedProfiles}
+            onToggleSaved={toggleSavedProfile}
+            membership={membership}
+            onUpgrade={() => setSubscriptionOpen(true)}
+            onBrowse={() => handleTab('Pulse')}
           />
         )}
         {tab === 'Chat' && !chatOpen && (
@@ -4943,6 +5011,7 @@ export default function HomePage() {
           active={tab}
           onChange={handleTab}
           unreadCount={unreadMessages}
+          incomingLikeCount={incomingLikeCount}
         />
         {engagementNudge && (
           <EngagementPrompt
@@ -4964,7 +5033,20 @@ export default function HomePage() {
         onOpenChange={closeOrUpdateFullProfile}
         onPass={nextProfile}
         onLike={() => openNote('like', selectedProfile ?? current)}
+        onSpark={() => {
+          const profile = selectedProfile ?? current;
+          if (matchedProfiles.some((item) => item.name === profile.name))
+            openChatWith('', profile);
+          else openNote('spark', profile);
+        }}
         onPriority={() => openNote('super', selectedProfile ?? current)}
+        onBoost={() => {
+          setProfileOpen(false);
+          setBoostOpen(true);
+        }}
+        matched={matchedProfiles.some(
+          (item) => item.name === (selectedProfile ?? current).name,
+        )}
         onShare={() => shareProfile(selectedProfile ?? current)}
         onReport={() => openProfileSafety(selectedProfile ?? current, 'report')}
         onBlock={() => openProfileSafety(selectedProfile ?? current, 'block')}
@@ -4989,49 +5071,6 @@ export default function HomePage() {
         remaining={superPulsesRemaining}
         onSend={sendNoteAction}
         onCancel={() => setNoteOpen(false)}
-      />
-      <Incoming
-        open={incomingOpen}
-        onOpenChange={setIncomingOpen}
-        sentLikes={
-          signedInIdentity
-            ? accountSentLikes
-            : sentLikes.map((profile) => ({
-                profile,
-                status:
-                  profile.name === 'Maya'
-                    ? ('accepted' as const)
-                    : ('pending' as const),
-              }))
-        }
-        incomingRows={signedInIdentity ? accountIncomingRows : undefined}
-        declined={declinedIncoming}
-        onLikeBack={likeBack}
-        onPass={(name, interactionId) => {
-          if (interactionId)
-            saveInteractions((current) =>
-              current.map((item) =>
-                item.id === interactionId
-                  ? { ...item, status: 'declined' }
-                  : item,
-              ),
-            );
-          setDeclinedIncoming((items) => [...items, name]);
-          announce(`${name} marked Not for me`);
-        }}
-        onMessage={(profile) => openChatWith('', profile)}
-        onProfile={openFullProfile}
-        savedProfiles={savedProfiles}
-        onToggleSaved={toggleSavedProfile}
-        membership={membership}
-        onUpgrade={() => {
-          setIncomingOpen(false);
-          setSubscriptionOpen(true);
-        }}
-        onBrowse={() => {
-          setIncomingOpen(false);
-          handleTab('Pulse');
-        }}
       />
       <MatchModal
         open={matchOpen}
@@ -5212,7 +5251,7 @@ export default function HomePage() {
         onCommand={processVoiceCommand}
         onIncoming={() => {
           closeVoiceBriefing(false);
-          setIncomingOpen(true);
+          handleTab('Likes');
         }}
         onMessages={() => {
           closeVoiceBriefing(false);
@@ -5828,19 +5867,15 @@ function TodayViewerDialog({
 }
 
 function DiscoverHeader({
-  onIncoming,
   onFilters,
   onVoice,
   voiceEnabled,
   activeFilterCount,
-  incomingLikeCount,
 }: {
-  onIncoming: () => void;
   onFilters: () => void;
   onVoice: () => void;
   voiceEnabled: boolean;
   activeFilterCount: number;
-  incomingLikeCount: number;
 }) {
   return (
     <header className="topbar">
@@ -5862,22 +5897,6 @@ function DiscoverHeader({
         </button>
       )}
       <SpikeDateWordmark context="header" />
-      <button
-        className="incoming-button"
-        aria-label={
-          incomingLikeCount > 0
-            ? `Open likes center, ${incomingLikeCount} new ${incomingLikeCount === 1 ? 'like' : 'likes'}`
-            : 'Open likes center'
-        }
-        onClick={onIncoming}
-      >
-        <BrandHeartMark size={25} />
-        {incomingLikeCount > 0 && (
-          <span className="notification-dot" aria-hidden="true">
-            {incomingLikeCount > 9 ? '9+' : incomingLikeCount}
-          </span>
-        )}
-      </button>
     </header>
   );
 }
@@ -5925,6 +5944,8 @@ function DiscoverScreen({
   onPostToday,
   onPass,
   onLike,
+  onSpark,
+  matched,
   onPriority,
   onTonight,
   saved,
@@ -5940,6 +5961,8 @@ function DiscoverScreen({
   onPostToday: () => void;
   onPass: () => void;
   onLike: () => void;
+  onSpark: () => void;
+  matched: boolean;
   onPriority: () => void;
   onTonight: () => void;
   saved: boolean;
@@ -5968,6 +5991,21 @@ function DiscoverScreen({
           <BrandHeartMark size={20} />
         </button>
         <button
+          className="spark"
+          onClick={onSpark}
+          aria-label={
+            matched
+              ? `Message ${profile.name}`
+              : `Send ${profile.name} a Spark introduction`
+          }
+        >
+          {matched ? (
+            <MessageCircle size={20} />
+          ) : (
+            <MessageCirclePlus size={20} />
+          )}
+        </button>
+        <button
           className="super"
           onClick={onPriority}
           aria-label={`Send ${profile.name} a Super Spike`}
@@ -5992,11 +6030,10 @@ function DiscoverScreen({
           aria-label="Post or edit your Today update"
         >
           {todayActive ? (
-            <CalendarCheck size={18} />
+            <CalendarCheck size={20} />
           ) : (
-            <CalendarPlus size={18} />
+            <CalendarPlus size={20} />
           )}
-          <span>{todayActive ? 'Edit' : 'Today'}</span>
         </button>
         <button
           className="today-feed"
@@ -6285,13 +6322,19 @@ function ProfileCard({
 function ActionRow({
   onPass,
   onLike,
-  onBoost,
+  onSpark,
   onPriority,
+  saved,
+  onToggleSaved,
+  matched = false,
 }: {
   onPass: () => void;
   onLike: () => void;
-  onBoost?: () => void;
+  onSpark?: () => void;
   onPriority?: () => void;
+  saved?: boolean;
+  onToggleSaved?: () => void;
+  matched?: boolean;
 }) {
   return (
     <div className="action-row" aria-label="Profile actions">
@@ -6301,14 +6344,18 @@ function ActionRow({
       <button className="action-button like" aria-label="Like" onClick={onLike}>
         <BrandHeartMark size={29} />
       </button>
-      {onBoost && (
+      {onSpark && (
         <button
-          className="action-button boost-action"
-          aria-label="Lift my profile"
-          title="Profile Lift"
-          onClick={onBoost}
+          className="action-button spark-action"
+          aria-label={matched ? 'Message match' : 'Send a Spark introduction'}
+          title={matched ? 'Message' : 'Spark'}
+          onClick={onSpark}
         >
-          <ProfileLiftMark size={27} />
+          {matched ? (
+            <MessageCircle size={25} />
+          ) : (
+            <MessageCirclePlus size={25} />
+          )}
         </button>
       )}
       {onPriority && (
@@ -6318,6 +6365,16 @@ function ActionRow({
           onClick={onPriority}
         >
           <SuperSpikeMark className="super-pulse-glyph" size={30} />
+        </button>
+      )}
+      {onToggleSaved && (
+        <button
+          className={`action-button save-action ${saved ? 'saved' : ''}`}
+          aria-label={saved ? 'Remove from Saved' : 'Save privately'}
+          aria-pressed={saved}
+          onClick={onToggleSaved}
+        >
+          <Bookmark size={24} fill={saved ? 'currentColor' : 'none'} />
         </button>
       )}
     </div>
@@ -6438,10 +6495,12 @@ function TabBar({
   active,
   onChange,
   unreadCount,
+  incomingLikeCount,
 }: {
   active: Tab;
   onChange: (tab: Tab) => void;
   unreadCount: number;
+  incomingLikeCount: number;
 }) {
   return (
     <nav className="tabbar" aria-label="Primary navigation">
@@ -6455,9 +6514,11 @@ function TabBar({
             onClick={() => onChange(label)}
             aria-current={label === active ? 'page' : undefined}
             aria-label={
-              label === 'Chat' && unreadCount
-                ? `Chat, ${unreadCount} unread ${unreadCount === 1 ? 'message' : 'messages'}`
-                : displayLabel
+              label === 'Likes' && incomingLikeCount
+                ? `Likes, ${incomingLikeCount} new ${incomingLikeCount === 1 ? 'like' : 'likes'}`
+                : label === 'Chat' && unreadCount
+                  ? `Chat, ${unreadCount} unread ${unreadCount === 1 ? 'message' : 'messages'}`
+                  : displayLabel
             }
           >
             <span className="tab-icon">
@@ -6469,6 +6530,11 @@ function TabBar({
               {label === 'Chat' && unreadCount > 0 && (
                 <b className="tab-badge" aria-hidden="true">
                   {unreadCount > 9 ? '9+' : unreadCount}
+                </b>
+              )}
+              {label === 'Likes' && incomingLikeCount > 0 && (
+                <b className="tab-badge likes" aria-hidden="true">
+                  {incomingLikeCount > 9 ? '9+' : incomingLikeCount}
                 </b>
               )}
             </span>
@@ -6486,7 +6552,10 @@ function FullProfile({
   onOpenChange,
   onPass,
   onLike,
+  onSpark,
   onPriority,
+  onBoost,
+  matched,
   onShare,
   onReport,
   onBlock,
@@ -6500,7 +6569,10 @@ function FullProfile({
   onOpenChange: (open: boolean) => void;
   onPass: () => void;
   onLike: () => void;
+  onSpark: () => void;
   onPriority: () => void;
+  onBoost: () => void;
+  matched: boolean;
   onShare: () => void;
   onReport: () => void;
   onBlock: () => void;
@@ -6551,36 +6623,29 @@ function FullProfile({
           <div className="profile-film">
             <div className="profile-film-tools">
               <button
-                className="profile-share"
-                onClick={onShare}
-                aria-label={`Share ${profile.name}'s profile with friends or family`}
-              >
-                <Share2 size={17} /> Share
-              </button>
-              <button
-                className={`profile-today ${todayActive ? 'active' : ''}`}
+                className={`profile-utility profile-today ${todayActive ? 'active' : ''}`}
                 onClick={onPostToday}
                 aria-label="Post or edit your Today update"
               >
                 {todayActive ? (
-                  <CalendarCheck size={17} />
+                  <CalendarCheck size={20} />
                 ) : (
-                  <CalendarPlus size={17} />
+                  <CalendarPlus size={20} />
                 )}
-                {todayActive ? 'Edit Today' : 'Today'}
               </button>
               <button
-                className={`profile-save ${saved ? 'saved' : ''}`}
-                onClick={onToggleSaved}
-                aria-label={
-                  saved
-                    ? `Remove ${profile.name} from Saved`
-                    : `Save ${profile.name} privately`
-                }
-                aria-pressed={saved}
+                className="profile-utility profile-boost"
+                onClick={onBoost}
+                aria-label="Lift my profile"
               >
-                <Bookmark size={17} fill={saved ? 'currentColor' : 'none'} />
-                {saved ? 'Saved' : 'Save'}
+                <Rocket size={20} />
+              </button>
+              <button
+                className="profile-utility profile-share"
+                onClick={onShare}
+                aria-label={`Share ${profile.name}'s profile with friends or family`}
+              >
+                <Share2 size={20} />
               </button>
             </div>
             {active.type === 'video' ? (
@@ -6759,16 +6824,16 @@ function FullProfile({
             </div>
           </div>
         </div>
-        <button
-          className="profile-reply-spike-float"
-          onClick={onLike}
-          aria-label={`Reply to ${profile.name} with a Spike`}
-        >
-          <MessageCircleReply size={19} aria-hidden="true" />
-          <span>Reply Spike</span>
-        </button>
         <div className="sheet-actions">
-          <ActionRow onPass={onPass} onLike={onLike} onPriority={onPriority} />
+          <ActionRow
+            onPass={onPass}
+            onLike={onLike}
+            onSpark={onSpark}
+            onPriority={onPriority}
+            matched={matched}
+            saved={saved}
+            onToggleSaved={onToggleSaved}
+          />
         </div>
       </SheetContent>
     </Sheet>
@@ -6801,6 +6866,7 @@ function NoteDialog({
   onCancel: () => void;
 }) {
   const isSuper = mode === 'super';
+  const isSpark = mode === 'spark';
   const targets: NoteTarget[] = isSuper
     ? ['Photo 1', 'Lifestyle', 'Sunday morning']
     : ['Photo 1', profile.tags[0], 'Two truths'];
@@ -6810,7 +6876,7 @@ function NoteDialog({
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className={`note-dialog note-sheet ${isSuper ? 'super-note' : 'like-note'}`}
+        className={`note-dialog note-sheet ${isSuper ? 'super-note' : isSpark ? 'spark-note' : 'like-note'}`}
       >
         <button
           className="note-sheet-handle"
@@ -6823,25 +6889,33 @@ function NoteDialog({
           <span className="note-sheet-action-mark" aria-hidden="true">
             {isSuper ? (
               <SuperSpikeMark className="note-sheet-star" size={27} />
+            ) : isSpark ? (
+              <MessageCirclePlus className="note-sheet-spark" size={24} />
             ) : (
               <BrandHeartMark className="note-sheet-heart" size={23} />
             )}
           </span>
           <span className="note-sheet-heading">
             <SheetTitle>
-              {isSuper ? `Super Spike ${profile.name}` : `Like ${profile.name}`}
+              {isSuper
+                ? `Super Spike ${profile.name}`
+                : isSpark
+                  ? `Spark ${profile.name}`
+                  : `Like ${profile.name}`}
             </SheetTitle>
             <SheetDescription>
               {isSuper
                 ? `${remaining} Super Spike${remaining === 1 ? '' : 's'} left this week · they’ll see you first`
-                : 'Add something personal to stand out.'}
+                : isSpark
+                  ? 'Send a thoughtful introduction with your Like.'
+                  : 'Add something personal to stand out.'}
             </SheetDescription>
           </span>
           <button
             type="button"
             className="note-sheet-close"
             onClick={onCancel}
-            aria-label={`Close ${isSuper ? 'Super Spike' : 'Like'}`}
+            aria-label={`Close ${isSuper ? 'Super Spike' : isSpark ? 'Spark' : 'Like'}`}
           >
             <X size={20} />
           </button>
@@ -6896,7 +6970,9 @@ function NoteDialog({
             placeholder={
               isSuper
                 ? `A Super Spike note for ${profile.name}…`
-                : `Say something about this ${noteContext}…`
+                : isSpark
+                  ? `Introduce yourself to ${profile.name}…`
+                  : `Say something about this ${noteContext}…`
             }
           />
           <small className="note-character-count">{message.length}/140</small>
@@ -6905,13 +6981,23 @@ function NoteDialog({
           <button className="primary-button" onClick={onSend}>
             {isSuper ? (
               <SuperSpikeMark className="super-pulse-glyph" size={22} />
+            ) : isSpark ? (
+              <MessageCirclePlus size={20} />
             ) : (
               <BrandHeartMark size={20} />
             )}
-            {isSuper ? 'Send Super Spike' : 'Send Like'}
+            {isSuper
+              ? 'Send Super Spike'
+              : isSpark
+                ? 'Send Spark'
+                : 'Send Like'}
           </button>
           <button className="text-button note-skip" onClick={onSend}>
-            {isSuper ? 'Super Spike without a note' : 'Like without a note'}
+            {isSuper
+              ? 'Super Spike without a note'
+              : isSpark
+                ? 'Spark without a note'
+                : 'Like without a note'}
           </button>
         </div>
       </SheetContent>
@@ -7936,11 +8022,10 @@ function RoomStack({
   );
 }
 
-function Incoming({
-  open,
-  onOpenChange,
+function LikesScreen({
   sentLikes,
   incomingRows,
+  matchedProfiles,
   declined,
   onLikeBack,
   onPass,
@@ -7952,10 +8037,9 @@ function Incoming({
   onUpgrade,
   onBrowse,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   sentLikes: { profile: Profile; status: ProfileInteraction['status'] }[];
   incomingRows?: IncomingRow[];
+  matchedProfiles: Profile[];
   declined: string[];
   onLikeBack: (profile: Profile, interactionId?: string) => void;
   onPass: (name: string, interactionId?: string) => void;
@@ -7967,7 +8051,7 @@ function Incoming({
   onUpgrade: () => void;
   onBrowse: () => void;
 }) {
-  const [view, setView] = useState<'incoming' | 'sent' | 'saved'>('incoming');
+  const [view, setView] = useState<'incoming' | 'sent' | 'matches'>('incoming');
   const [incomingFilter, setIncomingFilter] = useState<
     'all' | 'new' | 'super' | 'notes'
   >('all');
@@ -8003,54 +8087,224 @@ function Incoming({
   const visibleRows =
     membership === 'plus' ? filteredRows : filteredRows.slice(0, 2);
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        showCloseButton={false}
-        className="incoming-sheet"
-      >
-        <SheetTitle className="incoming-title">Likes</SheetTitle>
-        <SheetDescription className="incoming-subtitle">
-          Accept a like to match. Messages unlock only after a match.
-        </SheetDescription>
+    <section className="screen scroll-screen likes-screen">
+      <header className="page-header likes-page-header">
+        <p className="eyebrow">YOUR CONNECTIONS</p>
+        <h1>Likes</h1>
+        <p>Accept a Like to match. Messages unlock after you both connect.</p>
+      </header>
+      <div className="likes-tabs" role="tablist">
         <button
-          className="close-round"
-          onClick={() => onOpenChange(false)}
-          aria-label="Close likes center"
+          className={view === 'incoming' ? 'active' : ''}
+          onClick={() => setView('incoming')}
+          role="tab"
+          aria-selected={view === 'incoming'}
         >
-          <X size={19} />
+          Liked you <span>{availableRows.length}</span>
         </button>
-        <div className="likes-tabs" role="tablist">
-          <button
-            className={view === 'incoming' ? 'active' : ''}
-            onClick={() => setView('incoming')}
-            role="tab"
-            aria-selected={view === 'incoming'}
-          >
-            Liked you <span>{availableRows.length}</span>
-          </button>
-          <button
-            className={view === 'sent' ? 'active' : ''}
-            onClick={() => setView('sent')}
-            role="tab"
-            aria-selected={view === 'sent'}
-          >
-            You liked <span>{sentLikes.length}</span>
-          </button>
-          <button
-            className={view === 'saved' ? 'active' : ''}
-            onClick={() => setView('saved')}
-            role="tab"
-            aria-selected={view === 'saved'}
-          >
-            Saved <span>{savedProfiles.length}</span>
-          </button>
+        <button
+          className={view === 'sent' ? 'active' : ''}
+          onClick={() => setView('sent')}
+          role="tab"
+          aria-selected={view === 'sent'}
+        >
+          You liked <span>{sentLikes.length}</span>
+        </button>
+        <button
+          className={view === 'matches' ? 'active' : ''}
+          onClick={() => setView('matches')}
+          role="tab"
+          aria-selected={view === 'matches'}
+        >
+          Matches <span>{matchedProfiles.length}</span>
+        </button>
+      </div>
+      {view === 'matches' ? (
+        <div className="sent-likes matches-list">
+          {matchedProfiles.length ? (
+            matchedProfiles.map((profile) => (
+              <div className="sent-like" key={profile.name}>
+                <button
+                  className="avatar incoming-profile-link"
+                  onClick={() => onProfile(profile)}
+                  aria-label={`Open ${profile.name}'s full profile`}
+                >
+                  <Image
+                    src={profile.image}
+                    alt={profile.name}
+                    fill
+                    sizes="58px"
+                    className="profile-photo"
+                  />
+                  <ProfileSpikeBadge />
+                </button>
+                <span>
+                  <button
+                    className="incoming-name-link"
+                    onClick={() => onProfile(profile)}
+                  >
+                    {profile.name}
+                  </button>
+                  <small>Matched · ready to message</small>
+                </span>
+                <button
+                  className="sent-message-button"
+                  onClick={() => onMessage(profile)}
+                  aria-label={`Message ${profile.name}`}
+                >
+                  Message
+                </button>
+              </div>
+            ))
+          ) : (
+            <p className="empty-likes">Your mutual matches will appear here.</p>
+          )}
+          <p className="likes-note">
+            <MessageCircle size={16} /> A mutual Like unlocks private chat.
+          </p>
         </div>
-        {view === 'saved' ? (
-          <div className="sent-likes saved-profiles-list">
+      ) : view === 'incoming' ? (
+        <div className="incoming-list">
+          <p className="list-label">
+            <BrandHeartMark size={15} /> RECENT LIKES
+          </p>
+          <div className="incoming-filters" aria-label="Filter incoming likes">
+            {(['all', 'new', 'super', 'notes'] as const).map((filter) => (
+              <button
+                type="button"
+                key={filter}
+                className={incomingFilter === filter ? 'active' : ''}
+                aria-pressed={incomingFilter === filter}
+                onClick={() => setIncomingFilter(filter)}
+              >
+                {filter === 'all'
+                  ? 'All'
+                  : filter === 'new'
+                    ? 'New'
+                    : filter === 'super'
+                      ? 'Super Spikes'
+                      : 'With notes'}
+              </button>
+            ))}
+          </div>
+          {visibleRows.map((row, index) => (
+            <div className="incoming-row" key={`${row.profile.name}-${index}`}>
+              <button
+                className="avatar incoming-profile-link"
+                onClick={() => onProfile(row.profile)}
+                aria-label={`Open ${row.profile.name}'s full profile`}
+              >
+                <Image
+                  src={row.profile.image}
+                  alt={row.profile.name}
+                  fill
+                  sizes="58px"
+                  className="profile-photo"
+                />
+                <ProfileSpikeBadge />
+              </button>
+              <span className="incoming-copy">
+                <button
+                  className="incoming-name-link"
+                  onClick={() => onProfile(row.profile)}
+                >
+                  {row.profile.name}{' '}
+                  {row.superPulse ? (
+                    <span aria-label="Super Spike">
+                      <SuperSpikeMark size={16} />
+                    </span>
+                  ) : index < 2 ? (
+                    <BadgeCheck size={15} fill="#FF4D6D" color="#161618" />
+                  ) : null}
+                </button>
+                <small>
+                  {row.profile.intent} · {row.liked}
+                </small>
+                {row.note && <em className="incoming-note">{row.note}</em>}
+                <span className="decision-actions">
+                  <button onClick={() => onPass(row.profile.name, row.id)}>
+                    Not for me
+                  </button>
+                  <button
+                    className="accept-like"
+                    onClick={() => onLikeBack(row.profile, row.id)}
+                  >
+                    Accept
+                  </button>
+                </span>
+              </span>
+            </div>
+          ))}
+          {visibleRows.length === 0 && (
+            <div className="empty-likes-state">
+              <p className="empty-likes">No likes match this filter.</p>
+              <button type="button" onClick={onBrowse}>
+                Browse profiles
+              </button>
+            </div>
+          )}
+          <p className="likes-note">
+            <BrandHeartMark size={16} /> Accept creates a match. “Not for me”
+            removes the like privately.
+          </p>
+        </div>
+      ) : (
+        <div className="sent-likes">
+          {sentLikes.length ? (
+            sentLikes.map(({ profile, status }) => (
+              <div className="sent-like" key={profile.name}>
+                <button
+                  className="avatar incoming-profile-link"
+                  onClick={() => onProfile(profile)}
+                  aria-label={`Open ${profile.name}'s full profile`}
+                >
+                  <Image
+                    src={profile.image}
+                    alt={profile.name}
+                    fill
+                    sizes="58px"
+                    className="profile-photo"
+                  />
+                  <ProfileSpikeBadge />
+                </button>
+                <span>
+                  <button
+                    className="incoming-name-link"
+                    onClick={() => onProfile(profile)}
+                  >
+                    {profile.name}
+                  </button>
+                  <small>
+                    {status === 'accepted'
+                      ? 'Matched — you can message now'
+                      : 'Waiting for them to like you back'}
+                  </small>
+                </span>
+                {status === 'accepted' ? (
+                  <button
+                    className="sent-message-button"
+                    onClick={() => onMessage(profile)}
+                  >
+                    Message
+                  </button>
+                ) : (
+                  <span className="waiting-pill">Waiting</span>
+                )}
+              </div>
+            ))
+          ) : (
+            <p className="empty-likes">Profiles you like will appear here.</p>
+          )}
+          <div className="saved-profiles-section">
+            <div className="saved-profiles-heading">
+              <span>
+                <Bookmark size={16} /> Saved privately
+              </span>
+              <small>{savedProfiles.length}</small>
+            </div>
             {savedProfiles.length ? (
               savedProfiles.map((profile) => (
-                <div className="sent-like" key={profile.name}>
+                <div className="sent-like" key={`saved-${profile.name}`}>
                   <button
                     className="avatar incoming-profile-link"
                     onClick={() => onProfile(profile)}
@@ -8072,9 +8326,7 @@ function Incoming({
                     >
                       {profile.name}
                     </button>
-                    <small>
-                      {profile.intent} · {profile.distance}
-                    </small>
+                    <small>Saved privately · no notification sent</small>
                   </span>
                   <button
                     className="saved-remove-button"
@@ -8086,166 +8338,23 @@ function Incoming({
                 </div>
               ))
             ) : (
-              <p className="empty-likes">
-                Profiles you save privately will appear here.
+              <p className="empty-likes compact">
+                Save a profile to revisit it here.
               </p>
             )}
-            <p className="likes-note">
-              <Bookmark size={16} /> Saved profiles are private. Nobody is
-              notified.
-            </p>
           </div>
-        ) : view === 'incoming' ? (
-          <div className="incoming-list">
-            <p className="list-label">
-              <BrandHeartMark size={15} /> RECENT LIKES
-            </p>
-            <div
-              className="incoming-filters"
-              aria-label="Filter incoming likes"
-            >
-              {(['all', 'new', 'super', 'notes'] as const).map((filter) => (
-                <button
-                  type="button"
-                  key={filter}
-                  className={incomingFilter === filter ? 'active' : ''}
-                  aria-pressed={incomingFilter === filter}
-                  onClick={() => setIncomingFilter(filter)}
-                >
-                  {filter === 'all'
-                    ? 'All'
-                    : filter === 'new'
-                      ? 'New'
-                      : filter === 'super'
-                        ? 'Super Spikes'
-                        : 'With notes'}
-                </button>
-              ))}
-            </div>
-            {visibleRows.map((row, index) => (
-              <div
-                className="incoming-row"
-                key={`${row.profile.name}-${index}`}
-              >
-                <button
-                  className="avatar incoming-profile-link"
-                  onClick={() => onProfile(row.profile)}
-                  aria-label={`Open ${row.profile.name}'s full profile`}
-                >
-                  <Image
-                    src={row.profile.image}
-                    alt={row.profile.name}
-                    fill
-                    sizes="58px"
-                    className="profile-photo"
-                  />
-                  <ProfileSpikeBadge />
-                </button>
-                <span className="incoming-copy">
-                  <button
-                    className="incoming-name-link"
-                    onClick={() => onProfile(row.profile)}
-                  >
-                    {row.profile.name}{' '}
-                    {row.superPulse ? (
-                      <span aria-label="Super Spike">
-                        <SuperSpikeMark size={16} />
-                      </span>
-                    ) : index < 2 ? (
-                      <BadgeCheck size={15} fill="#FF4D6D" color="#161618" />
-                    ) : null}
-                  </button>
-                  <small>
-                    {row.profile.intent} · {row.liked}
-                  </small>
-                  {row.note && <em className="incoming-note">{row.note}</em>}
-                  <span className="decision-actions">
-                    <button onClick={() => onPass(row.profile.name, row.id)}>
-                      Not for me
-                    </button>
-                    <button
-                      className="accept-like"
-                      onClick={() => onLikeBack(row.profile, row.id)}
-                    >
-                      Accept
-                    </button>
-                  </span>
-                </span>
-              </div>
-            ))}
-            {visibleRows.length === 0 && (
-              <div className="empty-likes-state">
-                <p className="empty-likes">No likes match this filter.</p>
-                <button type="button" onClick={onBrowse}>
-                  Browse profiles
-                </button>
-              </div>
-            )}
-            <p className="likes-note">
-              <BrandHeartMark size={16} /> Accept creates a match. “Not for me”
-              removes the like privately.
-            </p>
-          </div>
-        ) : (
-          <div className="sent-likes">
-            {sentLikes.length ? (
-              sentLikes.map(({ profile, status }) => (
-                <div className="sent-like" key={profile.name}>
-                  <button
-                    className="avatar incoming-profile-link"
-                    onClick={() => onProfile(profile)}
-                    aria-label={`Open ${profile.name}'s full profile`}
-                  >
-                    <Image
-                      src={profile.image}
-                      alt={profile.name}
-                      fill
-                      sizes="58px"
-                      className="profile-photo"
-                    />
-                    <ProfileSpikeBadge />
-                  </button>
-                  <span>
-                    <button
-                      className="incoming-name-link"
-                      onClick={() => onProfile(profile)}
-                    >
-                      {profile.name}
-                    </button>
-                    <small>
-                      {status === 'accepted'
-                        ? 'Matched — you can message now'
-                        : 'Waiting for them to like you back'}
-                    </small>
-                  </span>
-                  {status === 'accepted' ? (
-                    <button
-                      className="sent-message-button"
-                      onClick={() => onMessage(profile)}
-                    >
-                      Message
-                    </button>
-                  ) : (
-                    <span className="waiting-pill">Waiting</span>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p className="empty-likes">Profiles you like will appear here.</p>
-            )}
-          </div>
+        </div>
+      )}
+      {view === 'incoming' &&
+        incomingFilter === 'all' &&
+        membership === 'free' &&
+        availableRows.length > visibleRows.length && (
+          <button className="plus-link" onClick={onUpgrade}>
+            See {availableRows.length - visibleRows.length} more with SpikeDate+{' '}
+            <ChevronRight size={16} />
+          </button>
         )}
-        {view === 'incoming' &&
-          incomingFilter === 'all' &&
-          membership === 'free' &&
-          availableRows.length > visibleRows.length && (
-            <button className="plus-link" onClick={onUpgrade}>
-              See {availableRows.length - visibleRows.length} more with
-              SpikeDate+ <ChevronRight size={16} />
-            </button>
-          )}
-      </SheetContent>
-    </Sheet>
+    </section>
   );
 }
 

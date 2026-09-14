@@ -2499,6 +2499,370 @@ button:focus-visible {
   font-weight: 500;
 }
 
+/* Connection-first navigation and premium profile hierarchy. */
+.global-boost-button {
+  right: 13px;
+  border: 0;
+  background: transparent;
+  color: var(--amber);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.78));
+}
+.global-boost-button::after {
+  content: '';
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+  opacity: 0.72;
+}
+.global-boost-button.active::after {
+  width: 9px;
+  height: 9px;
+  background: #92fa73;
+  box-shadow: 0 0 0 3px rgba(146, 250, 115, 0.18);
+}
+.filter-button,
+.voice-briefing-button {
+  background: transparent;
+  border-color: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.78));
+}
+.home-action-rail {
+  right: 13px;
+  bottom: 74px;
+  gap: 6px;
+}
+.home-action-rail button.spark {
+  color: #fff;
+}
+.home-action-rail button.spark svg {
+  stroke-width: 1.8;
+}
+.home-action-rail button.today-compose {
+  width: 44px;
+  min-height: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.home-action-rail button.today-compose.active {
+  color: var(--coral);
+}
+.home-action-rail button.today-compose svg {
+  color: currentColor;
+}
+.tabbar {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding-inline: 4px;
+  gap: 1px;
+}
+.tabbar button {
+  gap: 3px;
+  border-radius: 12px;
+  font-size: 0.62rem;
+  font-weight: 400;
+}
+.tabbar button.active {
+  background: transparent;
+  box-shadow: none;
+}
+.tabbar button.active .tab-label {
+  color: var(--foreground);
+  font-weight: 500;
+}
+.tab-badge.likes {
+  background: #e31b36;
+}
+.likes-screen {
+  padding: 22px 18px 104px;
+  font-family: var(--font-inter), Inter, Arial, sans-serif;
+}
+.likes-page-header {
+  padding-bottom: 12px;
+}
+.likes-page-header h1,
+.likes-page-header p,
+.likes-tabs button,
+.incoming-name-link,
+.incoming-copy,
+.sent-like {
+  font-family: var(--font-inter), Inter, Arial, sans-serif;
+}
+.likes-page-header h1 {
+  font-family: var(--font-poppins), Poppins, 'Avenir Next', sans-serif;
+  font-size: 1.82rem;
+  font-weight: 500;
+  letter-spacing: -0.045em;
+}
+.likes-tabs {
+  margin-top: 4px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--ui-border);
+}
+.likes-tabs button {
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+.likes-tabs button.active {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 8%, var(--surface));
+  box-shadow: none;
+}
+.likes-tabs button span {
+  background: color-mix(in srgb, var(--foreground) 10%, var(--surface));
+  font-weight: 400;
+}
+.likes-tabs button.active span {
+  background: var(--coral);
+  color: var(--action-foreground);
+}
+.likes-screen .incoming-list,
+.likes-screen .sent-likes {
+  margin-top: 14px;
+}
+.likes-screen .empty-likes-state {
+  padding-block: 18px 10px;
+}
+.likes-screen .empty-likes-state .empty-likes {
+  padding: 8px 0;
+}
+.likes-screen .incoming-row,
+.likes-screen .sent-like {
+  color: var(--foreground);
+  border-color: var(--ui-border);
+}
+.likes-screen .incoming-name-link {
+  font-weight: 500;
+}
+.likes-screen .incoming-copy small,
+.likes-screen .sent-like small,
+.likes-screen .likes-note,
+.likes-screen .empty-likes {
+  color: var(--muted-foreground);
+}
+.matches-list .sent-message-button {
+  min-height: 36px;
+}
+.saved-profiles-section {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ui-border);
+}
+.saved-profiles-heading {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted-foreground);
+  font-size: 0.76rem;
+}
+.saved-profiles-heading > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--foreground);
+  font-weight: 500;
+}
+.saved-profiles-heading small {
+  min-width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--muted-foreground);
+}
+.empty-likes.compact {
+  padding: 20px 0;
+}
+.profile-film-tools {
+  top: 43px;
+  left: 14px;
+  right: 14px;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.profile-film-tools .profile-utility {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 50%;
+  background: rgba(7, 8, 11, 0.18);
+  color: #fff;
+  pointer-events: auto;
+  cursor: pointer;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.72));
+}
+.profile-film-tools .profile-today {
+  color: #fff;
+}
+.profile-film-tools .profile-today.active {
+  border-color: color-mix(in srgb, var(--coral) 72%, white);
+  color: var(--coral);
+}
+.profile-film-tools .profile-boost {
+  color: var(--amber);
+}
+.profile-film-tools .profile-share {
+  color: #fff;
+}
+.profile-sheet .film-count {
+  top: 96px;
+}
+.sheet-actions {
+  padding: 13px 14px calc(16px + env(safe-area-inset-bottom));
+  background: linear-gradient(
+    transparent,
+    color-mix(in srgb, var(--background) 96%, transparent) 30%
+  );
+}
+.sheet-actions .action-row {
+  gap: 8px;
+}
+.sheet-actions .action-button {
+  width: 46px;
+  height: 46px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+.action-button.spark-action {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+}
+.action-button.save-action.saved {
+  color: var(--coral);
+  border-color: color-mix(in srgb, var(--coral) 58%, var(--ui-border));
+}
+.profile-scroll {
+  padding-bottom: 94px;
+}
+.profile-sheet,
+.profile-page {
+  font-family: var(--font-inter), Inter, Arial, sans-serif;
+  font-weight: 400;
+}
+.profile-sheet .profile-title h2,
+.profile-page .profile-passport-identity.self-row h1 {
+  font-family: var(--font-poppins), Poppins, 'Avenir Next', sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+.profile-sheet .profile-title h2 {
+  font-size: 1.72rem;
+}
+.profile-sheet .profile-title p,
+.full-profile-passport p {
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+.full-profile-passport {
+  gap: 0;
+  padding-inline: 18px;
+}
+.full-profile-passport section {
+  padding: 15px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0;
+  background: transparent;
+}
+.full-profile-passport .section-label,
+.full-profile-passport .profile-end-actions > span {
+  font-size: 0.69rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+.full-passport-facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  border-width: 1px 0;
+  border-radius: 0;
+  background: transparent;
+}
+.full-passport-facts > div {
+  min-height: 68px;
+  padding: 12px 9px;
+  border-bottom: 1px solid var(--ui-border);
+  background: transparent;
+}
+.full-passport-facts > div:nth-child(odd) {
+  border-right: 1px solid var(--ui-border);
+}
+.full-passport-facts strong {
+  font-weight: 500;
+}
+.profile-page .profile-depth-compact > span,
+.profile-page .profile-tools-label {
+  font-weight: 500;
+}
+.profile-page .profile-intent-card {
+  border: 1px solid var(--ui-border);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+.profile-passport-facts {
+  gap: 0;
+  border-block: 1px solid var(--ui-border);
+}
+.profile-passport-facts button {
+  min-height: 68px;
+  border: 0;
+  border-right: 1px solid var(--ui-border);
+  border-radius: 0;
+  background: transparent;
+}
+.profile-passport-facts button:last-child {
+  border-right: 0;
+}
+.profile-passport-facts small {
+  font-size: 0.65rem;
+}
+.profile-passport-facts strong {
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+.profile-page > .passport-details-list section:not(.toggle-row) {
+  min-height: 62px;
+  padding-block: 11px;
+}
+.profile-page .setting-heading strong,
+.profile-page .toggle-row strong,
+.profile-page .section-edit,
+.profile-page .profile-quick-actions strong,
+.profile-page .voice-setting-toggle strong {
+  font-weight: 500;
+}
+
+@media (max-height: 720px) {
+  .home-action-rail {
+    gap: 3px;
+  }
+  .home-action-rail button,
+  .home-action-rail button.today-compose {
+    width: 41px;
+    height: 41px;
+    min-height: 41px;
+  }
+  .profile-film {
+    height: 58vh;
+    min-height: 315px;
+    max-height: 340px;
+  }
+}
+
 /* Activity briefings are playback-only: keep the microphone and command UI out
    of the customer experience while retaining the low-cost spoken summary. */
 .voice-briefing-dialog .voice-mode-picker,
