@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import Image from 'next/image';
 import {
   ArrowLeft,
+  ArrowUp,
   AudioLines,
   BadgeCheck,
   Ban,
@@ -213,7 +214,7 @@ type RegistrationData = {
   maxDistance: number;
 };
 type ChatMessage = { id: number | string; text: string; mine: boolean };
-type NoteMode = 'like' | 'spark' | 'super';
+type NoteMode = 'like' | 'spark';
 type InteractionKind = 'like' | 'super';
 type NoteTarget = string;
 type Membership = 'free' | 'plus';
@@ -409,24 +410,6 @@ function BrandHeartMark({
       />
       <path d="m557 70 72 216-143-38Z" fill="currentColor" />
     </svg>
-  );
-}
-
-function SuperSpikeMark({
-  size = 28,
-  className = '',
-}: {
-  size?: number;
-  className?: string;
-}) {
-  return (
-    <span
-      className={`super-spike-mark ${className}`}
-      style={{ width: size, height: size }}
-      aria-hidden="true"
-    >
-      <WandSparkles size={size} strokeWidth={2.15} />
-    </span>
   );
 }
 
@@ -1735,7 +1718,7 @@ export default function HomePage() {
           profile: sender.profile,
           liked:
             interaction.kind === 'super'
-              ? `Super Spiked you · ${interaction.target}`
+              ? `Priority Spike · ${interaction.target}`
               : `Liked your ${interaction.target.toLowerCase()}`,
           note: interaction.note ? `“${interaction.note}”` : '',
           superPulse: interaction.kind === 'super',
@@ -2198,7 +2181,7 @@ export default function HomePage() {
     if (recordInteraction(profile, 'like', actionMessage, actionTarget)) {
       announce(
         source === 'spark'
-          ? `Spark sent to ${profile.name} — your introduction is in their Likes`
+          ? `Spike sent to ${profile.name} — your introduction is in their Likes`
           : `Like sent to ${profile.name} — they’ll see it in Likes`,
       );
       nextProfile();
@@ -2208,7 +2191,7 @@ export default function HomePage() {
     } else {
       announce(
         source === 'spark'
-          ? `Spark sent to ${profile.name} — track it in You liked`
+          ? `Spike sent to ${profile.name} — track it in You liked`
           : `Like sent to ${profile.name} — track it in You liked`,
       );
       nextProfile();
@@ -2220,19 +2203,19 @@ export default function HomePage() {
     setProfileOpen(false);
     setActionProfile(profile);
     setNoteMode(mode);
-    setNoteTarget(mode === 'super' ? 'Lifestyle' : profile.tags[0]);
+    setNoteTarget(profile.tags[0]);
     setNoteMessage('');
     setNoteOpen(true);
   };
 
-  const sendNoteAction = () => {
-    if (noteMode === 'like' || noteMode === 'spark') {
+  const sendNoteAction = (priority = false) => {
+    if (!priority) {
       setNoteOpen(false);
       completeLike(actionProfile, undefined, noteMode);
       return;
     }
     if (superPulsesRemaining <= 0) {
-      announce('No Super Spikes remaining this week');
+      announce('No priority deliveries remaining this week');
       setNoteOpen(false);
       setSubscriptionOpen(true);
       return;
@@ -2246,7 +2229,7 @@ export default function HomePage() {
     setSuperPulsesRemaining((count) => Math.max(0, count - 1));
     setNoteOpen(false);
     announce(
-      `Super Spike sent to ${actionProfile.name}${noteMessage.trim() ? ` with a note on ${noteTarget}` : ''} — you’re at the front of their Incoming`,
+      `Priority Spike sent to ${actionProfile.name}${noteMessage.trim() ? ` with a note on ${noteTarget}` : ''} — your introduction is at the front of their Likes`,
     );
     nextProfile();
   };
@@ -2311,7 +2294,7 @@ export default function HomePage() {
       announce('Profiles ready — take your time and choose thoughtfully');
       return;
     }
-    openNote('super', nudge.profile);
+    openNote('spark', nudge.profile);
   };
 
   const updateTodayReminderTime = (time: TodayReminderTime) => {
@@ -3195,7 +3178,7 @@ export default function HomePage() {
     );
     setSubscriptionOpen(false);
     announce(
-      'SpikeDate+ active — Likes are unlimited and 3 Super Spikes are ready',
+      'SpikeDate+ active — Likes are unlimited and 3 priority deliveries are ready',
     );
   };
 
@@ -3402,7 +3385,7 @@ export default function HomePage() {
     setVoicePromptVisible(false);
     setVoicePlaying(true);
     const summary = new SpeechSynthesisUtterance(
-      `Hello ${selfName}. You have ${contacts.length} matches, ${incomingLikeCount} people in Incoming, and ${unreadMessages} unread messages. This week you sent ${sentThisWeek} Spike${sentThisWeek === 1 ? '' : 's'}. You have ${superPulsesRemaining} Super Spike${superPulsesRemaining === 1 ? '' : 's'} and ${boostsRemaining} Profile Lift${boostsRemaining === 1 ? '' : 's'} remaining.`,
+      `Hello ${selfName}. You have ${contacts.length} matches, ${incomingLikeCount} people in Incoming, and ${unreadMessages} unread messages. This week you sent ${sentThisWeek} Spike${sentThisWeek === 1 ? '' : 's'}. You have ${superPulsesRemaining} priority deliver${superPulsesRemaining === 1 ? 'y' : 'ies'} and ${boostsRemaining} Profile Lift${boostsRemaining === 1 ? '' : 's'} remaining.`,
     );
     summary.rate = 0.96;
     summary.pitch = 1.02;
@@ -3473,7 +3456,7 @@ export default function HomePage() {
   const describeVoiceProfile = (profile: Profile, detailed = false) =>
     detailed
       ? `${profile.name} is ${profile.age}, ${profile.height}, and ${profile.ethnicity}. ${profile.intent}. ${profile.prompt} They are ${profile.drinking.toLowerCase()} about drinking, ${profile.smoking.toLowerCase()} about smoking, and said: ${profile.pets}.`
-      : `${profile.name}, ${profile.age}, is in ${profile.place}, ${profile.distance}. Looking for ${profile.intent.toLowerCase()}. Interests include ${profile.tags.join(', ')}. Would you like to see pictures, hear more, like, Super Spike, or go to the next profile?`;
+      : `${profile.name}, ${profile.age}, is in ${profile.place}, ${profile.distance}. Looking for ${profile.intent.toLowerCase()}. Interests include ${profile.tags.join(', ')}. Would you like to see pictures, hear more, send a Spike, or go to the next profile?`;
 
   const processVoiceCommand = (rawCommand: string) => {
     const command = rawCommand.trim();
@@ -3506,7 +3489,9 @@ export default function HomePage() {
         }
         if (action.kind === 'super') {
           if (superPulsesRemaining <= 0) {
-            speakVoiceResponse('You have no Super Spikes remaining this week.');
+            speakVoiceResponse(
+              'You have no priority deliveries remaining this week.',
+            );
             return;
           }
           recordInteraction(
@@ -3523,8 +3508,8 @@ export default function HomePage() {
           setSuperPulsesRemaining((count) => Math.max(0, count - 1));
           setVoiceOpen(false);
           nextProfile();
-          announce(`Super Spike sent to ${action.profile.name}`);
-          speakVoiceResponse(`Super Spike sent to ${action.profile.name}.`);
+          announce(`Priority Spike sent to ${action.profile.name}`);
+          speakVoiceResponse(`Priority Spike sent to ${action.profile.name}.`);
           return;
         }
         if (action.kind === 'boost') {
@@ -3631,11 +3616,11 @@ export default function HomePage() {
     if (normalized.includes('incoming') || normalized.includes('who liked')) {
       setVoiceOpen(false);
       handleTab('Likes');
-      speakVoiceResponse('Opening Likes and Super Spikes.');
+      speakVoiceResponse('Opening Likes and priority Spikes.');
       return;
     }
     if (
-      normalized.includes('super spike') ||
+      normalized.includes('priority spike') ||
       normalized.includes('send spike') ||
       normalized.includes('super pulse') ||
       normalized.includes('send pulse') ||
@@ -3643,7 +3628,7 @@ export default function HomePage() {
     ) {
       setPendingVoiceAction({ kind: 'super', profile: current });
       speakVoiceResponse(
-        `Send a Super Spike to ${current.name}? Say yes to confirm or cancel.`,
+        `Prioritize your Spike to ${current.name}? Say yes to confirm or cancel.`,
       );
       return;
     }
@@ -3672,7 +3657,7 @@ export default function HomePage() {
       return;
     }
     speakVoiceResponse(
-      'Try saying: show profiles for today, read basics, show pictures, next profile, like, Super Spike, Profile Lift, or open messages.',
+      'Try saying: show profiles for today, read basics, show pictures, next profile, send a Spike, Profile Lift, or open messages.',
     );
   };
 
@@ -4822,8 +4807,7 @@ export default function HomePage() {
               matched={matchedProfiles.some(
                 (item) => item.name === current.name,
               )}
-              onPriority={() => openNote('super', current)}
-              onTonight={() => openNote('super', current)}
+              onTonight={() => openNote('spark', current)}
               saved={savedProfileNames.includes(current.name)}
               onToggleSaved={() => toggleSavedProfile(current)}
             />
@@ -4856,7 +4840,7 @@ export default function HomePage() {
             onOpen={() => openFullProfile(current)}
             onPass={nextProfile}
             onLike={() => openNote('like', current)}
-            onPriority={() => openNote('super', current)}
+            onSpark={() => openNote('spark', current)}
           />
         )}
         {tab === 'Likes' && (
@@ -5039,7 +5023,6 @@ export default function HomePage() {
             openChatWith('', profile);
           else openNote('spark', profile);
         }}
-        onPriority={() => openNote('super', selectedProfile ?? current)}
         onBoost={() => {
           setProfileOpen(false);
           setBoostOpen(true);
@@ -5069,7 +5052,8 @@ export default function HomePage() {
         message={noteMessage}
         onMessage={setNoteMessage}
         remaining={superPulsesRemaining}
-        onSend={sendNoteAction}
+        onSend={() => sendNoteAction(false)}
+        onPrioritySend={() => sendNoteAction(true)}
         onCancel={() => setNoteOpen(false)}
       />
       <MatchModal
@@ -5184,7 +5168,7 @@ export default function HomePage() {
           if (!open) setViewedDailyStory(null);
         }}
         onLike={(story) => reactToDailyStory(story, 'like')}
-        onSuper={(story) => reactToDailyStory(story, 'super')}
+        onSpike={(story) => reactToDailyStory(story, 'spark')}
         onReply={replyToDailyStory}
         onProfile={(story) => {
           const profile = identityForEmail(story.authorEmail)?.profile;
@@ -5744,7 +5728,7 @@ function TodayViewerDialog({
   viewerEmail,
   onOpenChange,
   onLike,
-  onSuper,
+  onSpike,
   onReply,
   onProfile,
   onEdit,
@@ -5754,7 +5738,7 @@ function TodayViewerDialog({
   viewerEmail: string | null;
   onOpenChange: (open: boolean) => void;
   onLike: (story: DailyStory) => void;
-  onSuper: (story: DailyStory) => void;
+  onSpike: (story: DailyStory) => void;
   onReply: (story: DailyStory, message: string) => void;
   onProfile: (story: DailyStory) => void;
   onEdit: (story: DailyStory) => void;
@@ -5837,8 +5821,8 @@ function TodayViewerDialog({
             <button type="button" onClick={() => onLike(story)}>
               <BrandHeartMark size={20} /> Like
             </button>
-            <button type="button" onClick={() => onSuper(story)}>
-              <SuperSpikeMark size={20} /> Super Spike
+            <button type="button" onClick={() => onSpike(story)}>
+              <MessageCirclePlus size={20} /> Spike
             </button>
             {story.repliesEnabled && (
               <form
@@ -5946,7 +5930,6 @@ function DiscoverScreen({
   onLike,
   onSpark,
   matched,
-  onPriority,
   onTonight,
   saved,
   onToggleSaved,
@@ -5963,7 +5946,6 @@ function DiscoverScreen({
   onLike: () => void;
   onSpark: () => void;
   matched: boolean;
-  onPriority: () => void;
   onTonight: () => void;
   saved: boolean;
   onToggleSaved: () => void;
@@ -5996,7 +5978,7 @@ function DiscoverScreen({
           aria-label={
             matched
               ? `Message ${profile.name}`
-              : `Send ${profile.name} a Spark introduction`
+              : `Send ${profile.name} a Spike introduction`
           }
         >
           {matched ? (
@@ -6004,13 +5986,6 @@ function DiscoverScreen({
           ) : (
             <MessageCirclePlus size={20} />
           )}
-        </button>
-        <button
-          className="super"
-          onClick={onPriority}
-          aria-label={`Send ${profile.name} a Super Spike`}
-        >
-          <SuperSpikeMark size={21} />
         </button>
         <button
           className={saved ? 'saved' : ''}
@@ -6294,7 +6269,7 @@ function ProfileCard({
               <button
                 type="button"
                 className="tonight-card-status"
-                aria-label={`${profile.name} is available tonight. Send a Super Spike`}
+                aria-label={`${profile.name} is available tonight. Send a Spike`}
                 onClick={(event) => {
                   event.stopPropagation();
                   onTonight?.();
@@ -6323,7 +6298,6 @@ function ActionRow({
   onPass,
   onLike,
   onSpark,
-  onPriority,
   saved,
   onToggleSaved,
   matched = false,
@@ -6331,7 +6305,6 @@ function ActionRow({
   onPass: () => void;
   onLike: () => void;
   onSpark?: () => void;
-  onPriority?: () => void;
   saved?: boolean;
   onToggleSaved?: () => void;
   matched?: boolean;
@@ -6347,8 +6320,8 @@ function ActionRow({
       {onSpark && (
         <button
           className="action-button spark-action"
-          aria-label={matched ? 'Message match' : 'Send a Spark introduction'}
-          title={matched ? 'Message' : 'Spark'}
+          aria-label={matched ? 'Message match' : 'Send a Spike introduction'}
+          title={matched ? 'Message' : 'Spike'}
           onClick={onSpark}
         >
           {matched ? (
@@ -6356,15 +6329,6 @@ function ActionRow({
           ) : (
             <MessageCirclePlus size={25} />
           )}
-        </button>
-      )}
-      {onPriority && (
-        <button
-          className="action-button priority super-pulse"
-          aria-label="Super Spike"
-          onClick={onPriority}
-        >
-          <SuperSpikeMark className="super-pulse-glyph" size={30} />
         </button>
       )}
       {onToggleSaved && (
@@ -6440,12 +6404,12 @@ function EngagementPrompt({
               action: 'Show profiles',
             }
           : {
-              icon: SuperSpikeMark,
+              icon: MessageCirclePlus,
               tone: 'super',
               eyebrow: 'HIGH-INTENT MOMENT',
               title: `${nudge.profile.name} stands out`,
-              copy: 'Use a Super Spike only when you genuinely want to be seen first. Add a personal note.',
-              meta: `${superPulsesRemaining} left this week`,
+              copy: 'Write a personal Spike. If this person truly stands out, you can prioritize it before sending.',
+              meta: `${superPulsesRemaining} priority deliveries left this week`,
               dismiss: 'Keep browsing',
               action: 'Write an intro',
             };
@@ -6553,7 +6517,6 @@ function FullProfile({
   onPass,
   onLike,
   onSpark,
-  onPriority,
   onBoost,
   matched,
   onShare,
@@ -6570,7 +6533,6 @@ function FullProfile({
   onPass: () => void;
   onLike: () => void;
   onSpark: () => void;
-  onPriority: () => void;
   onBoost: () => void;
   matched: boolean;
   onShare: () => void;
@@ -6829,7 +6791,6 @@ function FullProfile({
             onPass={onPass}
             onLike={onLike}
             onSpark={onSpark}
-            onPriority={onPriority}
             matched={matched}
             saved={saved}
             onToggleSaved={onToggleSaved}
@@ -6851,6 +6812,7 @@ function NoteDialog({
   onMessage,
   remaining,
   onSend,
+  onPrioritySend,
   onCancel,
 }: {
   profile: Profile;
@@ -6863,20 +6825,18 @@ function NoteDialog({
   onMessage: (message: string) => void;
   remaining: number;
   onSend: () => void;
+  onPrioritySend: () => void;
   onCancel: () => void;
 }) {
-  const isSuper = mode === 'super';
   const isSpark = mode === 'spark';
-  const targets: NoteTarget[] = isSuper
-    ? ['Photo 1', 'Lifestyle', 'Sunday morning']
-    : ['Photo 1', profile.tags[0], 'Two truths'];
+  const targets: NoteTarget[] = ['Photo 1', profile.tags[0], 'Two truths'];
   const noteContext = target === 'Photo 1' ? 'photo' : 'prompt';
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className={`note-dialog note-sheet ${isSuper ? 'super-note' : isSpark ? 'spark-note' : 'like-note'}`}
+        className={`note-dialog note-sheet ${isSpark ? 'spark-note' : 'like-note'}`}
       >
         <button
           className="note-sheet-handle"
@@ -6887,9 +6847,7 @@ function NoteDialog({
         </button>
         <div className="note-sheet-header">
           <span className="note-sheet-action-mark" aria-hidden="true">
-            {isSuper ? (
-              <SuperSpikeMark className="note-sheet-star" size={27} />
-            ) : isSpark ? (
+            {isSpark ? (
               <MessageCirclePlus className="note-sheet-spark" size={24} />
             ) : (
               <BrandHeartMark className="note-sheet-heart" size={23} />
@@ -6897,25 +6855,19 @@ function NoteDialog({
           </span>
           <span className="note-sheet-heading">
             <SheetTitle>
-              {isSuper
-                ? `Super Spike ${profile.name}`
-                : isSpark
-                  ? `Spark ${profile.name}`
-                  : `Like ${profile.name}`}
+              {isSpark ? `Spike ${profile.name}` : `Like ${profile.name}`}
             </SheetTitle>
             <SheetDescription>
-              {isSuper
-                ? `${remaining} Super Spike${remaining === 1 ? '' : 's'} left this week · they’ll see you first`
-                : isSpark
-                  ? 'Send a thoughtful introduction with your Like.'
-                  : 'Add something personal to stand out.'}
+              {isSpark
+                ? 'Send a thoughtful introduction with your Like.'
+                : 'Add something personal to stand out.'}
             </SheetDescription>
           </span>
           <button
             type="button"
             className="note-sheet-close"
             onClick={onCancel}
-            aria-label={`Close ${isSuper ? 'Super Spike' : isSpark ? 'Spark' : 'Like'}`}
+            aria-label={`Close ${isSpark ? 'Spike' : 'Like'}`}
           >
             <X size={20} />
           </button>
@@ -6968,36 +6920,43 @@ function NoteDialog({
             value={message}
             onChange={(event) => onMessage(event.target.value)}
             placeholder={
-              isSuper
-                ? `A Super Spike note for ${profile.name}…`
-                : isSpark
-                  ? `Introduce yourself to ${profile.name}…`
-                  : `Say something about this ${noteContext}…`
+              isSpark
+                ? `Introduce yourself to ${profile.name}…`
+                : `Say something about this ${noteContext}…`
             }
           />
           <small className="note-character-count">{message.length}/140</small>
         </label>
         <div className="note-dialog-actions">
           <button className="primary-button" onClick={onSend}>
-            {isSuper ? (
-              <SuperSpikeMark className="super-pulse-glyph" size={22} />
-            ) : isSpark ? (
+            {isSpark ? (
               <MessageCirclePlus size={20} />
             ) : (
               <BrandHeartMark size={20} />
             )}
-            {isSuper
-              ? 'Send Super Spike'
-              : isSpark
-                ? 'Send Spark'
-                : 'Send Like'}
+            {isSpark ? 'Send Spike' : 'Send Like'}
           </button>
+          {isSpark && (
+            <button
+              className="priority-spike-option"
+              onClick={onPrioritySend}
+              aria-label={`Prioritize this Spike. ${remaining} remaining this week`}
+            >
+              <span className="priority-spike-icon" aria-hidden="true">
+                <MessageCirclePlus size={19} />
+                <ArrowUp size={12} />
+              </span>
+              <span>
+                <strong>Prioritize this Spike</strong>
+                <small>
+                  Moves it to the top of Likes · {remaining} left this week
+                </small>
+              </span>
+              <ChevronRight size={18} />
+            </button>
+          )}
           <button className="text-button note-skip" onClick={onSend}>
-            {isSuper
-              ? 'Super Spike without a note'
-              : isSpark
-                ? 'Spark without a note'
-                : 'Like without a note'}
+            {isSpark ? 'Spike without a note' : 'Like without a note'}
           </button>
         </div>
       </SheetContent>
@@ -7983,7 +7942,7 @@ function RoomStack({
   onOpen,
   onPass,
   onLike,
-  onPriority,
+  onSpark,
 }: {
   room: string;
   profile: Profile;
@@ -7991,7 +7950,7 @@ function RoomStack({
   onOpen: () => void;
   onPass: () => void;
   onLike: () => void;
-  onPriority: () => void;
+  onSpark: () => void;
 }) {
   return (
     <section className="room-stack">
@@ -8017,7 +7976,7 @@ function RoomStack({
           onSwipeRight={onLike}
         />
       </div>
-      <ActionRow onPass={onPass} onLike={onLike} onPriority={onPriority} />
+      <ActionRow onPass={onPass} onLike={onLike} onSpark={onSpark} />
     </section>
   );
 }
@@ -8058,7 +8017,7 @@ function LikesScreen({
   const demoRows: IncomingRow[] = [
     {
       profile: priyaProfile,
-      liked: 'Super Spiked you · Lifestyle',
+      liked: 'Priority Spike · Lifestyle',
       note: '“Your live-music answer made me smile.”',
       superPulse: true,
     },
@@ -8182,7 +8141,7 @@ function LikesScreen({
                   : filter === 'new'
                     ? 'New'
                     : filter === 'super'
-                      ? 'Super Spikes'
+                      ? 'Priority'
                       : 'With notes'}
               </button>
             ))}
@@ -8210,8 +8169,8 @@ function LikesScreen({
                 >
                   {row.profile.name}{' '}
                   {row.superPulse ? (
-                    <span aria-label="Super Spike">
-                      <SuperSpikeMark size={16} />
+                    <span aria-label="Priority Spike">
+                      <ArrowUp size={16} />
                     </span>
                   ) : index < 2 ? (
                     <BadgeCheck size={15} fill="#FF4D6D" color="#161618" />
@@ -9684,8 +9643,8 @@ function YourProfile({
               </strong>
               <small>
                 {membership === 'plus'
-                  ? `Unlimited Likes · ${superPulsesRemaining} of 3 Super Spikes`
-                  : `${dailyLikesRemaining} Likes today · ${superPulsesRemaining} Super Spikes available`}
+                  ? `Unlimited Likes · ${superPulsesRemaining} of 3 priority deliveries`
+                  : `${dailyLikesRemaining} Likes today · ${superPulsesRemaining} priority deliveries`}
               </small>
             </span>
             <ChevronRight size={17} />
@@ -9736,8 +9695,8 @@ function YourProfile({
               ],
               [
                 'super',
-                'Super Spike suggestions',
-                'After you spend time on a full profile.',
+                'Priority Spike suggestions',
+                'A gentle suggestion after you spend time on a full profile.',
               ],
             ] as const
           ).map(([key, title, description]) => (
@@ -11149,8 +11108,8 @@ function SubscriptionDialog({
           </div>
           <DialogTitle>More signal. Less noise.</DialogTitle>
           <DialogDescription>
-            Likes show interest. Super Spikes move you to the front. Chat opens
-            after a mutual match.
+            Likes show interest. Add a note with Spike, then optionally
+            prioritize it. Chat opens after a mutual match.
           </DialogDescription>
         </header>
 
@@ -11161,8 +11120,8 @@ function SubscriptionDialog({
             </span>
             <strong>
               {membership === 'plus'
-                ? `Unlimited Likes · ${superPulsesRemaining}/3 Super Spikes this week`
-                : `${dailyLikesRemaining}/10 Likes today · ${superPulsesRemaining} Super Spikes available`}
+                ? `Unlimited Likes · ${superPulsesRemaining}/3 priority deliveries this week`
+                : `${dailyLikesRemaining}/10 Likes today · ${superPulsesRemaining} priority deliveries available`}
             </strong>
           </div>
           <div className="billing-toggle" aria-label="Billing period">
@@ -11217,7 +11176,7 @@ function SubscriptionDialog({
                   <Check size={15} /> Unlimited Likes
                 </li>
                 <li>
-                  <Check size={15} /> 3 Super Spikes each week
+                  <Check size={15} /> Prioritize 3 Spikes each week
                 </li>
                 <li>
                   <Check size={15} /> 1 thirty-minute Profile Lift each week
@@ -11250,10 +11209,10 @@ function SubscriptionDialog({
                     <Check size={15} /> 10 Likes each day
                   </li>
                   <li>
-                    <Check size={15} /> 1 Super Spike each week
+                    <Check size={15} /> Prioritize 1 Spike each week
                   </li>
                   <li>
-                    <Check size={15} /> Optional notes on Likes and Super Spikes
+                    <Check size={15} /> Optional notes with Likes and Spikes
                   </li>
                   <li>
                     <Check size={15} /> Two recent incoming Likes
@@ -11267,7 +11226,7 @@ function SubscriptionDialog({
           </div>
           <p className="billing-note">
             Prototype pricing · no payment is collected. Allowances reset daily
-            for Likes and every Monday for Super Spikes and Profile Lift.
+            for Likes and every Monday for Spike priority and Profile Lift.
           </p>
           <div className="subscription-links">
             <button
@@ -11763,8 +11722,8 @@ function VoiceBriefingDialog({
             {sentThisWeek} Spike{sentThisWeek === 1 ? '' : 's'} sent
           </p>
           <p>
-            {superPulsesRemaining} Super Spike
-            {superPulsesRemaining === 1 ? '' : 's'} left
+            {superPulsesRemaining} priority deliver
+            {superPulsesRemaining === 1 ? 'y' : 'ies'} left
           </p>
           <p>{boostsRemaining} Profile Lifts left</p>
         </div>

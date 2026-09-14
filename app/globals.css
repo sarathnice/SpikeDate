@@ -876,17 +876,6 @@ button:focus-visible {
   background: #e31b36;
   color: #92fa73;
 }
-.home-action-rail button.super {
-  border-color: transparent;
-  background: var(--super-spike);
-  color: #fff;
-  text-shadow: none;
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--super-spike) 26%, transparent);
-}
-.home-action-rail button.super .super-spike-mark {
-  color: #fff;
-  filter: drop-shadow(0 1px 2px rgba(7, 16, 6, 0.48));
-}
 .home-action-rail button.saved {
   border-color: var(--coral);
   color: var(--coral);
@@ -2144,13 +2133,6 @@ button:focus-visible {
   min-width: 44px;
   min-height: 44px;
 }
-.action-button.priority {
-  border-color: transparent;
-  background: var(--super-spike);
-  color: #fff;
-  box-shadow: 0 10px 28px
-    color-mix(in srgb, var(--super-spike) 28%, transparent);
-}
 .note-dialog-actions {
   position: sticky;
   z-index: 4;
@@ -2161,6 +2143,58 @@ button:focus-visible {
 }
 .note-dialog-actions .primary-button {
   margin-top: 14px;
+}
+.priority-spike-option {
+  width: 100%;
+  min-height: 58px;
+  margin-top: 9px;
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--coral) 32%, var(--ui-border));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--coral) 7%, var(--surface));
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+}
+.priority-spike-option > span:nth-child(2) {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.priority-spike-option strong {
+  font-size: 0.84rem;
+  font-weight: 550;
+}
+.priority-spike-option small {
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+  font-weight: 400;
+  line-height: 1.25;
+}
+.priority-spike-icon {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--coral) 16%, var(--surface));
+  color: var(--coral);
+}
+.priority-spike-icon svg:last-child {
+  position: absolute;
+  top: 4px;
+  right: 3px;
+  stroke-width: 2.4;
+}
+.spark-note .note-sheet-action-mark {
+  border: 1px solid color-mix(in srgb, var(--coral) 35%, var(--ui-border));
+  background: color-mix(in srgb, var(--coral) 12%, var(--surface));
+  color: var(--coral);
 }
 .incoming-filters {
   display: flex;
@@ -4584,12 +4618,6 @@ button:focus-visible {
 }
 .super-note .note-context-card small {
   color: color-mix(in srgb, var(--super-spike) 82%, var(--foreground));
-}
-.incoming-name-link svg[aria-label='Super Spike'] {
-  color: var(--super-spike);
-  filter: drop-shadow(
-    0 0 4px color-mix(in srgb, var(--super-spike) 42%, transparent)
-  );
 }
 .note-context-card strong {
   color: var(--foreground);
@@ -8325,12 +8353,6 @@ button:focus-visible {
   backdrop-filter: blur(14px) saturate(135%);
 }
 
-:root[data-pulse-theme='liquid']
-  .home-action-rail
-  button.super
-  .super-spike-mark {
-  color: #ffffff;
-}
 .quality-note {
   display: grid;
   grid-template-columns: 25px 1fr;
@@ -10324,18 +10346,9 @@ button:focus-visible {
   }
 }
 
-/* Keep the Super Spike signal solid and legible after theme overrides. */
 :root[data-pulse-theme='liquid'][data-pulse-accent='lime'] {
   --super-spike: #ffe98a;
   --super-spike-foreground: #17130a;
-}
-:root[data-pulse-theme='liquid'] .action-button.priority {
-  border-color: transparent;
-  background: var(--super-spike);
-  color: var(--super-spike-foreground);
-  box-shadow: 0 10px 28px
-    color-mix(in srgb, var(--super-spike) 28%, transparent);
-  backdrop-filter: none;
 }
 
 /* Like is a solid red heart inside the same clear shell used by Save. */
@@ -10362,11 +10375,6 @@ button:focus-visible {
 }
 
 /* Final cascade for the product-quality pass across every theme. */
-.action-button.priority {
-  border-color: transparent;
-  background: var(--super-spike);
-  color: var(--super-spike-foreground);
-}
 .profile-film-tools .profile-share,
 .profile-film-tools .profile-save,
 .profile-film-tools .profile-today {

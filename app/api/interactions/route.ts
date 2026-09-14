@@ -82,7 +82,7 @@ export async function POST(request: Request) {
         .first<{ super_spikes: number }>();
       if (!wallet?.super_spikes)
         return json(
-          { error: 'No Super Spikes remain this week.' },
+          { error: 'No priority Spike deliveries remain this week.' },
           { status: 409 },
         );
     }
@@ -201,11 +201,11 @@ export async function POST(request: Request) {
           type: 'new_like',
           title:
             parsed.data.kind === 'super_spike'
-              ? 'New Super Spike'
+              ? 'New priority Spike'
               : 'Someone likes you',
           body:
             parsed.data.kind === 'super_spike'
-              ? `${actorName} sent you a Super Spike${parsed.data.note ? ' with a note' : ''}.`
+              ? `${actorName} sent you a priority Spike${parsed.data.note ? ' with a note' : ''}.`
               : `${actorName} liked your profile.`,
           data: { url: '/?incoming=1', interactionId },
         });

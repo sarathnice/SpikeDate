@@ -123,11 +123,11 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
   await expect(
     page.getByRole('button', { name: /Like .*$/ }).first(),
   ).toBeVisible();
+  await expect(page.getByRole('button', { name: /Super Spike/i })).toHaveCount(
+    0,
+  );
   await expect(
-    page.getByRole('button', { name: /Send .* a Super Spike/ }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: /Send .* a Spark introduction/ }),
+    page.getByRole('button', { name: /Send .* a Spike introduction/ }),
   ).toBeVisible();
   await expect(
     page.getByRole('button', { name: /Save .* privately/ }),
@@ -142,7 +142,7 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
     'contain',
   );
   await expect(
-    dialog.getByRole('button', { name: /Send a Spark introduction/ }),
+    dialog.getByRole('button', { name: /Send a Spike introduction/ }),
   ).toBeVisible();
   await expect(
     dialog.getByRole('button', { name: 'Save privately' }),
@@ -158,12 +158,12 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
   await expect(dialog.getByRole('button', { name: 'Block' })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Like' })).toBeVisible();
   await expect(
-    dialog.getByRole('button', { name: 'Super Spike' }),
-  ).toBeVisible();
+    dialog.getByRole('button', { name: /Super Spike/i }),
+  ).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Close full profile' }).click();
 });
 
-test('Like and Super Spike note sheets expose clear close controls', async ({
+test('Like and Spike note sheets expose clear close and priority controls', async ({
   page,
 }) => {
   await signIn(page);
@@ -181,22 +181,17 @@ test('Like and Super Spike note sheets expose clear close controls', async ({
   await dialog.getByRole('button', { name: /Close note sheet/i }).click();
 
   await page
-    .getByRole('button', { name: /Send .* a Spark introduction/ })
+    .getByRole('button', { name: /Send .* a Spike introduction/ })
     .click();
-  dialog = page.getByRole('dialog', { name: /^Spark /i });
+  dialog = page.getByRole('dialog', { name: /^Spike /i });
   await expect(dialog).toBeVisible();
   await expect(
-    dialog.getByRole('button', { name: /Send Spark/i }),
+    dialog.getByRole('button', { name: /Send Spike/i }),
   ).toBeVisible();
-  await dialog.getByRole('button', { name: /Close note sheet/i }).click();
-
-  await page.getByRole('button', { name: /Send .* a Super Spike/ }).click();
-  dialog = page.getByRole('dialog', { name: /^Super Spike /i });
-  await expect(dialog).toBeVisible();
-  await expect(dialog.locator('textarea')).toBeVisible();
   await expect(
-    dialog.getByRole('button', { name: /Send Super Spike/i }),
+    dialog.getByRole('button', { name: /Prioritize this Spike/i }),
   ).toBeVisible();
+  await expect(dialog).toContainText(/Moves it to the top of Likes/i);
   await dialog.getByRole('button', { name: /Close note sheet/i }).click();
 });
 
