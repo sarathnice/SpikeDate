@@ -197,6 +197,27 @@ test('Today composer merges the update and private availability', async ({
   page,
 }) => {
   await signIn(page);
+  const homeToday = page
+    .locator('.home-action-rail')
+    .getByRole('button', { name: 'Post or edit your Today update' });
+  await expect(homeToday).toBeVisible();
+  await expect(homeToday).toContainText(/Today|Edit/);
+  await homeToday.click();
+  await expect(page.getByRole('dialog', { name: /your Today/i })).toBeVisible();
+  await page.getByRole('button', { name: 'Close Today composer' }).click();
+
+  await page.getByRole('button', { name: /Open .* full profile/i }).click();
+  const fullProfile = page.locator('.profile-sheet');
+  const fullProfileToday = fullProfile.getByRole('button', {
+    name: 'Post or edit your Today update',
+  });
+  await expect(fullProfileToday).toBeVisible();
+  await expect(fullProfileToday).toContainText(/Today/);
+  await fullProfileToday.click();
+  await expect(fullProfile).not.toBeVisible();
+  await expect(page.getByRole('dialog', { name: /your Today/i })).toBeVisible();
+  await page.getByRole('button', { name: 'Close Today composer' }).click();
+
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
   await page
     .locator('.profile-passport-topbar')

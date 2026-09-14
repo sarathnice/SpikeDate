@@ -35,6 +35,7 @@ import {
   Plus,
   Palette,
   CalendarDays,
+  CalendarCheck,
   CalendarPlus,
   ExternalLink,
   Radio,
@@ -4782,6 +4783,7 @@ export default function HomePage() {
               profile={current}
               story={storyForProfile(current)}
               todayCount={visibleDailyStories.length}
+              todayActive={Boolean(ownDailyStory || dailyAvailability)}
               onOpen={() => openFullProfile(current)}
               onOpenStory={openDailyStory}
               onSeeAllToday={() => setTodayFeedOpen(true)}
@@ -4968,6 +4970,12 @@ export default function HomePage() {
         onBlock={() => openProfileSafety(selectedProfile ?? current, 'block')}
         saved={savedProfileNames.includes((selectedProfile ?? current).name)}
         onToggleSaved={() => toggleSavedProfile(selectedProfile ?? current)}
+        todayActive={Boolean(ownDailyStory || dailyAvailability)}
+        onPostToday={() => {
+          setProfileOpen(false);
+          if (ownDailyStory) openEditToday(ownDailyStory);
+          else openNewToday();
+        }}
       />
       <NoteDialog
         profile={actionProfile}
@@ -5910,6 +5918,7 @@ function DiscoverScreen({
   profile,
   story,
   todayCount,
+  todayActive,
   onOpen,
   onOpenStory,
   onSeeAllToday,
@@ -5924,6 +5933,7 @@ function DiscoverScreen({
   profile: Profile;
   story?: DailyStory;
   todayCount: number;
+  todayActive: boolean;
   onOpen: () => void;
   onOpenStory: (story: DailyStory) => void;
   onSeeAllToday: () => void;
@@ -5976,8 +5986,17 @@ function DiscoverScreen({
         >
           <Bookmark size={20} fill={saved ? 'currentColor' : 'none'} />
         </button>
-        <button onClick={onPostToday} aria-label="Post or edit Today update">
-          <Plus size={22} />
+        <button
+          className={`today-compose ${todayActive ? 'active' : ''}`}
+          onClick={onPostToday}
+          aria-label="Post or edit your Today update"
+        >
+          {todayActive ? (
+            <CalendarCheck size={18} />
+          ) : (
+            <CalendarPlus size={18} />
+          )}
+          <span>{todayActive ? 'Edit' : 'Today'}</span>
         </button>
         <button
           className="today-feed"
@@ -6473,6 +6492,8 @@ function FullProfile({
   onBlock,
   saved,
   onToggleSaved,
+  todayActive,
+  onPostToday,
 }: {
   profile: Profile;
   open: boolean;
@@ -6485,6 +6506,8 @@ function FullProfile({
   onBlock: () => void;
   saved: boolean;
   onToggleSaved: () => void;
+  todayActive: boolean;
+  onPostToday: () => void;
 }) {
   const richDetails = identityForProfile(profile)?.registration;
   const photos = profile.media
@@ -6533,6 +6556,18 @@ function FullProfile({
                 aria-label={`Share ${profile.name}'s profile with friends or family`}
               >
                 <Share2 size={17} /> Share
+              </button>
+              <button
+                className={`profile-today ${todayActive ? 'active' : ''}`}
+                onClick={onPostToday}
+                aria-label="Post or edit your Today update"
+              >
+                {todayActive ? (
+                  <CalendarCheck size={17} />
+                ) : (
+                  <CalendarPlus size={17} />
+                )}
+                {todayActive ? 'Edit Today' : 'Today'}
               </button>
               <button
                 className={`profile-save ${saved ? 'saved' : ''}`}

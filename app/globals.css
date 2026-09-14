@@ -895,6 +895,28 @@ button:focus-visible {
   position: relative;
   color: var(--amber);
 }
+.home-action-rail button.today-compose {
+  width: 54px;
+  min-height: 48px;
+  height: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-radius: 17px;
+  color: white;
+}
+.home-action-rail button.today-compose svg {
+  color: var(--coral);
+}
+.home-action-rail button.today-compose span {
+  font-size: 0.58rem;
+  font-weight: 500;
+  line-height: 1;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+.home-action-rail button.today-compose.active {
+  border-color: color-mix(in srgb, var(--coral) 65%, white);
+}
 .home-action-rail button.today-feed .today-count-badge {
   top: -3px;
   right: -3px;
@@ -1860,6 +1882,30 @@ button:focus-visible {
   border-color: #92fa73;
   color: #92fa73;
 }
+.profile-today {
+  position: static;
+  z-index: 9;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(15, 15, 18, 0.44);
+  color: white;
+  font-size: 0.69rem;
+  font-weight: 500;
+  cursor: pointer;
+  pointer-events: auto;
+  backdrop-filter: blur(7px);
+}
+.profile-today svg {
+  color: var(--coral);
+}
+.profile-today.active {
+  border-color: color-mix(in srgb, var(--coral) 62%, white);
+}
 .profile-reply-spike-float {
   position: absolute;
   z-index: 7;
@@ -2082,7 +2128,8 @@ button:focus-visible {
   pointer-events: none;
 }
 .profile-film-tools .profile-share,
-.profile-film-tools .profile-save {
+.profile-film-tools .profile-save,
+.profile-film-tools .profile-today {
   position: static;
   min-height: 44px;
   pointer-events: auto;
@@ -9957,7 +10004,8 @@ button:focus-visible {
   color: var(--super-spike-foreground);
 }
 .profile-film-tools .profile-share,
-.profile-film-tools .profile-save {
+.profile-film-tools .profile-save,
+.profile-film-tools .profile-today {
   position: static;
   min-height: 44px;
 }
