@@ -2267,11 +2267,8 @@ button:focus-visible {
   background: linear-gradient(transparent, var(--background) 20%);
 }
 .today-publish-button {
-  position: sticky;
-  z-index: 5;
-  bottom: -1px;
-  box-shadow: 0 -12px 28px
-    color-mix(in srgb, var(--background) 76%, transparent);
+  position: static;
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--coral) 22%, transparent);
 }
 .billing-toggle {
   display: grid;

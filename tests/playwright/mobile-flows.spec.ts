@@ -207,7 +207,7 @@ test('Today composer merges the update and private availability', async ({
   await expect(dialog.getByLabel('Today update')).toBeVisible();
   await expect(dialog).toContainText('When are you available?');
   await expect(dialog).toContainText('shown only to mutual matches');
-  await expect(dialog).toContainText(/home locations stay private/i);
+  await expect(dialog).toContainText(/current or home location/i);
   await dialog.getByRole('button', { name: 'Tomorrow', exact: true }).click();
   await page.getByLabel('Available from').fill('19:00');
   await page.getByLabel('Available until').fill('22:00');
