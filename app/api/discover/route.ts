@@ -155,7 +155,7 @@ export async function GET(request: Request) {
                 }
               : null,
           imageUrl: candidate.primary_media_id
-            ? '/api/media/' + candidate.primary_media_id
+            ? '/api/media/' + candidate.primary_media_id + '?variant=card'
             : null,
           whyFit: reasons.slice(0, 3),
         },

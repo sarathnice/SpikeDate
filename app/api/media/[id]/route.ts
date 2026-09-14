@@ -13,8 +13,46 @@ type R2ObjectLike = {
 };
 type R2BucketLike = {
   get: (key: string) => Promise<R2ObjectLike | null>;
+  put: (
+    key: string,
+    value: ReadableStream | ArrayBuffer,
+    options: {
+      httpMetadata: { contentType: string };
+      customMetadata: Record<string, string>;
+    },
+  ) => Promise<unknown>;
   delete: (key: string) => Promise<void>;
 };
+
+const photoTypes = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+]);
+
+function validPhotoSignature(contentType: string, bytes: Uint8Array) {
+  if (contentType === 'image/jpeg')
+    return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (contentType === 'image/png')
+    return (
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47
+    );
+  if (contentType === 'image/webp')
+    return (
+      String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
+      String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP'
+    );
+  if (contentType === 'image/heic' || contentType === 'image/heif') {
+    const brand = String.fromCharCode(...bytes.slice(4, 12));
+    return /ftyp(heic|heix|hevc|hevx|mif1|msf1)/.test(brand);
+  }
+  return false;
+}
 
 export async function GET(request: Request, context: Context) {
   return withDatabase(async () => {
@@ -24,12 +62,15 @@ export async function GET(request: Request, context: Context) {
     const { id } = await context.params;
     const media = await db
       .prepare(
-        'SELECT user_id, object_key, moderation_status, explicit FROM profile_media WHERE id = ? LIMIT 1',
+        'SELECT user_id, object_key, original_object_key, card_object_key, avatar_object_key, moderation_status, explicit FROM profile_media WHERE id = ? LIMIT 1',
       )
       .bind(id)
       .first<{
         user_id: string;
         object_key: string;
+        original_object_key: string | null;
+        card_object_key: string | null;
+        avatar_object_key: string | null;
         moderation_status: string;
         explicit: number;
       }>();
@@ -47,14 +88,32 @@ export async function GET(request: Request, context: Context) {
     const bucket = (env as unknown as { MEDIA?: R2BucketLike }).MEDIA;
     if (!bucket)
       return json({ error: 'Media storage is unavailable.' }, { status: 503 });
-    const object = await bucket.get(media.object_key);
+    const requestedVariant = new URL(request.url).searchParams.get('variant');
+    const variant =
+      requestedVariant === 'card' ||
+      requestedVariant === 'avatar' ||
+      requestedVariant === 'original'
+        ? requestedVariant
+        : 'full';
+    if (variant === 'original' && media.user_id !== user.id)
+      return json({ error: 'Original media is private.' }, { status: 403 });
+    const selectedKey =
+      variant === 'original'
+        ? (media.original_object_key ?? media.object_key)
+        : variant === 'card'
+          ? (media.card_object_key ?? media.object_key)
+          : variant === 'avatar'
+            ? (media.avatar_object_key ??
+              media.card_object_key ??
+              media.object_key)
+            : media.object_key;
+    const object = await bucket.get(selectedKey);
     if (!object) return json({ error: 'Media not found.' }, { status: 404 });
     if (object.etag && request.headers.get('if-none-match') === object.etag)
       return new Response(null, {
         status: 304,
         headers: { etag: object.etag },
       });
-    const variant = new URL(request.url).searchParams.get('variant');
     return new Response(object.body, {
       headers: {
         'cache-control': 'private, max-age=3600, stale-while-revalidate=86400',
@@ -64,11 +123,110 @@ export async function GET(request: Request, context: Context) {
         'content-disposition': 'inline',
         'x-content-type-options': 'nosniff',
         'x-spikedate-explicit': media.explicit ? 'true' : 'false',
-        ...(variant === 'card' || variant === 'full'
-          ? { 'x-spikedate-image-variant': variant }
-          : {}),
+        'x-spikedate-image-variant': variant,
       },
     });
+  });
+}
+
+export async function PUT(request: Request, context: Context) {
+  const variant = new URL(request.url).searchParams.get('variant');
+  if (variant !== 'original' && variant !== 'card' && variant !== 'avatar') {
+    await request.body?.cancel();
+    return json(
+      { error: 'Choose original, card, or avatar.' },
+      { status: 400 },
+    );
+  }
+  const contentType = request.headers.get('content-type')?.split(';')[0] ?? '';
+  if (!photoTypes.has(contentType)) {
+    await request.body?.cancel();
+    return json(
+      { error: 'Use JPEG, PNG, WebP, HEIC, or HEIF.' },
+      { status: 415 },
+    );
+  }
+  const length = Number(request.headers.get('content-length') || 0);
+  const maximum = variant === 'original' ? 15 * 1024 * 1024 : 6 * 1024 * 1024;
+  if (!length || length > maximum) {
+    await request.body?.cancel();
+    return json({ error: 'This photo variant is too large.' }, { status: 413 });
+  }
+  if (!request.body)
+    return json({ error: 'The upload was empty.' }, { status: 400 });
+  const [validationBody, storageBody] = request.body.tee();
+  const reader = validationBody.getReader();
+  const first = await reader.read();
+  await reader.cancel();
+  if (
+    !validPhotoSignature(
+      contentType,
+      first.value?.slice(0, 16) ?? new Uint8Array(),
+    )
+  ) {
+    await storageBody.cancel();
+    return json(
+      { error: 'The file contents do not match the photo type.' },
+      { status: 415 },
+    );
+  }
+
+  return withDatabase(async () => {
+    const db = getDb();
+    const user = await requireUser(request, db);
+    if (user instanceof Response) {
+      await storageBody.cancel();
+      return user;
+    }
+    const { id } = await context.params;
+    const media = await db
+      .prepare(
+        'SELECT type, original_object_key, card_object_key, avatar_object_key FROM profile_media WHERE id = ? AND user_id = ? LIMIT 1',
+      )
+      .bind(id, user.id)
+      .first<{
+        type: string;
+        original_object_key: string | null;
+        card_object_key: string | null;
+        avatar_object_key: string | null;
+      }>();
+    if (!media || media.type !== 'photo') {
+      await storageBody.cancel();
+      return json({ error: 'Photo not found.' }, { status: 404 });
+    }
+    const bucket = (env as unknown as { MEDIA?: R2BucketLike }).MEDIA;
+    if (!bucket) {
+      await storageBody.cancel();
+      return json({ error: 'Media storage is unavailable.' }, { status: 503 });
+    }
+    const extension = contentType.split('/')[1];
+    const objectKey =
+      'profiles/' + user.id + '/' + id + '/' + variant + '.' + extension;
+    await bucket.put(objectKey, storageBody, {
+      httpMetadata: { contentType },
+      customMetadata: { ownerId: user.id, mediaId: id, variant },
+    });
+    const column =
+      variant === 'original'
+        ? 'original_object_key'
+        : variant === 'card'
+          ? 'card_object_key'
+          : 'avatar_object_key';
+    const previousKey =
+      variant === 'original'
+        ? media.original_object_key
+        : variant === 'card'
+          ? media.card_object_key
+          : media.avatar_object_key;
+    await db
+      .prepare(
+        `UPDATE profile_media SET ${column} = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
+      )
+      .bind(objectKey, Date.now(), id, user.id)
+      .run();
+    if (previousKey && previousKey !== objectKey)
+      await bucket.delete(previousKey);
+    return json({ ok: true, id, variant });
   });
 }
 
@@ -80,10 +238,15 @@ export async function DELETE(request: Request, context: Context) {
     const { id } = await context.params;
     const media = await db
       .prepare(
-        'SELECT object_key FROM profile_media WHERE id = ? AND user_id = ? LIMIT 1',
+        'SELECT object_key, original_object_key, card_object_key, avatar_object_key FROM profile_media WHERE id = ? AND user_id = ? LIMIT 1',
       )
       .bind(id, user.id)
-      .first<{ object_key: string }>();
+      .first<{
+        object_key: string;
+        original_object_key: string | null;
+        card_object_key: string | null;
+        avatar_object_key: string | null;
+      }>();
     if (!media) return json({ error: 'Media not found.' }, { status: 404 });
     await db
       .prepare('DELETE FROM profile_media WHERE id = ? AND user_id = ?')
@@ -113,7 +276,17 @@ export async function DELETE(request: Request, context: Context) {
         ),
       ]);
     const bucket = (env as unknown as { MEDIA?: R2BucketLike }).MEDIA;
-    if (bucket) await bucket.delete(media.object_key);
+    if (bucket) {
+      const keys = new Set(
+        [
+          media.object_key,
+          media.original_object_key,
+          media.card_object_key,
+          media.avatar_object_key,
+        ].filter((key): key is string => Boolean(key)),
+      );
+      await Promise.all([...keys].map((key) => bucket.delete(key)));
+    }
     await reconcileDiscoverability(db, user.id);
     return json({ ok: true, id });
   });

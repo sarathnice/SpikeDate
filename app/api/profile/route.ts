@@ -138,7 +138,7 @@ export async function GET(request: Request) {
       interests: interests.results,
       media: media.results.map((item) => ({
         ...item,
-        url: '/api/media/' + (item as { id: string }).id,
+        url: '/api/media/' + (item as { id: string }).id + '?variant=full',
       })),
       dailyUpdate: update,
       wallet,

@@ -36,6 +36,13 @@
       "when": 1789355219153,
       "tag": "0004_simple_wendigo",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789415858045,
+      "tag": "0005_clumsy_sauron",
+      "breakpoints": true
     }
   ]
 }

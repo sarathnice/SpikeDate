@@ -18,6 +18,20 @@ type R2BucketLike = {
   delete: (key: string) => Promise<void>;
 };
 
+function boundedHeader(
+  request: Request,
+  name: string,
+  minimum: number,
+  maximum: number,
+) {
+  const raw = request.headers.get(name);
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= minimum && value <= maximum
+    ? Math.round(value)
+    : null;
+}
+
 function validPhotoSignature(contentType: string, bytes: Uint8Array) {
   if (contentType === 'image/jpeg')
     return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
@@ -140,7 +154,10 @@ export async function POST(request: Request) {
       );
     const id = identifier('med');
     const extension = contentType.split('/')[1].replace('quicktime', 'mov');
-    const objectKey = 'profiles/' + user.id + '/' + id + '.' + extension;
+    const objectKey =
+      type === 'photo'
+        ? 'profiles/' + user.id + '/' + id + '/full.' + extension
+        : 'profiles/' + user.id + '/' + id + '.' + extension;
     const bucket = mediaBucket();
     const configuredModeration = (
       env as unknown as { SPIKEDATE_MEDIA_MODERATION_MODE?: string }
@@ -163,12 +180,40 @@ export async function POST(request: Request) {
       },
     });
     const now = Date.now();
+    const width =
+      type === 'photo'
+        ? boundedHeader(request, 'x-spikedate-width', 1, 12000)
+        : null;
+    const height =
+      type === 'photo'
+        ? boundedHeader(request, 'x-spikedate-height', 1, 12000)
+        : null;
+    const sourceWidth =
+      type === 'photo'
+        ? boundedHeader(request, 'x-spikedate-source-width', 1, 24000)
+        : null;
+    const sourceHeight =
+      type === 'photo'
+        ? boundedHeader(request, 'x-spikedate-source-height', 1, 24000)
+        : null;
+    const focalX =
+      type === 'photo'
+        ? boundedHeader(request, 'x-spikedate-focal-x', 0, 10000)
+        : null;
+    const focalY =
+      type === 'photo'
+        ? boundedHeader(request, 'x-spikedate-focal-y', 0, 10000)
+        : null;
+    const cropZoom =
+      type === 'photo'
+        ? boundedHeader(request, 'x-spikedate-crop-zoom', 1000, 2200)
+        : null;
     try {
       await db
         .prepare(
           'INSERT INTO profile_media ' +
-            '(id, user_id, object_key, type, position, moderation_status, created_at, updated_at) ' +
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            '(id, user_id, object_key, type, position, width, height, source_width, source_height, focal_x, focal_y, crop_zoom, moderation_status, created_at, updated_at) ' +
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         )
         .bind(
           id,
@@ -176,6 +221,13 @@ export async function POST(request: Request) {
           objectKey,
           type,
           counts?.total ?? 0,
+          width,
+          height,
+          sourceWidth,
+          sourceHeight,
+          focalX,
+          focalY,
+          cropZoom,
           moderationStatus,
           now,
           now,
@@ -193,7 +245,7 @@ export async function POST(request: Request) {
           type,
           position: counts?.total ?? 0,
           moderationStatus,
-          url: '/api/media/' + id,
+          url: '/api/media/' + id + (type === 'photo' ? '?variant=full' : ''),
         },
       },
       { status: 201 },

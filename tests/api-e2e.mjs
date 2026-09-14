@@ -241,11 +241,27 @@ await record(
     const uploadedId = result.body.media.id;
     assert.ok(uploadedId);
 
+    result = await jsonRequest('/api/media/' + uploadedId + '?variant=card', {
+      method: 'PUT',
+      headers: { cookie: firstCookie, 'content-type': 'image/png' },
+      body: onePixelPng,
+    });
+    assert.equal(result.response.status, 200, JSON.stringify(result.body));
+    assert.equal(result.body.variant, 'card');
+
     const served = await fetch(baseUrl + '/api/media/' + uploadedId, {
       headers: { cookie: firstCookie },
     });
     assert.equal(served.status, 200);
     assert.equal(served.headers.get('content-type'), 'image/png');
+
+    const servedCard = await fetch(
+      baseUrl + '/api/media/' + uploadedId + '?variant=card',
+      { headers: { cookie: firstCookie } },
+    );
+    assert.equal(servedCard.status, 200);
+    assert.equal(servedCard.headers.get('x-spikedate-image-variant'), 'card');
+    assert.equal(servedCard.headers.get('content-type'), 'image/png');
 
     result = await jsonRequest('/api/profile', {
       headers: { cookie: firstCookie },

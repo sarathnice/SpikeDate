@@ -65,12 +65,13 @@ the Site. The complete phase inventory and release gates are documented in
 [`UI_TEST_REPORT.md`](./UI_TEST_REPORT.md).
 
 Profile and Today photo pickers open a mobile 4:5 crop editor before saving.
-The client corrects camera orientation, supports drag/zoom framing, and exports
-a 1440 × 1800 WebP at high quality. Server mode validates the encoded file,
-stores the original prepared portrait privately in R2, and serves it only to
-the owner or after moderation approval. The foreground portrait uses `contain`
-over an adaptive blurred backdrop so the complete crop remains visible on
-taller iOS and Android screens without distortion.
+The client corrects camera orientation, supports drag/zoom focal framing, and
+creates separate high-quality full-profile, discovery-card, and avatar WebP
+variants. The untouched upload is retained privately in R2 so a future crop can
+be regenerated without losing detail. D1 stores the source dimensions and
+focal metadata, while authenticated media routes select the smallest suitable
+R2 object for each surface and remain backward-compatible with older uploads.
+The client also warns about low-resolution, very dark, or overexposed photos.
 
 The protected `/admin` dashboard requires an authenticated SpikeDate admin
 role. Set `SPIKEDATE_ADMIN_ACCESS_REQUIRED=true` in shared environments to also

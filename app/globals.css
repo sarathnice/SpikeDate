@@ -2531,12 +2531,12 @@ button:focus-visible {
    framing, while cover fills tall iOS and Android screens without letterboxing. */
 .cinematic-photo-stack > .cinematic-photo-main {
   object-fit: cover !important;
-  object-position: 50% 34%;
+  object-position: center;
   transform: scale(1.002);
   filter: brightness(1.015) contrast(1.045) saturate(1.07);
 }
 .discover-screen .cinematic-photo-stack > .cinematic-photo-main {
-  object-position: 50% 32%;
+  object-position: center;
 }
 .cinematic-photo-stack > .cinematic-photo-backdrop {
   display: none;

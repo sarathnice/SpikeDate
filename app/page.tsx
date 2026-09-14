@@ -2930,15 +2930,47 @@ export default function HomePage() {
         };
       }>('/api/media', {
         method: 'POST',
-        headers: { 'content-type': photo.blob.type },
+        headers: {
+          'content-type': photo.blob.type,
+          'x-spikedate-width': String(photo.width),
+          'x-spikedate-height': String(photo.height),
+          'x-spikedate-source-width': String(photo.originalWidth),
+          'x-spikedate-source-height': String(photo.originalHeight),
+          'x-spikedate-focal-x': String(Math.round(photo.focusX * 100)),
+          'x-spikedate-focal-y': String(Math.round(photo.focusY * 100)),
+          'x-spikedate-crop-zoom': String(Math.round(photo.zoom * 1000)),
+        },
         body: photo.blob,
       });
+      const variants = [
+        { name: 'card', blob: photo.cardBlob },
+        { name: 'avatar', blob: photo.avatarBlob },
+        { name: 'original', blob: photo.originalBlob },
+      ] as const;
+      const variantResults = await Promise.allSettled(
+        variants.map(({ name, blob }) =>
+          serverJson(`/api/media/${result.media.id}?variant=${name}`, {
+            method: 'PUT',
+            headers: {
+              'content-type': blob.type || 'image/jpeg',
+            },
+            body: blob,
+          }),
+        ),
+      );
+      const missingVariants = variantResults.filter(
+        (result) => result.status === 'rejected',
+      ).length;
       media = {
         id: result.media.id,
         type: 'photo',
         src: result.media.url,
         moderationStatus: result.media.moderationStatus,
       };
+      if (missingVariants)
+        announce(
+          'Photo saved. Some optimized sizes will be regenerated later.',
+        );
     } else {
       media = {
         id: `local-photo-${Date.now()}`,
@@ -2957,11 +2989,11 @@ export default function HomePage() {
       const video = base.find((item) => item.type === 'video');
       return [...existingPhotos, media, ...(video ? [video] : [])];
     });
-    announce(
-      photo.lowResolution
-        ? 'Photo added. A higher-resolution original will look sharper.'
-        : 'Photo cropped and saved in high quality',
-    );
+    const qualityMessage = photo.lowResolution
+      ? 'Photo added. A higher-resolution original will look sharper.'
+      : (photo.qualityWarnings[0] ??
+        'Photo cropped and saved with cinematic mobile variants');
+    announce(qualityMessage);
   };
 
   const addProfileVideo = async (file: File) => {
@@ -5797,17 +5829,22 @@ function CinematicPortrait({
   alt,
   sizes,
   priority = false,
+  variant = 'full',
 }: {
   src: string;
   alt: string;
   sizes: string;
   priority?: boolean;
+  variant?: 'card' | 'full';
 }) {
   const unoptimized = src.startsWith('/api/media/') || src.startsWith('data:');
+  const imageSource = src.startsWith('/api/media/')
+    ? `${src.split('?')[0]}?variant=${variant}`
+    : src;
   return (
     <div className="cinematic-photo-stack">
       <Image
-        src={src}
+        src={imageSource}
         alt={alt}
         fill
         priority={priority}
@@ -5955,6 +5992,7 @@ function ProfileCard({
         src={profile.image}
         alt={`${profile.name}'s profile`}
         priority
+        variant="card"
         sizes="(max-width: 480px) 100vw, 390px"
       />
       <span className="swipe-label pass-label">PASS</span>
