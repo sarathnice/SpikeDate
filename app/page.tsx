@@ -4047,6 +4047,7 @@ export default function HomePage() {
           availableTonight?: boolean;
           availability?: DailyAvailability | null;
           verified?: boolean;
+          active?: boolean;
         }>;
       }>('/api/discover?limit=50'),
       serverJson<{
@@ -4114,6 +4115,7 @@ export default function HomePage() {
                 place: candidate.city || known.place,
                 intent: candidate.relationshipGoal || known.intent,
                 verified: candidate.verified,
+                active: candidate.active,
                 availability: candidate.availability ?? undefined,
                 tonight:
                   candidate.availability?.localDate === dateInputValue()
@@ -4154,6 +4156,7 @@ export default function HomePage() {
               drinking: 'Not shared',
               smoking: 'Not shared',
               verified: candidate.verified,
+              active: candidate.active,
               availability: candidate.availability ?? undefined,
               tonight:
                 candidate.availability?.localDate === dateInputValue()

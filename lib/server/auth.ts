@@ -86,6 +86,14 @@ export async function currentUser(request: Request, db = getDb()) {
 export async function requireUser(request: Request, db = getDb()) {
   const user = await currentUser(request, db);
   if (!user) return json({ error: 'Sign in required.' }, { status: 401 });
+  const now = Date.now();
+  await db
+    .prepare(
+      'UPDATE users SET last_active_at = ?, updated_at = ? WHERE id = ? ' +
+        'AND (last_active_at IS NULL OR last_active_at < ?)',
+    )
+    .bind(now, now, user.id, now - 5 * 60 * 1000)
+    .run();
   return user;
 }
 

@@ -22,6 +22,7 @@ type Candidate = {
   availability_end_at: number | null;
   availability_timezone: string | null;
   primary_media_id: string | null;
+  last_active_at: number | null;
 };
 
 export async function GET(request: Request) {
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
     const result = await db
       .prepare(
         'SELECT profiles.user_id, profiles.display_name, users.birth_date, profiles.bio, profiles.city, profiles.gender, ' +
-          'profiles.relationship_goal, profiles.verification_status, lifts.ends_at AS lift_ends_at, ' +
+          'profiles.relationship_goal, profiles.verification_status, users.last_active_at, lifts.ends_at AS lift_ends_at, ' +
           'COUNT(DISTINCT shared.interest_id) AS shared_interests, updates.text AS daily_text, ' +
           'updates.available_tonight AS available_tonight, ' +
           'availability.local_date AS availability_local_date, availability.start_at AS availability_start_at, ' +
@@ -132,6 +133,10 @@ export async function GET(request: Request) {
           city: candidate.city,
           relationshipGoal: candidate.relationship_goal,
           verified,
+          active: Boolean(
+            candidate.last_active_at &&
+            candidate.last_active_at >= Date.now() - 15 * 60 * 1000,
+          ),
           profileLiftActive: Boolean(candidate.lift_ends_at),
           today: candidate.daily_text,
           availableTonight: Boolean(candidate.available_tonight),
