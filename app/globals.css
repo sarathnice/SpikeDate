@@ -276,9 +276,7 @@ button:focus-visible {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  padding:
-    max(20px, env(safe-area-inset-top))
-    20px
+  padding: max(20px, env(safe-area-inset-top)) 20px
     max(20px, env(safe-area-inset-bottom));
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
@@ -303,9 +301,7 @@ button:focus-visible {
 
 @media (max-width: 480px) {
   .auth-shell {
-    padding:
-      max(10px, env(safe-area-inset-top))
-      10px
+    padding: max(10px, env(safe-area-inset-top)) 10px
       max(10px, env(safe-area-inset-bottom));
   }
 
@@ -5926,6 +5922,143 @@ button:focus-visible {
   font-size: 0.66rem;
   font-style: normal;
   font-weight: 400;
+}
+.plan-match-picker .plan-match-availability.unknown {
+  color: var(--muted-foreground);
+}
+.plan-match-picker .plan-match-availability.conflict {
+  color: var(--amber);
+}
+
+.availability-dialog {
+  width: min(calc(100vw - 24px), 430px);
+  max-height: min(760px, calc(100dvh - 24px));
+  overflow-y: auto;
+  padding: 24px 20px calc(22px + env(safe-area-inset-bottom));
+  border: 1px solid var(--ui-border);
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  color: var(--foreground);
+}
+.availability-dialog [data-slot='dialog-title'] {
+  margin-top: 12px;
+  font-size: 1.45rem;
+  font-weight: 580;
+  letter-spacing: -0.035em;
+}
+.availability-dialog [data-slot='dialog-description'] {
+  margin-top: 7px;
+  color: var(--muted-foreground);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.availability-fields {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+}
+.availability-fields label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.availability-fields input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 13px;
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--foreground) 5%, var(--surface));
+  color: var(--foreground);
+  color-scheme: dark;
+  font: inherit;
+  font-size: 0.86rem;
+  text-transform: none;
+}
+.availability-time-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.availability-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 11px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--lime) 7%, transparent);
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+.availability-privacy svg {
+  flex: 0 0 auto;
+  color: var(--lime);
+}
+.availability-dialog > .primary-button {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 999px;
+}
+.availability-clear {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 7px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.dialog-error {
+  margin: 0 0 10px;
+  color: #ff7f8d;
+  font-size: 0.74rem;
+}
+
+.availability-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.availability-setting > span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.availability-setting small {
+  color: var(--muted-foreground);
+  font-size: 0.63rem;
+  letter-spacing: 0.09em;
+}
+.availability-setting strong {
+  font-size: 0.84rem;
+  font-weight: 520;
+}
+.availability-setting p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.69rem;
+}
+.availability-setting button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  color: var(--foreground);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 /* Daily Today posts */

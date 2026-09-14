@@ -114,7 +114,9 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
     name: /Reply to .* with a Spike/,
   });
   await expect(replySpike).toBeVisible();
-  await expect(replySpike.locator('.lucide-message-circle-reply')).toBeVisible();
+  await expect(
+    replySpike.locator('.lucide-message-circle-reply'),
+  ).toBeVisible();
   const replyPositionBeforeScroll = await replySpike.boundingBox();
   expect(replyPositionBeforeScroll).not.toBeNull();
   await dialog.getByRole('button', { name: 'Report' }).scrollIntoViewIfNeeded();
@@ -123,8 +125,7 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
   expect(replyPositionAfterScroll).not.toBeNull();
   expect(
     Math.abs(
-      (replyPositionAfterScroll?.y ?? 0) -
-        (replyPositionBeforeScroll?.y ?? 0),
+      (replyPositionAfterScroll?.y ?? 0) - (replyPositionBeforeScroll?.y ?? 0),
     ),
   ).toBeLessThan(2);
   await expect(dialog.getByRole('button', { name: 'Block' })).toBeVisible();
@@ -192,6 +193,35 @@ test('Galaxy, Chat, and Profile navigation expose primary actions', async ({
   await expect(page.getByRole('button', { name: /Log out/i })).toBeVisible();
 });
 
+test('daily availability is private, editable, and mobile friendly', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.getByRole('button', { name: 'Profile', exact: true }).click();
+  await page
+    .getByRole('button', { name: /Set time|Edit/i })
+    .filter({ has: page.locator('.lucide-calendar-days') })
+    .click();
+  const dialog = page.getByRole('dialog', { name: 'When are you free?' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('MATCHES ONLY');
+  await expect(dialog).toContainText(/home locations stay private/i);
+  const tomorrow = await page.evaluate(() => {
+    const value = new Date();
+    value.setDate(value.getDate() + 1);
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+  await page.getByLabel('Available date').fill(tomorrow);
+  await page.getByLabel('Available from').fill('19:00');
+  await page.getByLabel('Available until').fill('22:00');
+  await page.getByRole('button', { name: 'Share availability' }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByText(/Tomorrow · 7:00 PM–10:00 PM/i)).toBeVisible();
+});
+
 test('private date planning requires the safety gate on mobile', async ({
   page,
 }) => {
@@ -211,6 +241,9 @@ test('private date planning requires the safety gate on mobile', async ({
   await expect(
     planner.getByText(/Only people you mutually matched/i),
   ).toBeVisible();
+  await expect(
+    planner.locator('.plan-match-availability').first(),
+  ).toContainText(/Available|Shared|not shared/i);
   await planner.locator('.plan-match-picker > button').first().click();
   await planner.getByRole('button', { name: 'Review invitation' }).click();
 

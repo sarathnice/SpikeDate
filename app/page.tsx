@@ -120,6 +120,12 @@ type MediaItem = {
   poster?: string;
   moderationStatus?: string;
 };
+type DailyAvailability = {
+  localDate: string;
+  startAt: string;
+  endAt: string;
+  timezone: string;
+};
 type Profile = {
   id?: string;
   name: string;
@@ -145,6 +151,7 @@ type Profile = {
     plan: string;
     expiresAt: string;
   };
+  availability?: DailyAvailability;
 };
 type ChatContact = {
   userId?: string;
@@ -156,6 +163,7 @@ type ChatContact = {
   time: string;
   active?: boolean;
   unread?: number;
+  availability?: DailyAvailability;
 };
 type Filters = {
   genders: Gender[];
@@ -442,6 +450,43 @@ function nextMorningAtFive() {
   if (now.getHours() >= 5) expires.setDate(expires.getDate() + 1);
   expires.setHours(5, 0, 0, 0);
   return expires.toISOString();
+}
+
+function dateInputValue(offsetDays = 0) {
+  const value = new Date();
+  value.setDate(value.getDate() + offsetDays);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatAvailabilityTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function availabilityTimeInput(value: string) {
+  const time = new Date(value);
+  return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`;
+}
+
+function availabilitySummary(availability?: DailyAvailability) {
+  if (!availability || new Date(availability.endAt).getTime() <= Date.now())
+    return 'Not shared';
+  const day =
+    availability.localDate === dateInputValue()
+      ? 'Today'
+      : availability.localDate === dateInputValue(1)
+        ? 'Tomorrow'
+        : new Intl.DateTimeFormat(undefined, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+          }).format(new Date(`${availability.localDate}T12:00:00`));
+  return `${day} · ${formatAvailabilityTime(availability.startAt)}–${formatAvailabilityTime(availability.endAt)}`;
 }
 
 const seedProfiles: Profile[] = [
@@ -1532,7 +1577,9 @@ export default function HomePage() {
   const [composer, setComposer] = useState('');
   const [messagesByContact, setMessagesByContact] =
     useState<Record<string, ChatMessage[]>>(demoChatMessages);
-  const [freeTonight, setFreeTonight] = useState(true);
+  const [dailyAvailability, setDailyAvailability] =
+    useState<DailyAvailability>();
+  const [availabilityOpen, setAvailabilityOpen] = useState(false);
   const [previewCard, setPreviewCard] = useState(false);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [sentLikes, setSentLikes] = useState<Profile[]>([
@@ -1579,6 +1626,23 @@ export default function HomePage() {
     setVerificationStatus(
       identityForEmail(authEmail) ? 'photo_verified' : 'unverified',
     );
+  }, [authEmail]);
+  useEffect(() => {
+    if (!authEmail || serverDataEnabled) return;
+    try {
+      const stored = JSON.parse(
+        window.localStorage.getItem(
+          `spikedate-daily-availability:${authEmail}`,
+        ) || 'null',
+      ) as DailyAvailability | null;
+      setDailyAvailability(
+        stored && new Date(stored.endAt).getTime() > Date.now()
+          ? stored
+          : undefined,
+      );
+    } catch {
+      setDailyAvailability(undefined);
+    }
   }, [authEmail]);
   const profileSource =
     serverDataEnabled && serverProfiles.length ? serverProfiles : profiles;
@@ -1796,6 +1860,47 @@ export default function HomePage() {
   const openNewToday = () => {
     setTodayComposerStory(null);
     setTodayComposerOpen(true);
+  };
+
+  const saveDailyAvailability = async (next: DailyAvailability) => {
+    try {
+      if (serverDataEnabled) {
+        const result = await serverJson<{
+          availability: DailyAvailability;
+        }>('/api/availability', {
+          method: 'PUT',
+          body: JSON.stringify(next),
+        });
+        setDailyAvailability(result.availability);
+      } else {
+        window.localStorage.setItem(
+          `spikedate-daily-availability:${authEmail}`,
+          JSON.stringify(next),
+        );
+        setDailyAvailability(next);
+      }
+      announce('Your availability is visible to your matches');
+      return '';
+    } catch (reason) {
+      return (reason as Error).message;
+    }
+  };
+
+  const clearDailyAvailability = async () => {
+    try {
+      if (serverDataEnabled) {
+        await serverJson('/api/availability', { method: 'DELETE' });
+      } else {
+        window.localStorage.removeItem(
+          `spikedate-daily-availability:${authEmail}`,
+        );
+      }
+      setDailyAvailability(undefined);
+      announce('Daily availability cleared');
+      return '';
+    } catch (reason) {
+      return (reason as Error).message;
+    }
   };
 
   const openEditToday = (story: DailyStory) => {
@@ -3895,6 +4000,7 @@ export default function HomePage() {
           weekly_lift_available?: number;
         } | null;
         subscription: { status?: string } | null;
+        availability: DailyAvailability | null;
       }>('/api/profile'),
       serverJson<{
         profiles: Array<{
@@ -3908,6 +4014,7 @@ export default function HomePage() {
           imageUrl?: string | null;
           today?: string | null;
           availableTonight?: boolean;
+          availability?: DailyAvailability | null;
           verified?: boolean;
         }>;
       }>('/api/discover?limit=50'),
@@ -3918,6 +4025,10 @@ export default function HomePage() {
           display_name: string;
           preview?: string | null;
           unread_count?: number;
+          availability_local_date?: string | null;
+          availability_start_at?: number | null;
+          availability_end_at?: number | null;
+          availability_timezone?: string | null;
         }>;
       }>('/api/conversations'),
       serverJson<{
@@ -3941,6 +4052,7 @@ export default function HomePage() {
         setMembership(
           account.subscription?.status === 'active' ? 'plus' : 'free',
         );
+        setDailyAvailability(account.availability ?? undefined);
         setOwnProfileMedia(
           account.media.map((item) => ({
             id: item.id,
@@ -3971,14 +4083,14 @@ export default function HomePage() {
                 place: candidate.city || known.place,
                 intent: candidate.relationshipGoal || known.intent,
                 verified: candidate.verified,
-                tonight: candidate.today
-                  ? {
-                      plan: candidate.today,
-                      expiresAt: new Date(
-                        Date.now() + 86_400_000,
-                      ).toISOString(),
-                    }
-                  : known.tonight,
+                availability: candidate.availability ?? undefined,
+                tonight:
+                  candidate.availability?.localDate === dateInputValue()
+                    ? {
+                        plan: candidate.today || 'Open to making a plan',
+                        expiresAt: candidate.availability.endAt,
+                      }
+                    : undefined,
               };
             const gender: Gender =
               candidate.gender === 'man'
@@ -4011,12 +4123,14 @@ export default function HomePage() {
               drinking: 'Not shared',
               smoking: 'Not shared',
               verified: candidate.verified,
-              tonight: candidate.today
-                ? {
-                    plan: candidate.today,
-                    expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
-                  }
-                : undefined,
+              availability: candidate.availability ?? undefined,
+              tonight:
+                candidate.availability?.localDate === dateInputValue()
+                  ? {
+                      plan: candidate.today || 'Open to making a plan',
+                      expiresAt: candidate.availability.endAt,
+                    }
+                  : undefined,
             };
           }),
         );
@@ -4038,6 +4152,22 @@ export default function HomePage() {
                 preview: conversation.preview || 'You matched on SpikeDate',
                 time: 'Recent',
                 unread: Number(conversation.unread_count ?? 0),
+                availability:
+                  conversation.availability_local_date &&
+                  conversation.availability_start_at &&
+                  conversation.availability_end_at &&
+                  conversation.availability_timezone
+                    ? {
+                        localDate: conversation.availability_local_date,
+                        startAt: new Date(
+                          Number(conversation.availability_start_at),
+                        ).toISOString(),
+                        endAt: new Date(
+                          Number(conversation.availability_end_at),
+                        ).toISOString(),
+                        timezone: conversation.availability_timezone,
+                      }
+                    : undefined,
               },
             ];
           }),
@@ -4723,8 +4853,8 @@ export default function HomePage() {
             details={registrationData}
             registered={registered}
             theme={theme}
-            freeTonight={freeTonight}
-            onFreeTonight={setFreeTonight}
+            availability={dailyAvailability}
+            onAvailability={() => setAvailabilityOpen(true)}
             onPreview={() => setPreviewCard(true)}
             onRegistration={() => openRegistrationAt(0, false)}
             onEditSection={openRegistrationAt}
@@ -4934,6 +5064,13 @@ export default function HomePage() {
           onSend={sendPlanInvites}
         />
       )}
+      <AvailabilityDialog
+        open={availabilityOpen}
+        onOpenChange={setAvailabilityOpen}
+        existing={dailyAvailability}
+        onSave={saveDailyAvailability}
+        onClear={clearDailyAvailability}
+      />
       <PlanSafetyDialog
         open={planSafetyOpen}
         onOpenChange={setPlanSafetyOpen}
@@ -6952,6 +7089,146 @@ function RoomsHub({
   );
 }
 
+function AvailabilityDialog({
+  open,
+  onOpenChange,
+  existing,
+  onSave,
+  onClear,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  existing?: DailyAvailability;
+  onSave: (availability: DailyAvailability) => Promise<string | undefined>;
+  onClear: () => Promise<string | undefined>;
+}) {
+  const [day, setDay] = useState(dateInputValue());
+  const [start, setStart] = useState('19:00');
+  const [end, setEnd] = useState('22:00');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setDay(existing?.localDate ?? dateInputValue());
+    setStart(existing ? availabilityTimeInput(existing.startAt) : '19:00');
+    setEnd(existing ? availabilityTimeInput(existing.endAt) : '22:00');
+    setError('');
+  }, [existing, open]);
+
+  const submit = async () => {
+    const startDate = new Date(`${day}T${start}:00`);
+    const endDate = new Date(`${day}T${end}:00`);
+    if (
+      !day ||
+      !start ||
+      !end ||
+      !Number.isFinite(startDate.getTime()) ||
+      endDate <= startDate
+    ) {
+      setError('Choose an end time after your start time.');
+      return;
+    }
+    setSaving(true);
+    const message = await onSave({
+      localDate: day,
+      startAt: startDate.toISOString(),
+      endAt: endDate.toISOString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    });
+    setSaving(false);
+    if (message) setError(message);
+    else onOpenChange(false);
+  };
+
+  const clear = async () => {
+    setSaving(true);
+    const message = await onClear();
+    setSaving(false);
+    if (message) setError(message);
+    else onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent showCloseButton={false} className="availability-dialog">
+        <button
+          type="button"
+          className="match-close"
+          onClick={() => onOpenChange(false)}
+          aria-label="Close availability"
+        >
+          <X size={19} />
+        </button>
+        <div className="plan-dialog-kicker">
+          <LockKeyhole size={15} /> MATCHES ONLY
+        </div>
+        <DialogTitle>When are you free?</DialogTitle>
+        <DialogDescription>
+          Share one time window for today or another day this week. It expires
+          automatically when the window ends.
+        </DialogDescription>
+        <div className="availability-fields">
+          <label>
+            Date
+            <input
+              type="date"
+              aria-label="Available date"
+              value={day}
+              min={dateInputValue()}
+              max={dateInputValue(7)}
+              onChange={(event) => setDay(event.target.value)}
+            />
+          </label>
+          <div className="availability-time-grid">
+            <label>
+              From
+              <input
+                type="time"
+                aria-label="Available from"
+                value={start}
+                onChange={(event) => setStart(event.target.value)}
+              />
+            </label>
+            <label>
+              Until
+              <input
+                type="time"
+                aria-label="Available until"
+                value={end}
+                onChange={(event) => setEnd(event.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+        <p className="availability-privacy">
+          <ShieldCheck size={17} /> Mutual matches see only this time window.
+          Your current and home locations stay private.
+        </p>
+        {error && <p className="dialog-error">{error}</p>}
+        <button
+          type="button"
+          className="primary-button"
+          onClick={submit}
+          disabled={saving}
+        >
+          {saving ? 'Saving…' : 'Share availability'}
+        </button>
+        {existing && (
+          <button
+            type="button"
+            className="availability-clear"
+            onClick={clear}
+            disabled={saving}
+          >
+            Stop sharing
+          </button>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PlanDialog({
   open,
   onOpenChange,
@@ -7079,13 +7356,25 @@ function PlanDialog({
         return items.filter((item) => item.id !== venue.id);
       return items.length < 3 ? [...items, venue] : items;
     });
-  const availabilityFor = (name: string) => {
-    const hour = Number(time.split(':')[0]);
-    const offset = (name.charCodeAt(0) + new Date(day).getDate()) % 3;
-    if (offset === 0) return `Available at ${time}`;
-    if (offset === 1)
-      return `Available from ${String(Math.min(hour + 1, 23)).padStart(2, '0')}:00`;
-    return 'Flexible within 30 minutes';
+  const availabilityFor = (contact?: ChatContact) => {
+    const availability = contact?.availability;
+    if (!availability || new Date(availability.endAt).getTime() <= Date.now())
+      return { text: 'Availability not shared', status: 'unknown' };
+    const range = `${formatAvailabilityTime(availability.startAt)}–${formatAvailabilityTime(availability.endAt)}`;
+    if (availability.localDate !== day)
+      return {
+        text: `Shared ${availabilitySummary(availability)}`,
+        status: 'unknown',
+      };
+    const planStart = new Date(`${day}T${time}:00`).getTime();
+    const planEnd = planStart + durationMinutes * 60_000;
+    const fits =
+      planStart >= new Date(availability.startAt).getTime() &&
+      planEnd <= new Date(availability.endAt).getTime();
+    return {
+      text: fits ? `Available ${range}` : `Shared ${range} · time conflict`,
+      status: fits ? 'match' : 'conflict',
+    };
   };
   const canContinue =
     step === 0
@@ -7325,6 +7614,7 @@ function PlanDialog({
             {matchedContacts.length ? (
               matchedContacts.map((contact) => {
                 const selected = invitees.includes(contact.name);
+                const availability = availabilityFor(contact);
                 return (
                   <button
                     type="button"
@@ -7345,9 +7635,10 @@ function PlanDialog({
                     <span>
                       <strong>{contact.name}</strong>
                       <small>Mutual match · Chat open</small>
-                      <em className="plan-match-availability">
-                        <CalendarDays size={12} />{' '}
-                        {availabilityFor(contact.name)}
+                      <em
+                        className={`plan-match-availability ${availability.status}`}
+                      >
+                        <CalendarDays size={12} /> {availability.text}
                       </em>
                     </span>
                     <i>{selected ? <Check size={16} /> : null}</i>
@@ -7407,7 +7698,15 @@ function PlanDialog({
             <section>
               <span>INVITING</span>
               <strong>{invitees.join(', ')}</strong>
-              <p>{invitees[0] ? availabilityFor(invitees[0]) : ''}</p>
+              <p>
+                {invitees[0]
+                  ? availabilityFor(
+                      matchedContacts.find(
+                        (contact) => contact.name === invitees[0],
+                      ),
+                    ).text
+                  : ''}
+              </p>
             </section>
             {safetyCheckInEnabled && (
               <section>
@@ -8615,8 +8914,8 @@ function YourProfile({
   details,
   registered,
   theme,
-  freeTonight,
-  onFreeTonight,
+  availability,
+  onAvailability,
   onPreview,
   onRegistration,
   onEditSection,
@@ -8651,8 +8950,8 @@ function YourProfile({
   details: RegistrationData;
   registered: boolean;
   theme: ThemeName;
-  freeTonight: boolean;
-  onFreeTonight: (checked: boolean) => void;
+  availability?: DailyAvailability;
+  onAvailability: () => void;
   onPreview: () => void;
   onRegistration: () => void;
   onEditSection: (step: number) => void;
@@ -9124,17 +9423,15 @@ function YourProfile({
             <Edit3 size={15} /> Edit preferences & media
           </button>
         </section>
-        <section className="toggle-row">
+        <section className="availability-setting">
           <span>
             <small>AVAILABILITY</small>
-            <strong>I’m free tonight</strong>
-            <p>Show me in the Tonight Galaxy.</p>
+            <strong>{availabilitySummary(availability)}</strong>
+            <p>Shared only with your matches · expires automatically.</p>
           </span>
-          <Switch
-            checked={freeTonight}
-            onCheckedChange={onFreeTonight}
-            aria-label="I'm free tonight"
-          />
+          <button type="button" onClick={onAvailability}>
+            <CalendarDays size={16} /> {availability ? 'Edit' : 'Set time'}
+          </button>
         </section>
       </div>
       <div className="profile-account-tools" id="profile-settings">

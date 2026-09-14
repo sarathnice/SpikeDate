@@ -71,6 +71,7 @@ export async function GET(request: Request) {
       update,
       wallet,
       subscription,
+      availability,
     ] = await Promise.all([
       db
         .prepare('SELECT * FROM profiles WHERE user_id = ?')
@@ -116,6 +117,17 @@ export async function GET(request: Request) {
         )
         .bind(user.id)
         .first(),
+      db
+        .prepare(
+          'SELECT local_date, start_at, end_at, timezone FROM daily_availability WHERE user_id = ? AND end_at > ?',
+        )
+        .bind(user.id, Date.now())
+        .first<{
+          local_date: string;
+          start_at: number;
+          end_at: number;
+          timezone: string;
+        }>(),
     ]);
     const readiness = await getProfileReadiness(db, user.id);
     return json({
@@ -131,6 +143,14 @@ export async function GET(request: Request) {
       dailyUpdate: update,
       wallet,
       subscription,
+      availability: availability
+        ? {
+            localDate: availability.local_date,
+            startAt: new Date(availability.start_at).toISOString(),
+            endAt: new Date(availability.end_at).toISOString(),
+            timezone: availability.timezone,
+          }
+        : null,
       readiness,
     });
   });

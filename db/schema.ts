@@ -241,6 +241,30 @@ export const dailyUpdates = sqliteTable(
   ],
 );
 
+export const dailyAvailability = sqliteTable(
+  'daily_availability',
+  {
+    userId: text('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    localDate: text('local_date').notNull(),
+    startAt: integer('start_at', { mode: 'timestamp_ms' }).notNull(),
+    endAt: integer('end_at', { mode: 'timestamp_ms' }).notNull(),
+    timezone: text('timezone').notNull(),
+    visibility: text('visibility', { enum: ['matches'] })
+      .notNull()
+      .default('matches'),
+    ...timestamps,
+  },
+  (table) => [
+    index('idx_daily_availability_end').on(table.endAt),
+    index('idx_daily_availability_date_start').on(
+      table.localDate,
+      table.startAt,
+    ),
+  ],
+);
+
 export const interactions = sqliteTable(
   'interactions',
   {

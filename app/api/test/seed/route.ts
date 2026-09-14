@@ -217,6 +217,33 @@ export async function POST(request: Request) {
           );
       }),
     );
+    const availableDay = new Date(now + 86_400_000);
+    const availableLocalDate = availableDay.toISOString().slice(0, 10);
+    await db.batch(
+      [2, 3, 4, 5].map((index) => {
+        const startAt = new Date(`${availableLocalDate}T18:00:00-04:00`);
+        startAt.setMinutes((index - 2) * 30);
+        const endAt = new Date(startAt.getTime() + 3 * 60 * 60 * 1000);
+        const suffix = String(index).padStart(3, '0');
+        return db
+          .prepare(
+            'INSERT INTO daily_availability ' +
+              '(user_id, local_date, start_at, end_at, timezone, visibility, created_at, updated_at) ' +
+              "VALUES (?, ?, ?, ?, ?, 'matches', ?, ?) ON CONFLICT(user_id) DO UPDATE SET " +
+              'local_date = excluded.local_date, start_at = excluded.start_at, end_at = excluded.end_at, ' +
+              'timezone = excluded.timezone, updated_at = excluded.updated_at',
+          )
+          .bind(
+            `test-${suffix}`,
+            availableLocalDate,
+            startAt.getTime(),
+            endAt.getTime(),
+            'America/New_York',
+            now,
+            now,
+          );
+      }),
+    );
     const adminId = 'test-001';
     await db
       .prepare(

@@ -17,6 +17,10 @@ type Candidate = {
   shared_interests: number;
   daily_text: string | null;
   available_tonight: number | null;
+  availability_local_date: string | null;
+  availability_start_at: number | null;
+  availability_end_at: number | null;
+  availability_timezone: string | null;
   primary_media_id: string | null;
 };
 
@@ -52,6 +56,8 @@ export async function GET(request: Request) {
           'profiles.relationship_goal, profiles.verification_status, lifts.ends_at AS lift_ends_at, ' +
           'COUNT(DISTINCT shared.interest_id) AS shared_interests, updates.text AS daily_text, ' +
           'updates.available_tonight AS available_tonight, ' +
+          'availability.local_date AS availability_local_date, availability.start_at AS availability_start_at, ' +
+          'availability.end_at AS availability_end_at, availability.timezone AS availability_timezone, ' +
           "(SELECT media.id FROM profile_media media WHERE media.user_id = profiles.user_id AND media.type = 'photo' " +
           "AND media.moderation_status = 'approved' ORDER BY media.position LIMIT 1) AS primary_media_id " +
           'FROM profiles JOIN users ON users.id = profiles.user_id ' +
@@ -59,6 +65,7 @@ export async function GET(request: Request) {
           '(SELECT interest_id FROM user_interests WHERE user_id = ?) ' +
           'LEFT JOIN profile_lift_activations lifts ON lifts.user_id = profiles.user_id AND lifts.ends_at > ? ' +
           'LEFT JOIN daily_updates updates ON updates.user_id = profiles.user_id AND updates.expires_at > ? AND updates.deleted_at IS NULL ' +
+          'LEFT JOIN daily_availability availability ON availability.user_id = profiles.user_id AND availability.end_at > ? ' +
           "WHERE profiles.user_id != ? AND profiles.discoverable = 1 AND users.status = 'active' " +
           'AND NOT EXISTS (SELECT 1 FROM safety_actions blocked WHERE blocked.kind = ? AND ' +
           '((blocked.reporter_id = ? AND blocked.subject_id = profiles.user_id) OR ' +
@@ -71,6 +78,7 @@ export async function GET(request: Request) {
       )
       .bind(
         user.id,
+        Date.now(),
         Date.now(),
         Date.now(),
         user.id,
@@ -127,6 +135,20 @@ export async function GET(request: Request) {
           profileLiftActive: Boolean(candidate.lift_ends_at),
           today: candidate.daily_text,
           availableTonight: Boolean(candidate.available_tonight),
+          availability:
+            candidate.availability_local_date &&
+            candidate.availability_start_at &&
+            candidate.availability_end_at &&
+            candidate.availability_timezone
+              ? {
+                  localDate: candidate.availability_local_date,
+                  startAt: new Date(
+                    candidate.availability_start_at,
+                  ).toISOString(),
+                  endAt: new Date(candidate.availability_end_at).toISOString(),
+                  timezone: candidate.availability_timezone,
+                }
+              : null,
           imageUrl: candidate.primary_media_id
             ? '/api/media/' + candidate.primary_media_id
             : null,
