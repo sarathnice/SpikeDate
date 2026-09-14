@@ -120,6 +120,8 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
   await expect(
     page.locator('.profile-card .cinematic-photo-grade'),
   ).toBeVisible();
+  await expect(page.getByLabel(/is online now/)).toBeVisible();
+  await expect(page.locator('.profile-presence')).toHaveText('Online now');
   await expect(
     page.getByRole('button', { name: /Like .*$/ }).first(),
   ).toBeVisible();
@@ -280,7 +282,9 @@ test('Today composer merges the update and private availability', async ({
     'rgb(255, 255, 255)',
   );
   await homeToday.click();
-  await expect(page.getByRole('dialog', { name: /your Today/i })).toBeVisible();
+  await expect(
+    page.getByRole('dialog', { name: 'Today', exact: true }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Close Today composer' }).click();
 
   await page.getByRole('button', { name: /Open .* full profile/i }).click();
@@ -296,7 +300,9 @@ test('Today composer merges the update and private availability', async ({
   );
   await fullProfileToday.click();
   await expect(fullProfile).not.toBeVisible();
-  await expect(page.getByRole('dialog', { name: /your Today/i })).toBeVisible();
+  await expect(
+    page.getByRole('dialog', { name: 'Today', exact: true }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Close Today composer' }).click();
 
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
@@ -304,18 +310,25 @@ test('Today composer merges the update and private availability', async ({
     .locator('.profile-passport-topbar')
     .getByRole('button', { name: 'Today', exact: true })
     .click();
-  const dialog = page.getByRole('dialog', { name: /your Today/i });
+  const dialog = page.getByRole('dialog', { name: 'Today', exact: true });
   await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('What are you doing today?');
   await expect(dialog.getByLabel('Today update')).toBeVisible();
-  await expect(dialog).toContainText('When are you available?');
-  await expect(dialog).toContainText('shown only to mutual matches');
-  await expect(dialog).toContainText(/current or home location/i);
-  await dialog.getByRole('button', { name: 'Tomorrow', exact: true }).click();
-  await page.getByLabel('Available from').fill('19:00');
-  await page.getByLabel('Available until').fill('22:00');
-  await dialog.getByRole('button', { name: 'Save Today' }).click();
+  await expect(dialog.getByLabel('Available tonight')).toBeVisible();
+  await expect(dialog.getByLabel('Today prompt')).toHaveCount(0);
+  await expect(dialog.getByLabel('Today visibility')).toHaveCount(0);
+  await expect(dialog.getByLabel('Allow Today replies')).toHaveCount(0);
+  await expect(dialog.getByLabel('Choose Today photo')).toHaveCount(0);
+  await expect(page.getByLabel('Available from')).toHaveCount(0);
+  await expect(page.getByLabel('Available until')).toHaveCount(0);
+  await dialog.getByLabel('Today update').fill('Coffee and a walk after work.');
+  await dialog.getByLabel('Available tonight').check();
+  await dialog
+    .getByRole('button', { name: /Post for today|Save Today/ })
+    .click();
   await expect(dialog).not.toBeVisible();
-  await expect(page.getByText(/Tomorrow · 7:00 PM–10:00 PM/i)).toBeVisible();
+  await expect(page.getByText('Coffee and a walk after work.')).toBeVisible();
+  await expect(page.getByText(/Today · .*–5:00 AM/i)).toBeVisible();
   await expect(page.getByText('AVAILABILITY', { exact: true })).toHaveCount(0);
 });
 

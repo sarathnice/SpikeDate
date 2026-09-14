@@ -149,6 +149,7 @@ type Profile = {
   drinking: string;
   smoking: string;
   verified?: boolean;
+  active?: boolean;
   tonight?: {
     plan: string;
     expiresAt: string;
@@ -280,7 +281,6 @@ type DailyStoryDraft = Pick<
   DailyStory,
   'mediaUrl' | 'caption' | 'prompt' | 'visibility' | 'repliesEnabled'
 >;
-type TodayAvailabilityChoice = 'none' | 'tonight' | 'tomorrow' | 'custom';
 type DatingPlan = {
   id: number;
   planName: string;
@@ -453,11 +453,6 @@ function formatAvailabilityTime(value: string) {
   }).format(new Date(value));
 }
 
-function availabilityTimeInput(value: string) {
-  const time = new Date(value);
-  return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`;
-}
-
 function availabilitySummary(availability?: DailyAvailability) {
   if (!availability || new Date(availability.endAt).getTime() <= Date.now())
     return 'Not shared';
@@ -498,6 +493,7 @@ const seedProfiles: Profile[] = [
     wantsKids: 'Yes',
     drinking: 'Socially',
     smoking: 'No',
+    active: true,
     tonight: {
       plan: 'Coffee or drinks',
       expiresAt: nextMorningAtFive(),
@@ -522,6 +518,7 @@ const seedProfiles: Profile[] = [
     wantsKids: 'Yes',
     drinking: 'Socially',
     smoking: 'No',
+    active: true,
     tonight: {
       plan: 'Vinyl bar after 7',
       expiresAt: nextMorningAtFive(),
@@ -546,6 +543,7 @@ const seedProfiles: Profile[] = [
     wantsKids: 'Maybe',
     drinking: 'Rarely',
     smoking: 'No',
+    active: true,
   },
   {
     name: 'Ava',
@@ -566,6 +564,7 @@ const seedProfiles: Profile[] = [
     wantsKids: 'Maybe',
     drinking: 'Rarely',
     smoking: 'No',
+    active: true,
   },
   {
     name: 'Noah',
@@ -586,6 +585,7 @@ const seedProfiles: Profile[] = [
     wantsKids: 'Yes',
     drinking: 'Socially',
     smoking: 'No',
+    active: true,
   },
   {
     name: 'Mateo',
@@ -758,6 +758,7 @@ const generatedProfiles: Profile[] = generatedProfileNames.map(
       wantsKids: ['Yes', 'Maybe', 'No'][index % 3],
       drinking: ['Socially', 'Rarely', 'No'][index % 3],
       smoking: index % 7 === 0 ? 'Occasionally' : 'No',
+      active: index % 4 === 0,
     };
   },
 );
@@ -5127,7 +5128,6 @@ export default function HomePage() {
         }}
         existing={todayComposerStory ?? undefined}
         replacing={Boolean(ownDailyStory && !todayComposerStory)}
-        profileImage={ownProfileImage}
         existingAvailability={dailyAvailability}
         onPublish={publishDailyStory}
       />
@@ -5253,7 +5253,6 @@ function TodayComposerDialog({
   onOpenChange,
   existing,
   replacing,
-  profileImage,
   existingAvailability,
   onPublish,
 }: {
@@ -5261,7 +5260,6 @@ function TodayComposerDialog({
   onOpenChange: (open: boolean) => void;
   existing?: DailyStory;
   replacing: boolean;
-  profileImage: string;
   existingAvailability?: DailyAvailability;
   onPublish: (
     draft: DailyStoryDraft,
@@ -5269,20 +5267,8 @@ function TodayComposerDialog({
     availability?: DailyAvailability | null,
   ) => Promise<string | undefined>;
 }) {
-  const [prompt, setPrompt] = useState(todayPrompts[0]);
   const [caption, setCaption] = useState('');
-  const [mediaUrl, setMediaUrl] = useState<string | undefined>();
-  const [visibility, setVisibility] =
-    useState<DailyStoryVisibility>('discover');
-  const [repliesEnabled, setRepliesEnabled] = useState(true);
-  const [mediaError, setMediaError] = useState('');
-  const [cropFile, setCropFile] = useState<File | null>(null);
-  const [cropOpen, setCropOpen] = useState(false);
-  const [availabilityChoice, setAvailabilityChoice] =
-    useState<TodayAvailabilityChoice>('none');
-  const [availableDay, setAvailableDay] = useState(dateInputValue());
-  const [availableFrom, setAvailableFrom] = useState('19:00');
-  const [availableUntil, setAvailableUntil] = useState('22:00');
+  const [availableTonight, setAvailableTonight] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -5292,44 +5278,20 @@ function TodayComposerDialog({
       ? window.localStorage.getItem('spikedate-today-draft')
       : null;
     const parsedDraft = savedDraft
-      ? (JSON.parse(savedDraft) as Partial<DailyStoryDraft>)
+      ? (JSON.parse(savedDraft) as {
+          caption?: string;
+          availableTonight?: boolean;
+        })
       : null;
-    setPrompt(existing?.prompt || parsedDraft?.prompt || todayPrompts[0]);
     setCaption(existing?.caption || parsedDraft?.caption || '');
-    setMediaUrl(existing?.mediaUrl || parsedDraft?.mediaUrl);
-    setVisibility(
-      existing?.visibility || parsedDraft?.visibility || 'discover',
-    );
-    setRepliesEnabled(
-      existing?.repliesEnabled ?? parsedDraft?.repliesEnabled ?? true,
-    );
-    setMediaError('');
-    setCropFile(null);
-    setCropOpen(false);
     const activeAvailability =
       existingAvailability &&
       new Date(existingAvailability.endAt).getTime() > Date.now()
         ? existingAvailability
         : undefined;
-    setAvailabilityChoice(
-      !activeAvailability
-        ? 'none'
-        : activeAvailability.localDate === dateInputValue()
-          ? 'tonight'
-          : activeAvailability.localDate === dateInputValue(1)
-            ? 'tomorrow'
-            : 'custom',
-    );
-    setAvailableDay(activeAvailability?.localDate ?? dateInputValue());
-    setAvailableFrom(
-      activeAvailability
-        ? availabilityTimeInput(activeAvailability.startAt)
-        : '19:00',
-    );
-    setAvailableUntil(
-      activeAvailability
-        ? availabilityTimeInput(activeAvailability.endAt)
-        : '22:00',
+    setAvailableTonight(
+      activeAvailability?.localDate === dateInputValue() ||
+        parsedDraft?.availableTonight === true,
     );
     setSubmitError('');
     setSaving(false);
@@ -5339,63 +5301,29 @@ function TodayComposerDialog({
     if (!open || existing) return;
     window.localStorage.setItem(
       'spikedate-today-draft',
-      JSON.stringify({ prompt, caption, mediaUrl, visibility, repliesEnabled }),
+      JSON.stringify({ caption, availableTonight }),
     );
-  }, [caption, existing, mediaUrl, open, prompt, repliesEnabled, visibility]);
-
-  const choosePhoto = (file?: File) => {
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setMediaError('Choose a JPG, PNG, or WebP image.');
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      setMediaError('Choose a photo smaller than 15 MB.');
-      return;
-    }
-    setCropFile(file);
-    setCropOpen(true);
-    setMediaError('');
-  };
-
-  const chooseAvailability = (choice: TodayAvailabilityChoice) => {
-    setAvailabilityChoice(choice);
-    if (choice === 'tonight') setAvailableDay(dateInputValue());
-    if (choice === 'tomorrow') setAvailableDay(dateInputValue(1));
-    setSubmitError('');
-  };
+  }, [availableTonight, caption, existing, open]);
 
   const submitToday = async () => {
     let availability: DailyAvailability | null = null;
-    if (availabilityChoice !== 'none') {
-      const startAt = new Date(`${availableDay}T${availableFrom}:00`);
-      const endAt = new Date(`${availableDay}T${availableUntil}:00`);
-      if (
-        !availableDay ||
-        !availableFrom ||
-        !availableUntil ||
-        !Number.isFinite(startAt.getTime()) ||
-        endAt <= startAt ||
-        endAt.getTime() <= Date.now()
-      ) {
-        setSubmitError('Choose an upcoming end time after your start time.');
-        return;
-      }
+    if (availableTonight) {
+      const now = new Date();
       availability = {
-        localDate: availableDay,
-        startAt: startAt.toISOString(),
-        endAt: endAt.toISOString(),
+        localDate: dateInputValue(),
+        startAt: now.toISOString(),
+        endAt: nextMorningAtFive(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       };
     }
     setSaving(true);
     const message = await onPublish(
       {
-        mediaUrl,
+        mediaUrl: undefined,
         caption: caption.trim(),
-        prompt,
-        visibility,
-        repliesEnabled,
+        prompt: existing?.prompt || todayPrompts[0],
+        visibility: existing?.visibility || 'discover',
+        repliesEnabled: existing?.repliesEnabled ?? true,
       },
       existing?.id,
       availability,
@@ -5416,187 +5344,35 @@ function TodayComposerDialog({
         >
           <X size={19} />
         </button>
-        <p className="today-kicker">TODAY · 24 HOURS</p>
-        <DialogTitle>
-          {existing
-            ? 'Edit your Today'
-            : replacing
-              ? 'Post a new Today'
-              : 'Share your Today'}
-        </DialogTitle>
+        <p className="today-kicker">VISIBLE FOR 24 HOURS</p>
+        <DialogTitle>Today</DialogTitle>
         <DialogDescription>
-          {existing
-            ? 'Update the post without resetting its views or expiration time.'
-            : replacing
-              ? 'This replaces your current post and starts a fresh 24-hour window.'
-              : 'Give people a natural reason to start a conversation.'}
+          Share one quick update and optionally show that you are free tonight.
         </DialogDescription>
 
-        <div className="today-composer-preview">
-          <Image
-            src={mediaUrl || profileImage}
-            alt="Today preview"
-            fill
-            sizes="150px"
-            className="profile-photo"
-          />
-          <label className="today-photo-picker">
-            <Camera size={17} /> {mediaUrl ? 'Change photo' : 'Add photo'}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-              aria-label="Choose Today photo"
-              onChange={(event) => choosePhoto(event.target.files?.[0])}
-            />
-          </label>
-          {mediaUrl && (
-            <button
-              type="button"
-              className="today-photo-remove"
-              onClick={() => setMediaUrl(undefined)}
-            >
-              <Trash2 size={14} /> Remove
-            </button>
-          )}
-        </div>
-        {mediaError && <p className="today-media-error">{mediaError}</p>}
-
-        <PhotoCropper
-          file={cropFile}
-          open={cropOpen}
-          onOpenChange={setCropOpen}
-          onConfirm={async (photo) => {
-            setMediaUrl(await blobToDataUrl(photo.blob));
-            setMediaError(
-              photo.lowResolution
-                ? 'This photo may look soft. A higher-resolution original is recommended.'
-                : '',
-            );
-          }}
-        />
-
-        <label className="today-field">
-          Daily prompt
-          <select
-            aria-label="Today prompt"
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-          >
-            {todayPrompts.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
-        </label>
-        <label className="today-field">
-          Your update
+        <label className="today-field today-simple-update">
+          What are you doing today?
           <textarea
             aria-label="Today update"
             value={caption}
             maxLength={140}
             onChange={(event) => setCaption(event.target.value)}
-            placeholder="Example: Attempting homemade pasta tonight 🍝"
+            placeholder="Coffee after work, then a walk by the river…"
           />
           <small>{caption.length}/140</small>
         </label>
-        <section className="today-availability-composer">
-          <header>
-            <span>
-              <CalendarDays size={17} />
-              <span>
-                <strong>When are you available?</strong>
-                <small>Optional · shown only to mutual matches</small>
-              </span>
-            </span>
-          </header>
-          <div
-            className="today-availability-choices"
-            role="group"
-            aria-label="Today availability"
-          >
-            {(
-              [
-                ['none', 'Not available'],
-                ['tonight', 'Tonight'],
-                ['tomorrow', 'Tomorrow'],
-                ['custom', 'Choose date'],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                type="button"
-                key={value}
-                className={availabilityChoice === value ? 'selected' : ''}
-                aria-pressed={availabilityChoice === value}
-                onClick={() => chooseAvailability(value)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {availabilityChoice !== 'none' && (
-            <div className="today-availability-fields">
-              {availabilityChoice === 'custom' && (
-                <label>
-                  Date
-                  <input
-                    type="date"
-                    aria-label="Available date"
-                    value={availableDay}
-                    min={dateInputValue()}
-                    max={dateInputValue(7)}
-                    onChange={(event) => setAvailableDay(event.target.value)}
-                  />
-                </label>
-              )}
-              <div>
-                <label>
-                  From
-                  <input
-                    type="time"
-                    aria-label="Available from"
-                    value={availableFrom}
-                    onChange={(event) => setAvailableFrom(event.target.value)}
-                  />
-                </label>
-                <label>
-                  Until
-                  <input
-                    type="time"
-                    aria-label="Available until"
-                    value={availableUntil}
-                    onChange={(event) => setAvailableUntil(event.target.value)}
-                  />
-                </label>
-              </div>
-            </div>
-          )}
-          <p>
-            <ShieldCheck size={15} /> Your time is shared without your current
-            or home location.
-          </p>
-        </section>
-        <label className="today-field">
-          Who can see this?
-          <select
-            aria-label="Today visibility"
-            value={visibility}
-            onChange={(event) =>
-              setVisibility(event.target.value as DailyStoryVisibility)
-            }
-          >
-            <option value="discover">People matching my preferences</option>
-            <option value="liked">Only people I liked</option>
-            <option value="matches">Matches only</option>
-          </select>
-        </label>
-        <div className="today-replies-control">
+        <div className="today-tonight-toggle">
           <span>
-            <strong>Allow replies</strong>
-            <small>Unmatched replies arrive as introductions.</small>
+            <strong>Available tonight</strong>
+            <small>Optional · your location stays private</small>
           </span>
           <Switch
-            checked={repliesEnabled}
-            onCheckedChange={setRepliesEnabled}
-            aria-label="Allow Today replies"
+            checked={availableTonight}
+            onCheckedChange={(checked) => {
+              setAvailableTonight(checked);
+              setSubmitError('');
+            }}
+            aria-label="Available tonight"
           />
         </div>
         <button
@@ -5605,8 +5381,8 @@ function TodayComposerDialog({
           disabled={
             saving ||
             (!caption.trim() &&
-              !mediaUrl &&
-              availabilityChoice === 'none' &&
+              !availableTonight &&
+              !existing &&
               !existingAvailability)
           }
           onClick={submitToday}
@@ -5617,8 +5393,8 @@ function TodayComposerDialog({
             : existing || existingAvailability
               ? 'Save Today'
               : replacing
-                ? 'Share new Today'
-                : 'Share Today'}
+                ? 'Post new for 24 hours'
+                : 'Post for today'}
         </button>
         {submitError && <p className="today-submit-error">{submitError}</p>}
       </DialogContent>
@@ -6185,6 +5961,15 @@ function ProfileCard({
         {!preview && (
           <p className="tap-hint">Tap the photo for the full profile</p>
         )}
+        {profile.active && !preview && (
+          <p
+            className="profile-presence"
+            aria-label={`${profile.name} is online now`}
+          >
+            <span aria-hidden="true" />
+            Online now
+          </p>
+        )}
         <div className="name-row">
           <h1>
             {profile.name}, {profile.age}
@@ -6246,12 +6031,6 @@ function ProfileCard({
                 <Moon size={14} fill="currentColor" aria-hidden="true" />
                 <span>
                   <strong>Available tonight</strong>
-                  {profile.availability && (
-                    <small>
-                      {formatAvailabilityTime(profile.availability.startAt)}–
-                      {formatAvailabilityTime(profile.availability.endAt)}
-                    </small>
-                  )}
                 </span>
               </button>
             )}

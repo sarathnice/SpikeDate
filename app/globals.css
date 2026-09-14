@@ -6702,6 +6702,26 @@ button > .lucide-calendar-check {
   font-size: 0.84rem;
 }
 
+.profile-presence {
+  width: max-content;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 6px;
+  color: #92fa73;
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.92);
+}
+.profile-presence > span {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 4px rgba(146, 250, 115, 0.16);
+}
+
 .discover-screen .chips {
   gap: 6px;
 }
@@ -7000,6 +7020,45 @@ button > .lucide-calendar-check {
   color: var(--foreground);
   font-family: var(--font-inter), Inter, Arial, sans-serif;
   scrollbar-width: none;
+}
+
+.today-composer-dialog:has(.today-simple-update) {
+  max-height: min(92dvh, 520px);
+  padding-bottom: 20px;
+}
+.today-simple-update {
+  margin-top: 16px;
+}
+.today-simple-update textarea {
+  min-height: 126px;
+}
+.today-tonight-toggle {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--ui-border);
+}
+.today-tonight-toggle > span {
+  min-width: 0;
+}
+.today-tonight-toggle strong,
+.today-tonight-toggle small {
+  display: block;
+}
+.today-tonight-toggle strong {
+  color: var(--foreground);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.today-tonight-toggle small {
+  margin-top: 3px;
+  color: var(--muted-foreground);
+  font-size: 0.67rem;
 }
 .today-composer-dialog .match-close {
   top: 16px;
