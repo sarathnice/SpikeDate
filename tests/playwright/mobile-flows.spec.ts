@@ -1,4 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
+import {
+  expect,
+  request as playwrightRequest,
+  test,
+  type Page,
+} from '@playwright/test';
 import path from 'node:path';
 
 async function signIn(page: Page) {
@@ -16,7 +21,7 @@ async function signIn(page: Page) {
         : title.startsWith('Today composer')
           ? 16
           : title.startsWith('private date planning')
-            ? 4
+            ? 6
             : title.startsWith('photo safety')
               ? 18
               : title.startsWith('Profile Lift')
@@ -69,9 +74,9 @@ async function expectImagesLoaded(page: Page) {
 }
 
 async function seedLocalMutualMatch(page: Page) {
-  await page.evaluate(() => {
+  const accounts = await page.evaluate(() => {
     const current = localStorage.getItem('pulse-session');
-    if (!current?.startsWith('test')) return;
+    if (!current?.startsWith('test')) return null;
     const other =
       current === 'test002@spikedate.test'
         ? 'test003@spikedate.test'
@@ -91,7 +96,59 @@ async function seedLocalMutualMatch(page: Page) {
         },
       ]),
     );
+    return { current, other };
   });
+
+  if (accounts) {
+    const session = await page.request.get('/api/auth/session');
+    if (session.ok()) {
+      const toUserId = (email: string) =>
+        `test-${email.slice(4, email.indexOf('@')).padStart(3, '0')}`;
+      const stamp = `${test.info().project.name}-${Date.now()}`;
+      const currentLike = await page.request.post('/api/interactions', {
+        data: {
+          targetUserId: toUserId(accounts.other),
+          kind: 'like',
+          targetType: 'profile',
+          idempotencyKey: `ui-current-${stamp}`,
+        },
+      });
+      if (!currentLike.ok())
+        throw new Error(
+          `Unable to seed current-user like: ${currentLike.status()}`,
+        );
+
+      const reciprocal = await playwrightRequest.newContext({
+        baseURL: new URL(page.url()).origin,
+      });
+      try {
+        const login = await reciprocal.post('/api/auth/login', {
+          data: {
+            email: accounts.other,
+            password: 'SpikeDate2026!',
+          },
+        });
+        if (!login.ok())
+          throw new Error(
+            `Unable to sign in reciprocal user: ${login.status()}`,
+          );
+        const otherLike = await reciprocal.post('/api/interactions', {
+          data: {
+            targetUserId: toUserId(accounts.current),
+            kind: 'like',
+            targetType: 'profile',
+            idempotencyKey: `ui-reciprocal-${stamp}`,
+          },
+        });
+        if (!otherLike.ok())
+          throw new Error(
+            `Unable to seed reciprocal like: ${otherLike.status()}`,
+          );
+      } finally {
+        await reciprocal.dispose();
+      }
+    }
+  }
   await page.reload();
   await expect(page.locator('.phone-frame')).toBeVisible();
 }
