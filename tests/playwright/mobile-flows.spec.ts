@@ -165,7 +165,7 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: /^Like /i })).toHaveCount(0);
 });
 
-test('Like advances immediately while Spike keeps the note composer', async ({
+test('Like advances immediately while Spike has one top-placement send action', async ({
   page,
 }) => {
   await signIn(page);
@@ -184,6 +184,10 @@ test('Like advances immediately while Spike keeps the note composer', async ({
     )
     .not.toBe(firstLikeLabel);
 
+  const firstSpikeLabel = await page
+    .getByRole('button', { name: /^Like [A-Za-z]/ })
+    .first()
+    .getAttribute('aria-label');
   await page
     .getByRole('button', { name: /Send .* a Spike introduction/ })
     .click();
@@ -194,9 +198,21 @@ test('Like advances immediately while Spike keeps the note composer', async ({
   ).toBeVisible();
   await expect(
     dialog.getByRole('button', { name: /Prioritize this Spike/i }),
-  ).toBeVisible();
-  await expect(dialog).toContainText(/Moves it to the top of Likes/i);
-  await dialog.getByRole('button', { name: /Close note sheet/i }).click();
+  ).toHaveCount(0);
+  await expect(
+    dialog.getByRole('button', { name: /Spike without a note/i }),
+  ).toHaveCount(0);
+  await expect(dialog).toContainText(/delivered at the top of Likes/i);
+  await dialog.getByRole('button', { name: /Send Spike/i }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .getByRole('button', { name: /^Like [A-Za-z]/ })
+        .first()
+        .getAttribute('aria-label'),
+    )
+    .not.toBe(firstSpikeLabel);
 });
 
 test('Galaxy, Likes, Chat, and Profile navigation expose primary actions', async ({

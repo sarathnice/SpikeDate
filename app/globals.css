@@ -2144,53 +2144,6 @@ button:focus-visible {
 .note-dialog-actions .primary-button {
   margin-top: 14px;
 }
-.priority-spike-option {
-  width: 100%;
-  min-height: 58px;
-  margin-top: 9px;
-  padding: 8px 12px;
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 18px;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid color-mix(in srgb, var(--coral) 32%, var(--ui-border));
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--coral) 7%, var(--surface));
-  color: var(--foreground);
-  text-align: left;
-  cursor: pointer;
-}
-.priority-spike-option > span:nth-child(2) {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-.priority-spike-option strong {
-  font-size: 0.84rem;
-  font-weight: 550;
-}
-.priority-spike-option small {
-  color: var(--muted-foreground);
-  font-size: 0.7rem;
-  font-weight: 400;
-  line-height: 1.25;
-}
-.priority-spike-icon {
-  position: relative;
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--coral) 16%, var(--surface));
-  color: var(--coral);
-}
-.priority-spike-icon svg:last-child {
-  position: absolute;
-  top: 4px;
-  right: 3px;
-  stroke-width: 2.4;
-}
 .spark-note .note-sheet-action-mark {
   border: 1px solid color-mix(in srgb, var(--coral) 35%, var(--ui-border));
   background: color-mix(in srgb, var(--coral) 12%, var(--surface));
