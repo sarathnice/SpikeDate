@@ -112,11 +112,11 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
   await expectImagesLoaded(page);
   const homePortrait = page.locator('.profile-card .cinematic-photo-main');
   await expect(homePortrait).toBeVisible();
-  await expect(homePortrait).toHaveCSS('object-fit', 'contain');
+  await expect(homePortrait).toHaveCSS('object-fit', 'cover');
   await expect(homePortrait).not.toHaveCSS('filter', 'none');
   await expect(
     page.locator('.profile-card .cinematic-photo-backdrop'),
-  ).toHaveCSS('object-fit', 'cover');
+  ).toHaveCount(0);
   await expect(
     page.locator('.profile-card .cinematic-photo-grade'),
   ).toBeVisible();
@@ -139,8 +139,10 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
   await expect(dialog.locator('.cinematic-photo-main')).toBeVisible();
   await expect(dialog.locator('.cinematic-photo-main')).toHaveCSS(
     'object-fit',
-    'contain',
+    'cover',
   );
+  const fullProfileMedia = await dialog.locator('.profile-film').boundingBox();
+  expect(fullProfileMedia?.height ?? 0).toBeGreaterThan(480);
   await expect(
     dialog.getByRole('button', { name: /Send a Spike introduction/ }),
   ).toBeVisible();
@@ -220,10 +222,16 @@ test('Galaxy, Likes, Chat, and Profile navigation expose primary actions', async
 }) => {
   await signIn(page);
   await page.getByRole('button', { name: 'Galaxy', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Lift my profile' }),
+  ).toBeVisible();
   await expect(page.getByText('Start with a plan')).toBeVisible();
   await expect(page.getByText('Browse the Galaxy')).toBeVisible();
 
   await page.getByRole('button', { name: /^Likes/ }).click();
+  await expect(
+    page.getByRole('button', { name: 'Lift my profile' }),
+  ).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Likes' })).toBeVisible();
   await expect(page.getByRole('tab', { name: /Liked you/ })).toBeVisible();
   await expect(page.getByRole('tab', { name: /You liked/ })).toBeVisible();
@@ -231,12 +239,18 @@ test('Galaxy, Likes, Chat, and Profile navigation expose primary actions', async
   await expect(page.locator('.matches-list')).toBeVisible();
 
   await page.getByRole('button', { name: /^Chat/ }).click();
+  await expect(
+    page.getByRole('button', { name: 'Lift my profile' }),
+  ).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Chats' })).toBeVisible();
   await expect(
     page.locator('.chat-row').first().or(page.getByText('No matches yet')),
   ).toBeVisible();
 
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Lift my profile' }),
+  ).toBeVisible();
   await expect(
     page.getByRole('button', { name: /Preview my card/i }),
   ).toBeVisible();
@@ -261,6 +275,10 @@ test('Today composer merges the update and private availability', async ({
     .getByRole('button', { name: 'Post or edit your Today update' });
   await expect(homeToday).toBeVisible();
   await expect(homeToday).toHaveText('');
+  await expect(homeToday.locator('svg')).toHaveCSS(
+    'color',
+    'rgb(255, 255, 255)',
+  );
   await homeToday.click();
   await expect(page.getByRole('dialog', { name: /your Today/i })).toBeVisible();
   await page.getByRole('button', { name: 'Close Today composer' }).click();
@@ -272,6 +290,10 @@ test('Today composer merges the update and private availability', async ({
   });
   await expect(fullProfileToday).toBeVisible();
   await expect(fullProfileToday).toHaveText('');
+  await expect(fullProfileToday.locator('svg')).toHaveCSS(
+    'color',
+    'rgb(255, 255, 255)',
+  );
   await fullProfileToday.click();
   await expect(fullProfile).not.toBeVisible();
   await expect(page.getByRole('dialog', { name: /your Today/i })).toBeVisible();

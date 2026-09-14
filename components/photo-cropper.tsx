@@ -167,8 +167,8 @@ export function PhotoCropper({
         <p className="photo-crop-kicker">PROFILE PHOTO · 4:5</p>
         <DialogTitle>Frame your best shot</DialogTitle>
         <DialogDescription>
-          Drag to position your face. SpikeDate keeps this full portrait visible
-          and adapts the background around it on taller screens.
+          Drag to position your face. SpikeDate uses this focal framing to fill
+          mobile screens edge to edge without stretching your photo.
         </DialogDescription>
         <div
           className="photo-crop-stage"

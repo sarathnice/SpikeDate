@@ -4743,23 +4743,21 @@ export default function HomePage() {
 
   return (
     <main className="app-shell" data-theme={theme}>
-      <div className="phone-frame">
-        {tab === 'Pulse' && (
-          <button
-            className={`global-boost-button ${boostActive ? 'active' : ''}`}
-            aria-label={
-              boostActive ? 'View active Profile Lift' : 'Lift my profile'
-            }
-            onClick={() => setBoostOpen(true)}
-          >
-            <Rocket size={21} />
-            <span className="sr-only">
-              {boostActive
-                ? 'Profile Lift active'
-                : `${boostsRemaining} Profile Lifts left`}
-            </span>
-          </button>
-        )}
+      <div className="phone-frame" data-active-tab={tab}>
+        <button
+          className={`global-boost-button ${boostActive ? 'active' : ''}`}
+          aria-label={
+            boostActive ? 'View active Profile Lift' : 'Lift my profile'
+          }
+          onClick={() => setBoostOpen(true)}
+        >
+          <Rocket size={21} />
+          <span className="sr-only">
+            {boostActive
+              ? 'Profile Lift active'
+              : `${boostsRemaining} Profile Lifts left`}
+          </span>
+        </button>
         {tab === 'Pulse' && (
           <DiscoverHeader
             onFilters={() => setFilterOpen(true)}
@@ -6021,18 +6019,6 @@ function CinematicPortrait({
     <div className="cinematic-photo-stack">
       <Image
         src={src}
-        alt=""
-        fill
-        priority={priority}
-        draggable={false}
-        sizes={sizes}
-        quality={95}
-        unoptimized={unoptimized}
-        className="profile-photo cinematic-photo-backdrop"
-        aria-hidden="true"
-      />
-      <Image
-        src={src}
         alt={alt}
         fill
         priority={priority}
@@ -6607,7 +6593,7 @@ function FullProfile({
                 <CinematicPortrait
                   src={active.src}
                   alt={`${profile.name}'s profile photo ${mediaIndex + 1}`}
-                  sizes="390px"
+                  sizes="(max-width: 430px) 100vw, 430px"
                 />
               </>
             )}
