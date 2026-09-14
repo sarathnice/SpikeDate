@@ -2248,7 +2248,7 @@ button:focus-visible {
   margin: 10px 0;
   padding: 4px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   border: 1px solid var(--ui-border);
   border-radius: 14px;
@@ -2264,12 +2264,19 @@ button:focus-visible {
   font-size: 0.8rem;
   font-weight: 450;
 }
-.profile-section-nav button:last-child {
-  background: var(--surface);
-}
 #profile-details,
-#profile-settings {
+#profile-settings,
+#profile-subscription {
   scroll-margin-top: 60px;
+}
+.profile-passport-topbar .profile-today-trigger {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+  justify-content: center;
+}
+.profile-passport-topbar .profile-today-trigger.active {
+  border-color: rgba(255, 255, 255, 0.58);
 }
 .about-fields:not(.expanded) > label:not(:first-child) {
   display: none;
@@ -2306,7 +2313,7 @@ button:focus-visible {
 }
 .billing-toggle {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 5px;
   padding: 4px;
   border-radius: 14px;
@@ -2323,6 +2330,40 @@ button:focus-visible {
 .billing-toggle button.active {
   background: var(--coral);
   color: var(--action-foreground);
+}
+.subscription-limit-nudge {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--coral) 36%, var(--ui-border));
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--coral) 8%, var(--surface));
+  color: var(--coral);
+}
+.subscription-limit-nudge > span,
+.subscription-limit-nudge strong,
+.subscription-limit-nudge small {
+  display: block;
+}
+.subscription-limit-nudge strong {
+  color: var(--foreground);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.subscription-limit-nudge small {
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 0.69rem;
+}
+.subscription-boost-link {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 4px;
+  color: var(--foreground);
+  font-size: 0.76rem;
 }
 .plan-grid section.featured > em {
   display: block;
@@ -7059,6 +7100,32 @@ button > .lucide-calendar-check {
   margin-top: 3px;
   color: var(--muted-foreground);
   font-size: 0.67rem;
+}
+.today-availability-switch[data-slot='switch'] {
+  width: 50px;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 46%, transparent);
+  background: color-mix(in srgb, var(--foreground) 14%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 14%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--foreground) 5%, transparent);
+  cursor: pointer;
+}
+.today-availability-switch[data-slot='switch'][data-checked] {
+  border-color: color-mix(in srgb, var(--coral) 82%, white);
+  background: var(--coral);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--coral) 18%, transparent);
+}
+.today-availability-switch [data-slot='switch-thumb'] {
+  width: 24px !important;
+  height: 24px !important;
+  background: #fff !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.32);
+  transform: translateX(0) !important;
+}
+.today-availability-switch[data-checked] [data-slot='switch-thumb'] {
+  transform: translateX(20px) !important;
 }
 .today-composer-dialog .match-close {
   top: 16px;

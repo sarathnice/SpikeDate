@@ -11,12 +11,6 @@ export const products = {
     superSpikes: 3,
     profileLifts: 1,
   },
-  'spikedate.plus.annual': {
-    type: 'subscription',
-    plan: 'annual',
-    superSpikes: 3,
-    profileLifts: 1,
-  },
   'spikedate.lifts.1': {
     type: 'consumable',
     profileLifts: 1,

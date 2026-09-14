@@ -28,6 +28,8 @@ describe('server security and product rules', () => {
 
   it('keeps subscriptions and consumable lifts distinct', () => {
     expect(products['spikedate.plus.weekly'].type).toBe('subscription');
+    expect(products['spikedate.plus.monthly'].type).toBe('subscription');
+    expect('spikedate.plus.annual' in products).toBe(false);
     expect(products['spikedate.lifts.3']).toEqual({
       type: 'consumable',
       profileLifts: 3,

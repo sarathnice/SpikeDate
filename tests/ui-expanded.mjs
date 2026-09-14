@@ -264,8 +264,8 @@ const planText = await evaluate(
 );
 assert(
   planText.toLowerCase().includes('mutual-match chat') &&
-    planText.includes('$14.99') &&
-    planText.includes('no payment is collected'),
+    planText.includes('$4.00') &&
+    planText.includes('No charge occurs'),
   'Subscription details incomplete',
 );
 await click('.match-close');

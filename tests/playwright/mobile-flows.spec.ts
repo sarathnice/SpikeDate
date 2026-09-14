@@ -308,13 +308,17 @@ test('Today composer merges the update and private availability', async ({
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
   await page
     .locator('.profile-passport-topbar')
-    .getByRole('button', { name: 'Today', exact: true })
+    .getByRole('button', { name: 'Post or edit your Today update' })
     .click();
   const dialog = page.getByRole('dialog', { name: 'Today', exact: true });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('What are you doing today?');
   await expect(dialog.getByLabel('Today update')).toBeVisible();
-  await expect(dialog.getByLabel('Available tonight')).toBeVisible();
+  const tonightSwitch = dialog.getByLabel('Available tonight');
+  await expect(tonightSwitch).toBeVisible();
+  const switchBounds = await tonightSwitch.boundingBox();
+  expect(switchBounds?.width ?? 0).toBeGreaterThanOrEqual(48);
+  expect(switchBounds?.height ?? 0).toBeGreaterThanOrEqual(28);
   await expect(dialog.getByLabel('Today prompt')).toHaveCount(0);
   await expect(dialog.getByLabel('Today visibility')).toHaveCount(0);
   await expect(dialog.getByLabel('Allow Today replies')).toHaveCount(0);
@@ -322,14 +326,23 @@ test('Today composer merges the update and private availability', async ({
   await expect(page.getByLabel('Available from')).toHaveCount(0);
   await expect(page.getByLabel('Available until')).toHaveCount(0);
   await dialog.getByLabel('Today update').fill('Coffee and a walk after work.');
-  await dialog.getByLabel('Available tonight').check();
+  await tonightSwitch.check();
   await dialog
     .getByRole('button', { name: /Post for today|Save Today/ })
     .click();
   await expect(dialog).not.toBeVisible();
-  await expect(page.getByText('Coffee and a walk after work.')).toBeVisible();
-  await expect(page.getByText(/Today · .*–5:00 AM/i)).toBeVisible();
+  await expect(page.locator('.today-profile-manager')).toHaveCount(0);
+  const profileToday = page
+    .locator('.profile-passport-topbar')
+    .getByRole('button', { name: 'Post or edit your Today update' });
+  await expect(profileToday).toHaveText('');
+  await profileToday.click();
+  await expect(dialog.getByLabel('Today update')).toHaveValue(
+    'Coffee and a walk after work.',
+  );
+  await expect(dialog.getByLabel('Available tonight')).toBeChecked();
   await expect(page.getByText('AVAILABILITY', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Close Today composer' }).click();
 });
 
 test('private date planning requires the safety gate on mobile', async ({
@@ -421,19 +434,49 @@ test('Profile Lift and subscription sheets fit between safe areas', async ({
   ).toBeVisible();
   await lift.getByRole('button', { name: /Close Profile Lift/i }).click();
 
+  await page.evaluate(() => {
+    const email = localStorage.getItem('pulse-session');
+    if (!email) return;
+    localStorage.setItem(`pulse-membership:${email}`, 'free');
+    localStorage.setItem(`pulse-super-pulses-v3:${email}`, '0');
+    localStorage.setItem(
+      `pulse-daily-likes:${email}`,
+      JSON.stringify({
+        date: new Date().toISOString().slice(0, 10),
+        remaining: 0,
+      }),
+    );
+  });
+  await page.reload();
+
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
-  await page.getByRole('button', { name: /SpikeDate\+|Free plan/i }).click();
+  await expect(
+    page.getByRole('button', { name: 'Subscription', exact: true }),
+  ).toBeVisible();
+  await page.locator('#profile-subscription').click();
   const subscription = page.getByRole('dialog', {
-    name: /More signal\. Less noise\./i,
+    name: /Keep connecting today/i,
   });
   await expect(subscription).toBeVisible();
   await expect(
     subscription.getByRole('button', { name: /Close/i }),
   ).toBeVisible();
+  await expect(subscription).toContainText('$4.00');
+  await expect(subscription).toContainText(
+    'Likes and Spikes are ready after upgrade',
+  );
   await expect(
-    subscription
-      .getByRole('button', { name: /Subscribe|Choose .* SpikeDate\+/i })
-      .or(subscription.getByRole('button', { name: /SpikeDate\+ is active/i })),
+    subscription.getByRole('button', {
+      name: 'Buy Profile Lifts without subscribing',
+    }),
+  ).toBeVisible();
+  await expect(
+    subscription.getByRole('button', { name: /Annual/i }),
+  ).toHaveCount(0);
+  await subscription.getByRole('button', { name: 'Weekly' }).click();
+  await expect(subscription).toContainText('$1.00');
+  await expect(
+    subscription.getByRole('button', { name: /Continue · \$1\.00 \/ week/i }),
   ).toBeVisible();
 
   const bounds = await subscription.boundingBox();

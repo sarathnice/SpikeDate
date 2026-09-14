@@ -1060,7 +1060,7 @@ await click('.preview-banner button');
 await click('.profile-quick-actions button', 'SpikeDate+');
 await verify('Subscription details remain accessible', () =>
   evaluate(
-    `document.querySelector('.subscription-dialog')?.textContent.includes('$14.99')`,
+    `document.querySelector('.subscription-dialog')?.textContent.includes('$4.00')`,
   ),
 );
 await click('.match-close');

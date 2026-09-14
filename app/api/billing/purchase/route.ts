@@ -10,7 +10,6 @@ const schema = z.object({
   productId: z.enum([
     'spikedate.plus.weekly',
     'spikedate.plus.monthly',
-    'spikedate.plus.annual',
     'spikedate.lifts.1',
     'spikedate.lifts.3',
     'spikedate.lifts.10',
@@ -138,16 +137,7 @@ export async function POST(request: Request) {
             parsed.data.transactionId,
             product.plan,
             'active',
-            now +
-              (product.plan === 'weekly'
-                ? 7
-                : product.plan === 'monthly'
-                  ? 30
-                  : 365) *
-                24 *
-                60 *
-                60 *
-                1000,
+            now + (product.plan === 'weekly' ? 7 : 30) * 24 * 60 * 60 * 1000,
             now,
             now,
           ),

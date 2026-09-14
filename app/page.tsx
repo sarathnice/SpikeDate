@@ -217,7 +217,7 @@ type ChatMessage = { id: number | string; text: string; mine: boolean };
 type InteractionKind = 'like' | 'super';
 type NoteTarget = string;
 type Membership = 'free' | 'plus';
-type BillingPeriod = 'weekly' | 'monthly' | 'annual';
+type BillingPeriod = 'weekly' | 'monthly';
 type EngagementNudge =
   | { kind: 'today' }
   | { kind: 'boost' }
@@ -427,6 +427,16 @@ function ProfileLiftMark({
       <Rocket size={size} strokeWidth={2.15} />
     </span>
   );
+}
+
+function TodayActionIcon({
+  active,
+  size = 20,
+}: {
+  active: boolean;
+  size?: number;
+}) {
+  return active ? <CalendarCheck size={size} /> : <CalendarPlus size={size} />;
 }
 
 function nextMorningAtFive() {
@@ -4965,7 +4975,6 @@ export default function HomePage() {
             todayStory={ownDailyStory}
             onCreateToday={openNewToday}
             onEditToday={openEditToday}
-            onDeleteToday={deleteOwnDailyStory}
           />
         )}
         {tab === 'Profile' && previewCard && (
@@ -5168,6 +5177,10 @@ export default function HomePage() {
         dailyLikesRemaining={dailyLikesRemaining}
         superPulsesRemaining={superPulsesRemaining}
         onChoose={choosePulsePlus}
+        onBoost={() => {
+          setSubscriptionOpen(false);
+          setBoostOpen(true);
+        }}
       />
       <BoostDialog
         open={boostOpen}
@@ -5370,6 +5383,7 @@ function TodayComposerDialog({
             <small>Optional · your location stays private</small>
           </span>
           <Switch
+            className="today-availability-switch"
             checked={availableTonight}
             onCheckedChange={(checked) => {
               setAvailableTonight(checked);
@@ -5763,11 +5777,7 @@ function DiscoverScreen({
           onClick={onPostToday}
           aria-label="Post or edit your Today update"
         >
-          {todayActive ? (
-            <CalendarCheck size={20} />
-          ) : (
-            <CalendarPlus size={20} />
-          )}
+          <TodayActionIcon active={todayActive} />
         </button>
         <button
           className="today-feed"
@@ -6339,11 +6349,7 @@ function FullProfile({
                 onClick={onPostToday}
                 aria-label="Post or edit your Today update"
               >
-                {todayActive ? (
-                  <CalendarCheck size={20} />
-                ) : (
-                  <CalendarPlus size={20} />
-                )}
+                <TodayActionIcon active={todayActive} />
               </button>
               <button
                 className="profile-utility profile-boost"
@@ -8815,7 +8821,6 @@ function YourProfile({
   todayStory,
   onCreateToday,
   onEditToday,
-  onDeleteToday,
 }: {
   name: string;
   email: string;
@@ -8855,10 +8860,7 @@ function YourProfile({
   todayStory?: DailyStory;
   onCreateToday: () => void;
   onEditToday: (story: DailyStory) => void;
-  onDeleteToday: () => void;
 }) {
-  const [todayDeleteConfirm, setTodayDeleteConfirm] = useState(false);
-  useEffect(() => setTodayDeleteConfirm(false), [todayStory?.id]);
   const birthday = new Date(`${details.birthday}T00:00:00`).toLocaleDateString(
     undefined,
     { month: 'long', day: 'numeric', year: 'numeric' },
@@ -8900,17 +8902,6 @@ function YourProfile({
       today.getDate() < birthDate.getDate())
       ? 1
       : 0);
-  const todayHoursLeft = todayStory
-    ? Math.max(
-        1,
-        Math.ceil(
-          (new Date(todayStory.expiresAt).getTime() - Date.now()) /
-            (60 * 60 * 1000),
-        ),
-      )
-    : 0;
-  const dailyPrompt =
-    todayPrompts[Math.floor(Date.now() / 86_400_000) % todayPrompts.length];
   const missingProfileDetails = [
     !details.bio && 'bio',
     !details.occupation && 'work',
@@ -8945,11 +8936,13 @@ function YourProfile({
           </button>
           <button
             type="button"
+            className={`profile-today-trigger ${todayStory || availability ? 'active' : ''}`}
             onClick={() =>
               todayStory ? onEditToday(todayStory) : onCreateToday()
             }
+            aria-label="Post or edit your Today update"
           >
-            <Plus size={15} /> Today
+            <TodayActionIcon active={Boolean(todayStory || availability)} />
           </button>
         </div>
         <div className="profile-passport-identity self-row">
@@ -8972,81 +8965,6 @@ function YourProfile({
           </button>
         </div>
       </header>
-      <section className="today-profile-manager" aria-label="Your Today status">
-        <button
-          type="button"
-          className={`today-profile-card ${todayStory || availability ? 'has-story' : ''}`}
-          onClick={() =>
-            todayStory ? onEditToday(todayStory) : onCreateToday()
-          }
-        >
-          <span className="today-profile-preview">
-            <Image
-              src={todayStory?.mediaUrl || image}
-              alt=""
-              fill
-              sizes="56px"
-              className="profile-photo"
-            />
-            {!todayStory && <Plus size={19} />}
-          </span>
-          <span>
-            <small>YOUR TODAY</small>
-            <strong>
-              {todayStory?.caption ||
-                (availability
-                  ? availabilitySummary(availability)
-                  : dailyPrompt)}
-            </strong>
-            <em>
-              {[
-                todayStory
-                  ? `${todayStory.viewedBy.length} views · ${todayHoursLeft}h left`
-                  : '',
-                availability ? availabilitySummary(availability) : '',
-              ]
-                .filter(Boolean)
-                .join(' · ') || 'Share an update, your availability, or both'}
-            </em>
-          </span>
-          <ChevronRight size={17} />
-        </button>
-        {(todayStory || availability) && (
-          <div className="today-profile-actions" aria-label="Manage Today post">
-            <button
-              type="button"
-              onClick={() =>
-                todayStory ? onEditToday(todayStory) : onCreateToday()
-              }
-            >
-              <Edit3 size={15} /> Edit Today
-            </button>
-            {todayStory && (
-              <button
-                type="button"
-                className="danger"
-                onClick={() => setTodayDeleteConfirm(true)}
-              >
-                <Trash2 size={15} /> Delete update
-              </button>
-            )}
-          </div>
-        )}
-        {todayStory && todayDeleteConfirm && (
-          <div className="today-delete-confirm" role="alert">
-            <span>
-              <strong>Delete this post?</strong>
-              <small>It will disappear for everyone.</small>
-            </span>
-            <button type="button" onClick={() => setTodayDeleteConfirm(false)}>
-              Keep post
-            </button>
-            <button type="button" className="danger" onClick={onDeleteToday}>
-              Delete now
-            </button>
-          </div>
-        )}
-      </section>
       <nav className="profile-section-nav" aria-label="Profile sections">
         <button
           type="button"
@@ -9067,6 +8985,16 @@ function YourProfile({
           }
         >
           Settings
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            document
+              .getElementById('profile-subscription')
+              ?.scrollIntoView({ behavior: 'smooth' })
+          }
+        >
+          Subscription
         </button>
       </nav>
       <button className="profile-intent-card" onClick={() => onEditSection(4)}>
@@ -9343,16 +9271,14 @@ function YourProfile({
               <ChevronRight size={17} />
             )}
           </button>
-          <button onClick={onSubscription}>
+          <button id="profile-subscription" onClick={onSubscription}>
             <Star size={19} fill="currentColor" />
             <span>
-              <strong>
-                {membership === 'plus' ? 'SpikeDate+' : 'Free plan'}
-              </strong>
+              <strong>Subscription</strong>
               <small>
                 {membership === 'plus'
-                  ? `Unlimited Likes · ${superPulsesRemaining} of 3 Spikes`
-                  : `${dailyLikesRemaining} Likes today · ${superPulsesRemaining} Spikes`}
+                  ? `SpikeDate+ · unlimited Likes · ${superPulsesRemaining} of 3 Spikes`
+                  : `Free · ${dailyLikesRemaining} Likes today · ${superPulsesRemaining} Spikes`}
               </small>
             </span>
             <ChevronRight size={17} />
@@ -10786,6 +10712,7 @@ function SubscriptionDialog({
   dailyLikesRemaining,
   superPulsesRemaining,
   onChoose,
+  onBoost,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -10793,10 +10720,15 @@ function SubscriptionDialog({
   dailyLikesRemaining: number;
   superPulsesRemaining: number;
   onChoose: (billing: BillingPeriod) => void;
+  onBoost: () => void;
 }) {
   const [billing, setBilling] = useState<BillingPeriod>('monthly');
   const [restoreStatus, setRestoreStatus] = useState('');
   const [showFreeComparison, setShowFreeComparison] = useState(false);
+  const likesUsed = membership === 'free' && dailyLikesRemaining <= 0;
+  const spikesUsed = membership === 'free' && superPulsesRemaining <= 0;
+  const selectedPrice = billing === 'weekly' ? '$1.00' : '$4.00';
+  const selectedPeriod = billing === 'weekly' ? 'week' : 'month';
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -10814,10 +10746,19 @@ function SubscriptionDialog({
           <div className="flow-kicker">
             <Crown size={15} /> SpikeDate+
           </div>
-          <DialogTitle>More signal. Less noise.</DialogTitle>
+          <DialogTitle>
+            {likesUsed && spikesUsed
+              ? 'Keep connecting today'
+              : likesUsed
+                ? 'Keep liking today'
+                : spikesUsed
+                  ? 'Send another Spike'
+                  : 'More signal. Less noise.'}
+          </DialogTitle>
           <DialogDescription>
-            Likes show interest. A Spike can include a note and appears at the
-            top of their Likes. Chat opens after a mutual match.
+            {likesUsed || spikesUsed
+              ? 'Your free allowance is used. SpikeDate+ unlocks unlimited Likes now and includes three priority Spikes every week.'
+              : 'Likes show interest. A Spike can include a note and appears at the top of their Likes. Chat opens after a mutual match.'}
           </DialogDescription>
         </header>
 
@@ -10832,6 +10773,21 @@ function SubscriptionDialog({
                 : `${dailyLikesRemaining}/10 Likes today · ${superPulsesRemaining} Spikes available`}
             </strong>
           </div>
+          {membership === 'free' && (likesUsed || spikesUsed) && (
+            <div className="subscription-limit-nudge" role="status">
+              <WandSparkles size={18} />
+              <span>
+                <strong>
+                  {likesUsed && spikesUsed
+                    ? 'Likes and Spikes are ready after upgrade'
+                    : likesUsed
+                      ? 'Unlimited Likes start immediately'
+                      : 'Three weekly Spikes become available'}
+                </strong>
+                <small>You can cancel before the next renewal.</small>
+              </span>
+            </div>
+          )}
           <div className="billing-toggle" aria-label="Billing period">
             <button
               type="button"
@@ -10849,33 +10805,13 @@ function SubscriptionDialog({
             >
               Monthly
             </button>
-            <button
-              type="button"
-              className={billing === 'annual' ? 'active' : ''}
-              aria-pressed={billing === 'annual'}
-              onClick={() => setBilling('annual')}
-            >
-              Annual · save 33%
-            </button>
           </div>
           <div className="plan-grid">
             <section className="featured">
               <span>SpikeDate+</span>
               <strong>
-                {billing === 'weekly'
-                  ? '$5.99'
-                  : billing === 'monthly'
-                    ? '$14.99'
-                    : '$119.99'}{' '}
-                <small>
-                  {billing === 'weekly'
-                    ? '/ week'
-                    : billing === 'monthly'
-                      ? '/ month'
-                      : '/ year'}
-                </small>
+                {selectedPrice} <small>/ {selectedPeriod}</small>
               </strong>
-              {billing === 'annual' && <em>$9.99/month billed annually</em>}
               <ul>
                 <li>
                   <Check size={15} /> See everyone who liked you
@@ -10933,9 +10869,16 @@ function SubscriptionDialog({
             )}
           </div>
           <p className="billing-note">
-            Prototype pricing · no payment is collected. Allowances reset daily
-            for Likes and every Monday for Spikes and Profile Lift.
+            Likes and Spikes renew through SpikeDate+. Profile Lifts are
+            separate one-time packs you can buy whenever you want.
           </p>
+          <button
+            type="button"
+            className="text-button subscription-boost-link"
+            onClick={onBoost}
+          >
+            Buy Profile Lifts without subscribing
+          </button>
           <div className="subscription-links">
             <button
               type="button"
@@ -10977,7 +10920,7 @@ function SubscriptionDialog({
           >
             {membership === 'plus'
               ? 'SpikeDate+ is active'
-              : `Choose ${billing} SpikeDate+`}{' '}
+              : `Continue · ${selectedPrice} / ${selectedPeriod}`}{' '}
             {membership === 'free' && <ChevronRight size={18} />}
           </button>
         </footer>
