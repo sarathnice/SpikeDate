@@ -9612,8 +9612,10 @@ function RoomStack({
   onLike: () => void;
   onSpark: () => void;
 }) {
+  const photoFirst =
+    room === 'Outdoors' && Boolean(profile) && !loading && !error;
   return (
-    <section className="room-stack">
+    <section className={`room-stack${photoFirst ? ' photo-first-room' : ''}`}>
       <header className="room-header">
         <button onClick={onBack} aria-label="Back to Galaxy">
           <ArrowLeft size={22} />
@@ -9628,11 +9630,13 @@ function RoomStack({
         </div>
         <span aria-hidden="true" />
       </header>
-      <div className="context-chip">
-        {room === 'Tonight'
-          ? 'Available in the next 12 hours'
-          : `Into ${room.toLowerCase()}`}
-      </div>
+      {!photoFirst && (
+        <div className="context-chip">
+          {room === 'Tonight'
+            ? 'Available in the next 12 hours'
+            : `Into ${room.toLowerCase()}`}
+        </div>
+      )}
       {profile && !loading && !error ? (
         <>
           <div className="room-card-wrap">
@@ -9644,7 +9648,9 @@ function RoomStack({
               onSwipeRight={onLike}
             />
           </div>
-          <ActionRow onPass={onPass} onLike={onLike} onSpark={onSpark} />
+          <div className="room-action-wrap">
+            <ActionRow onPass={onPass} onLike={onLike} onSpark={onSpark} />
+          </div>
         </>
       ) : (
         <div className="room-empty" role="status">

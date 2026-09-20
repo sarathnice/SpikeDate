@@ -11337,3 +11337,118 @@ button > .lucide-calendar-check {
 :root .profile-page .passport-details-list .setting-heading strong {
   font-size: var(--profile-body-size) !important;
 }
+
+/* Outdoors uses the photo-first Galaxy layout: the image fills every pixel
+   above the tab bar, with navigation and actions layered over the portrait. */
+.room-stack.photo-first-room {
+  --room-nav-height: 66px;
+  position: relative;
+  display: block;
+  overflow: hidden;
+  padding: 0;
+}
+.photo-first-room .room-card-wrap {
+  position: absolute;
+  inset: 0 0 var(--room-nav-height);
+}
+.photo-first-room .profile-card {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+}
+.photo-first-room .cinematic-photo-stack > .cinematic-photo-main {
+  object-fit: cover !important;
+  object-position: 50% 32%;
+}
+.photo-first-room .photo-scrim {
+  background: linear-gradient(
+    180deg,
+    rgba(3, 4, 8, 0.56),
+    transparent 23%,
+    transparent 52%,
+    rgba(3, 4, 8, 0.76) 100%
+  );
+}
+.photo-first-room .room-header {
+  position: absolute;
+  z-index: 7;
+  top: calc(env(safe-area-inset-top) + 4px);
+  left: 14px;
+  right: 14px;
+  height: 60px;
+  padding: 0;
+  color: white;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.8);
+}
+.photo-first-room .room-header button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: rgba(7, 8, 11, 0.28);
+  color: white;
+}
+.photo-first-room .room-header span {
+  color: rgba(255, 255, 255, 0.85);
+}
+.photo-first-room .card-content {
+  left: 21px;
+  right: 82px;
+  bottom: 37px;
+}
+.photo-first-room .name-row h1 {
+  font-size: 1.45rem;
+}
+.photo-first-room .distance {
+  margin: 6px 0 10px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.78rem;
+}
+.photo-first-room .chips span:nth-child(n + 3),
+.photo-first-room .card-story {
+  display: none;
+}
+.photo-first-room .chips span {
+  padding: 5px 8px;
+  background: rgba(7, 8, 11, 0.2);
+  border-color: rgba(255, 255, 255, 0.34);
+  font-size: 0.68rem;
+}
+.photo-first-room .room-action-wrap {
+  position: absolute;
+  z-index: 6;
+  right: 14px;
+  bottom: calc(var(--room-nav-height) + 38px);
+}
+.photo-first-room .action-row {
+  flex-direction: column;
+  gap: 9px;
+}
+.photo-first-room .action-button {
+  width: 48px;
+  height: 48px;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(7, 8, 11, 0.25);
+  color: white;
+  box-shadow: none;
+  backdrop-filter: blur(6px);
+}
+.photo-first-room .action-button.like {
+  color: #ff1744;
+}
+.photo-first-room .action-button:focus-visible,
+.photo-first-room .room-header button:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+@media (max-height: 720px) {
+  .room-stack.photo-first-room {
+    --room-nav-height: 60px;
+  }
+  .photo-first-room .card-content {
+    bottom: 23px;
+  }
+  .photo-first-room .room-action-wrap {
+    bottom: calc(var(--room-nav-height) + 22px);
+  }
+}
