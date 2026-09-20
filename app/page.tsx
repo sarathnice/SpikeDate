@@ -9,6 +9,11 @@ import {
   PresencePreferences,
 } from '@/components/live-presence';
 import { tonightWindow } from '@/lib/today-availability';
+import {
+  galaxyRoomNames,
+  matchesGalaxyRoom,
+  type GalaxyRoomName,
+} from '@/lib/galaxy-rooms';
 import { vibePrompts, vibeSetupSteps } from '@/lib/registration-prompts';
 import {
   ProfileConnectionFields,
@@ -218,6 +223,28 @@ type Profile = {
     expiresAt: string;
   };
   availability?: DailyAvailability;
+};
+type DiscoverCandidate = {
+  id: string;
+  name: string;
+  age: number;
+  zodiac?: ZodiacSign | null;
+  gender?: string;
+  facts?: Profile['facts'];
+  connection?: ProfileConnection;
+  interests?: string[];
+  bio?: string;
+  prompts?: Array<{ prompt: string; answer: string }>;
+  city?: string | null;
+  relationshipGoal?: string;
+  imageUrl?: string | null;
+  media?: Array<{ type: 'photo' | 'video'; url: string }>;
+  today?: string | null;
+  availableTonight?: boolean;
+  availability?: DailyAvailability | null;
+  verified?: boolean;
+  active?: boolean;
+  lastActiveAt?: number | null;
 };
 type ChatContact = {
   userId?: string;
@@ -1019,6 +1046,8 @@ const interestOptions = [
   'City breaks',
   'Nature trips',
   'Beach trips',
+  'Arts & culture',
+  'New in town',
 ];
 const valueOptions = [...connectionOptions.values];
 const themeLabels: Record<ThemeName, string> = {
@@ -1040,51 +1069,43 @@ const roomData = [
   {
     name: 'Tonight',
     caption: 'Free in the next 12 hours',
-    count: '84 here now',
     image: '/maya.png',
     className: 'wide',
   },
   {
     name: 'Music',
     caption: 'Match on taste',
-    count: '126 listening',
     image: '/lena.png',
   },
   {
     name: 'Outdoors',
     caption: 'Find your trail person',
-    count: '67 exploring',
     image: '/imani.png',
   },
   {
     name: 'Food lovers',
     caption: 'Try somewhere new together',
-    count: '92 making plans',
     image: '/mateo.png',
   },
   {
     name: 'New in town',
     caption: 'Make the city feel smaller',
-    count: '43 new faces',
     image: '/lena.png',
     className: 'wide',
   },
   {
     name: 'Coffee dates',
     caption: 'Keep the first hello easy',
-    count: '58 nearby',
     image: '/noah.png',
   },
   {
     name: 'Pet people',
     caption: 'Walks are better together',
-    count: '74 animal lovers',
     image: '/ava.png',
   },
   {
     name: 'Arts & culture',
     caption: 'Galleries, films and ideas',
-    count: '39 exploring',
     image: '/jordan.png',
     className: 'wide',
   },
@@ -1093,25 +1114,25 @@ const roomData = [
 const galaxyPlans = [
   {
     name: 'Coffee',
-    detail: '18 nearby',
+    detail: 'An easy first hello',
     room: 'Coffee dates',
     icon: Coffee,
   },
   {
     name: 'Dinner',
-    detail: '12 nearby',
+    detail: 'Share a table',
     room: 'Food lovers',
     icon: Utensils,
   },
   {
     name: 'Music',
-    detail: '9 nearby',
+    detail: 'Find your sound',
     room: 'Music',
     icon: Music2,
   },
   {
     name: 'Walk',
-    detail: '15 nearby',
+    detail: 'Take a stroll',
     room: 'Outdoors',
     icon: Footprints,
   },
@@ -1653,6 +1674,87 @@ function readActiveBoosts(): ActiveBoosts {
   }
 }
 
+function profileFromDiscovery(candidate: DiscoverCandidate): Profile {
+  const known = profiles.find((item) => item.name === candidate.name);
+  const gender: Gender =
+    candidate.gender === 'man'
+      ? 'Man'
+      : candidate.gender === 'nonbinary'
+        ? 'Nonbinary'
+        : 'Woman';
+  if (known)
+    return {
+      ...known,
+      id: candidate.id,
+      zodiac: candidate.zodiac ?? null,
+      facts: candidate.facts,
+      matchDetails: candidate.connection,
+      tags: candidate.interests || [],
+      prompt: candidate.bio || '',
+      prompts: candidate.prompts || [],
+      gender,
+      image: candidate.imageUrl || '/profile-placeholder.svg',
+      media: candidate.media?.length
+        ? candidate.media.map((item) => ({ type: item.type, src: item.url }))
+        : candidate.imageUrl
+          ? [{ type: 'photo', src: candidate.imageUrl }]
+          : [{ type: 'photo', src: '/profile-placeholder.svg' }],
+      age: candidate.age,
+      place: candidate.city || known.place,
+      intent: candidate.relationshipGoal || known.intent,
+      verified: candidate.verified,
+      active: candidate.active,
+      lastActiveAt: candidate.lastActiveAt ?? null,
+      availability: candidate.availability ?? undefined,
+      tonight:
+        candidate.availability && matchesGalaxyRoom('Tonight', candidate)
+          ? {
+              plan: candidate.today || 'Open to making a plan',
+              expiresAt: candidate.availability.endAt,
+            }
+          : undefined,
+    };
+  const image = candidate.imageUrl || '/profile-placeholder.svg';
+  return {
+    id: candidate.id,
+    zodiac: candidate.zodiac ?? null,
+    facts: candidate.facts,
+    matchDetails: candidate.connection,
+    name: candidate.name,
+    age: candidate.age,
+    gender,
+    image,
+    media: candidate.media?.length
+      ? candidate.media.map((item) => ({ type: item.type, src: item.url }))
+      : [{ type: 'photo', src: image }],
+    place: candidate.city || 'Nearby',
+    distance: 'Nearby',
+    distanceMiles: 2,
+    intent: candidate.relationshipGoal || 'Dating',
+    tags: candidate.interests || [],
+    prompt: candidate.bio || 'Ask me what I am looking forward to.',
+    prompts: candidate.prompts,
+    height: 'Not shared',
+    ethnicity: 'Not shared',
+    pets: 'Not shared',
+    kids: 'Not shared',
+    wantsKids: 'Not shared',
+    drinking: 'Not shared',
+    smoking: 'Not shared',
+    verified: candidate.verified,
+    active: candidate.active,
+    lastActiveAt: candidate.lastActiveAt ?? null,
+    availability: candidate.availability ?? undefined,
+    tonight:
+      candidate.availability && matchesGalaxyRoom('Tonight', candidate)
+        ? {
+            plan: candidate.today || 'Open to making a plan',
+            expiresAt: candidate.availability.endAt,
+          }
+        : undefined,
+  };
+}
+
 export default function HomePage() {
   useEffect(() => {
     initializeMobileRuntime().catch((error) =>
@@ -1672,7 +1774,12 @@ export default function HomePage() {
   const [noteTodayText, setNoteTodayText] = useState('');
   const [actionProfile, setActionProfile] = useState<Profile>(profiles[0]);
   const [superPulsesRemaining, setSuperPulsesRemaining] = useState(3);
-  const [room, setRoom] = useState<string | null>(null);
+  const [room, setRoom] = useState<GalaxyRoomName | null>(null);
+  const [roomIndex, setRoomIndex] = useState(0);
+  const [galaxyRefresh, setGalaxyRefresh] = useState(0);
+  const [galaxyLoaded, setGalaxyLoaded] = useState(false);
+  const [galaxyError, setGalaxyError] = useState(false);
+  const [galaxyNow, setGalaxyNow] = useState(() => Date.now());
   const [toast, setToast] = useState('');
   const toastTimer = useRef<number | null>(null);
   const superPulseOwner = useRef<string | null>(null);
@@ -1775,6 +1882,9 @@ export default function HomePage() {
   ]);
   const [savedProfileNames, setSavedProfileNames] = useState<string[]>([]);
   const [serverProfiles, setServerProfiles] = useState<Profile[]>([]);
+  const [serverGalaxyProfiles, setServerGalaxyProfiles] = useState<Profile[]>(
+    [],
+  );
   const [serverIncomingRows, setServerIncomingRows] = useState<IncomingRow[]>(
     [],
   );
@@ -1862,6 +1972,39 @@ export default function HomePage() {
   const current =
     filteredProfiles[profileIndex % Math.max(filteredProfiles.length, 1)] ??
     profiles[0];
+  const galaxyPool = (
+    serverDataEnabled
+      ? galaxyLoaded && !galaxyError
+        ? serverGalaxyProfiles
+        : []
+      : availableProfiles
+  ).filter(
+    (profile) =>
+      !blockedProfiles.includes(profile.name) &&
+      matchesFilters(profile, filters),
+  );
+  const roomCounts = Object.fromEntries(
+    galaxyRoomNames.map((name) => [
+      name,
+      galaxyPool.filter((profile) =>
+        matchesGalaxyRoom(name, profile, galaxyNow),
+      ).length,
+    ]),
+  ) as Record<GalaxyRoomName, number>;
+  const roomPreviewImages = Object.fromEntries(
+    galaxyRoomNames.map((name) => [
+      name,
+      galaxyPool.find((profile) => matchesGalaxyRoom(name, profile, galaxyNow))
+        ?.image,
+    ]),
+  ) as Record<GalaxyRoomName, string | undefined>;
+  const roomProfiles = room
+    ? galaxyPool.filter((profile) =>
+        matchesGalaxyRoom(room, profile, galaxyNow),
+      )
+    : [];
+  const roomCurrent = roomProfiles[roomIndex];
+  const nextRoomProfile = () => setRoomIndex((index) => index + 1);
   useEffect(() => {
     if (filteredProfiles.length < 2) return;
     const next =
@@ -2503,10 +2646,14 @@ export default function HomePage() {
       setNoteOpen(false);
       setSubscriptionOpen(true);
       announce('Daily Likes used — SpikeDate+ keeps Likes unlimited');
-      return;
+      return false;
     }
     const outcome = await recordInteraction(profile, 'like', '', 'Profile');
-    if (outcome === 'sent' || outcome === 'duplicate') nextProfile();
+    if (outcome === 'sent' || outcome === 'duplicate') {
+      nextProfile();
+      return true;
+    }
+    return false;
   };
 
   const openNote = (profile = current) => {
@@ -2554,6 +2701,7 @@ export default function HomePage() {
     if (outcome === 'sent' || outcome === 'duplicate') {
       setNoteOpen(false);
       nextProfile();
+      if (room && roomCurrent?.id === actionProfile.id) nextRoomProfile();
     } else if (outcome === 'matched') setNoteOpen(false);
   };
 
@@ -2919,7 +3067,8 @@ export default function HomePage() {
         (item) => item.other_user_id === targetUserId,
       )?.id;
     }
-    if (!conversationId) throw new Error('Match before starting a conversation.');
+    if (!conversationId)
+      throw new Error('Match before starting a conversation.');
     const result = await serverJson<{
       message: {
         id: string;
@@ -3348,10 +3497,13 @@ export default function HomePage() {
           .map((message) => message.id)
           .slice(0, 80);
         if (receivedIds.length)
-          void serverJson(`/api/conversations/${contact.conversationId}/messages`, {
-            method: 'PATCH',
-            body: JSON.stringify({ deliveredIds: receivedIds }),
-          }).catch(() => {});
+          void serverJson(
+            `/api/conversations/${contact.conversationId}/messages`,
+            {
+              method: 'PATCH',
+              body: JSON.stringify({ deliveredIds: receivedIds }),
+            },
+          ).catch(() => {});
       } catch {
         announce('Messages are temporarily unavailable.');
       } finally {
@@ -4778,6 +4930,49 @@ export default function HomePage() {
   }, [authEmail, tab]);
 
   useEffect(() => {
+    setServerGalaxyProfiles([]);
+    setGalaxyLoaded(false);
+    setRoomIndex(0);
+  }, [authEmail]);
+
+  useEffect(() => {
+    if (!serverDataEnabled || !authEmail || tab !== 'Galaxy') return;
+    let cancelled = false;
+    setGalaxyLoaded(false);
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const data = await serverJson<{ profiles: DiscoverCandidate[] }>(
+          '/api/discover?limit=50&includeMatches=1',
+        );
+        if (cancelled) return;
+        setServerGalaxyProfiles(data.profiles.map(profileFromDiscovery));
+        setGalaxyNow(Date.now());
+        setGalaxyLoaded(true);
+        setGalaxyError(false);
+      } catch {
+        if (!cancelled) {
+          setGalaxyLoaded(true);
+          setGalaxyError(true);
+        }
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 45_000);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [authEmail, tab, galaxyRefresh]);
+
+  useEffect(() => {
     if (!serverDataEnabled || !authEmail) {
       setServerProfiles([]);
       setOwnProfileMedia([]);
@@ -4814,30 +5009,7 @@ export default function HomePage() {
           expires_at: number;
         } | null;
       }>('/api/profile'),
-      serverJson<{
-        profiles: Array<{
-          id: string;
-          name: string;
-          age: number;
-          zodiac?: ZodiacSign | null;
-          gender?: string;
-          facts?: Profile['facts'];
-          connection?: ProfileConnection;
-          interests?: string[];
-          bio?: string;
-          prompts?: Array<{ prompt: string; answer: string }>;
-          city?: string | null;
-          relationshipGoal?: string;
-          imageUrl?: string | null;
-          media?: Array<{ type: 'photo' | 'video'; url: string }>;
-          today?: string | null;
-          availableTonight?: boolean;
-          availability?: DailyAvailability | null;
-          verified?: boolean;
-          active?: boolean;
-          lastActiveAt?: number | null;
-        }>;
-      }>('/api/discover?limit=50'),
+      serverJson<{ profiles: DiscoverCandidate[] }>('/api/discover?limit=50'),
       serverJson<{
         conversations: Array<{
           id: string;
@@ -4925,97 +5097,7 @@ export default function HomePage() {
           }));
           setBoostClock(Date.now());
         }
-        setServerProfiles(
-          discovery.profiles.map((candidate, index) => {
-            const known = profiles.find((item) => item.name === candidate.name);
-            const gender: Gender =
-              candidate.gender === 'man'
-                ? 'Man'
-                : candidate.gender === 'nonbinary'
-                  ? 'Nonbinary'
-                  : 'Woman';
-            if (known)
-              return {
-                ...known,
-                id: candidate.id,
-                zodiac: candidate.zodiac ?? null,
-                facts: candidate.facts,
-                matchDetails: candidate.connection,
-                tags: candidate.interests || [],
-                prompt: candidate.bio || '',
-                prompts: candidate.prompts || [],
-                gender,
-                image: candidate.imageUrl || known.image,
-                media: candidate.media?.length
-                  ? candidate.media.map((item) => ({
-                      type: item.type,
-                      src: item.url,
-                    }))
-                  : candidate.imageUrl
-                    ? [{ type: 'photo', src: candidate.imageUrl }]
-                    : known.media,
-                age: candidate.age,
-                place: candidate.city || known.place,
-                intent: candidate.relationshipGoal || known.intent,
-                verified: candidate.verified,
-                active: candidate.active,
-                lastActiveAt: candidate.lastActiveAt ?? null,
-                availability: candidate.availability ?? undefined,
-                tonight:
-                  candidate.availability?.localDate === dateInputValue()
-                    ? {
-                        plan: candidate.today || 'Open to making a plan',
-                        expiresAt: candidate.availability.endAt,
-                      }
-                    : undefined,
-              };
-            const image =
-              candidate.imageUrl ||
-              profiles[index % profiles.length]?.image ||
-              '/imani.png';
-            return {
-              id: candidate.id,
-              zodiac: candidate.zodiac ?? null,
-              facts: candidate.facts,
-              matchDetails: candidate.connection,
-              name: candidate.name,
-              age: candidate.age,
-              gender,
-              image,
-              media: candidate.media?.length
-                ? candidate.media.map((item) => ({
-                    type: item.type,
-                    src: item.url,
-                  }))
-                : [{ type: 'photo', src: image }],
-              place: candidate.city || 'Nearby',
-              distance: 'Nearby',
-              distanceMiles: 2,
-              intent: candidate.relationshipGoal || 'Dating',
-              tags: candidate.interests || [],
-              prompt: candidate.bio || 'Ask me what I am looking forward to.',
-              prompts: candidate.prompts,
-              height: 'Not shared',
-              ethnicity: 'Not shared',
-              pets: 'Not shared',
-              kids: 'Not shared',
-              wantsKids: 'Not shared',
-              drinking: 'Not shared',
-              smoking: 'Not shared',
-              verified: candidate.verified,
-              active: candidate.active,
-              lastActiveAt: candidate.lastActiveAt ?? null,
-              availability: candidate.availability ?? undefined,
-              tonight:
-                candidate.availability?.localDate === dateInputValue()
-                  ? {
-                      plan: candidate.today || 'Open to making a plan',
-                      expiresAt: candidate.availability.endAt,
-                    }
-                  : undefined,
-            };
-          }),
-        );
+        setServerProfiles(discovery.profiles.map(profileFromDiscovery));
         setContacts(
           conversationData.conversations.flatMap((conversation) => {
             const emailMatch =
@@ -5890,7 +5972,16 @@ export default function HomePage() {
                   }}
                 />
               }
-              onOpenRoom={setRoom}
+              onOpenRoom={(name) => {
+                setRoomIndex(0);
+                setRoom(name);
+              }}
+              roomCounts={roomCounts}
+              roomPreviewImages={roomPreviewImages}
+              roomsLoading={serverDataEnabled && !galaxyLoaded}
+              roomsError={serverDataEnabled && galaxyError}
+              onRefreshRooms={() => setGalaxyRefresh((value) => value + 1)}
+              matchedContacts={contacts}
               onCreatePlan={openPlanBuilder}
               plans={datingPlans}
               onDirections={openPlanDirections}
@@ -5909,12 +6000,25 @@ export default function HomePage() {
           {tab === 'Galaxy' && room && (
             <RoomStack
               room={room}
-              profile={current}
+              profile={roomCurrent}
+              count={roomProfiles.length}
+              loading={serverDataEnabled && !galaxyLoaded}
+              error={serverDataEnabled && galaxyError}
               onBack={() => setRoom(null)}
-              onOpen={() => openFullProfile(current)}
-              onPass={nextProfile}
-              onLike={() => completeLike(current)}
-              onSpark={() => openNote(current)}
+              onRetry={() => {
+                setRoomIndex(0);
+                setGalaxyRefresh((value) => value + 1);
+              }}
+              onStartOver={() => setRoomIndex(0)}
+              onOpen={() => roomCurrent && openFullProfile(roomCurrent)}
+              onPass={nextRoomProfile}
+              onLike={() => {
+                if (roomCurrent)
+                  void completeLike(roomCurrent).then((advanced) => {
+                    if (advanced) nextRoomProfile();
+                  });
+              }}
+              onSpark={() => roomCurrent && openNote(roomCurrent)}
             />
           )}
           {tab === 'Likes' && (
@@ -6151,8 +6255,18 @@ export default function HomePage() {
           busy={sendBusy}
           open={profileOpen}
           onOpenChange={closeOrUpdateFullProfile}
-          onPass={nextProfile}
-          onLike={() => completeLike(selectedProfile ?? current)}
+          onPass={
+            room && selectedProfile?.id === roomCurrent?.id
+              ? nextRoomProfile
+              : nextProfile
+          }
+          onLike={() => {
+            const profile = selectedProfile ?? current;
+            void completeLike(profile).then((advanced) => {
+              if (advanced && room && profile.id === roomCurrent?.id)
+                nextRoomProfile();
+            });
+          }}
           onSpark={() => {
             const profile = selectedProfile ?? current;
             if (matchedProfiles.some((item) => item.name === profile.name))
@@ -7455,7 +7569,9 @@ function EngagementPrompt({
       </div>
       <p className="engagement-prompt-copy">{content.copy}</p>
       <p className="engagement-prompt-meta">
-        {nudge.kind === 'super' && <Star size={13} fill="currentColor" aria-hidden="true" />}
+        {nudge.kind === 'super' && (
+          <Star size={13} fill="currentColor" aria-hidden="true" />
+        )}
         {content.meta}
       </p>
       <div className="engagement-prompt-actions">
@@ -8215,6 +8331,12 @@ function RoomsHub({
   astrology,
   onGames,
   onOpenRoom,
+  roomCounts,
+  roomPreviewImages,
+  roomsLoading,
+  roomsError,
+  onRefreshRooms,
+  matchedContacts,
   onCreatePlan,
   plans,
   onDirections,
@@ -8231,7 +8353,13 @@ function RoomsHub({
 }: {
   astrology: React.ReactNode;
   onGames: () => void;
-  onOpenRoom: (name: string) => void;
+  onOpenRoom: (name: GalaxyRoomName) => void;
+  roomCounts: Record<GalaxyRoomName, number>;
+  roomPreviewImages: Record<GalaxyRoomName, string | undefined>;
+  roomsLoading: boolean;
+  roomsError: boolean;
+  onRefreshRooms: () => void;
+  matchedContacts: ChatContact[];
   onCreatePlan: (activity: string) => void;
   plans: DatingPlan[];
   onDirections: (plan: DatingPlan) => void;
@@ -8267,14 +8395,7 @@ function RoomsHub({
     return value.toISOString().slice(0, 10);
   });
   const [alternateTime, setAlternateTime] = useState('19:00');
-  const planProfiles =
-    selectedPlan.name === 'Dinner'
-      ? [profiles[5], profiles[2], profiles[0]]
-      : selectedPlan.name === 'Music'
-        ? [profiles[1], profiles[0], profiles[6]]
-        : selectedPlan.name === 'Walk'
-          ? [profiles[2], profiles[4], profiles[0]]
-          : [profiles[0], profiles[3], profiles[1]];
+  const planProfiles = matchedContacts.slice(0, 3);
   return (
     <section className="screen scroll-screen galaxy-hub explore-hub">
       <header className="page-header galaxy-page-header">
@@ -8380,7 +8501,7 @@ function RoomsHub({
               <div className="galaxy-plan-result-top">
                 <div className="galaxy-plan-faces" aria-hidden="true">
                   {planProfiles.map((profile) => (
-                    <span key={profile.name}>
+                    <span key={profile.userId ?? profile.name}>
                       <Image
                         src={profile.image}
                         alt=""
@@ -8391,14 +8512,18 @@ function RoomsHub({
                     </span>
                   ))}
                 </div>
-                <span className="galaxy-fit-badge">Best fit</span>
+                <span className="galaxy-fit-badge">Your matches</span>
               </div>
               <div className="galaxy-plan-copy" aria-live="polite">
                 <h3>
-                  3 people match your {selectedPlan.name.toLowerCase()} plan
+                  {matchedContacts.length === 0
+                    ? 'Match with someone to make a plan'
+                    : `Invite a match to ${selectedPlan.name.toLowerCase()}`}
                 </h3>
                 <p>
-                  Available soon, nearby, and aligned with your preferences.
+                  {matchedContacts.length === 0
+                    ? 'When you both connect, choose a venue and time together.'
+                    : `Choose from ${matchedContacts.length} ${matchedContacts.length === 1 ? 'match' : 'matches'}, then pick a venue and time.`}
                 </p>
               </div>
               <button
@@ -8686,6 +8811,15 @@ function RoomsHub({
           </div>
           <span>{roomData.length} spaces</span>
         </div>
+        {roomsError && (
+          <button
+            type="button"
+            className="galaxy-retry"
+            onClick={onRefreshRooms}
+          >
+            Could not refresh profiles · Try again
+          </button>
+        )}
         <div className="room-grid">
           {roomData.map((item) => {
             const Icon = roomIcons[item.name] ?? Orbit;
@@ -8693,15 +8827,19 @@ function RoomsHub({
               <button
                 key={item.name}
                 className={`room-tile ${item.className ?? ''}`}
-                onClick={() => onOpenRoom(item.name)}
+                onClick={() => onOpenRoom(item.name as GalaxyRoomName)}
               >
-                <Image
-                  src={item.image}
-                  alt=""
-                  fill
-                  sizes="390px"
-                  className="profile-photo"
-                />
+                {roomPreviewImages[item.name as GalaxyRoomName] ? (
+                  <Image
+                    src={roomPreviewImages[item.name as GalaxyRoomName]!}
+                    alt=""
+                    fill
+                    sizes="390px"
+                    className="profile-photo"
+                  />
+                ) : (
+                  <span className="room-empty-art" aria-hidden="true" />
+                )}
                 <span className="room-shade" />
                 <span className="room-copy">
                   <strong>
@@ -8709,15 +8847,21 @@ function RoomsHub({
                     {item.name}
                   </strong>
                   <small>{item.caption}</small>
-                  <em>{item.count}</em>
+                  <em>
+                    {roomsError
+                      ? 'Unavailable'
+                      : roomsLoading
+                        ? 'Checking…'
+                        : `${roomCounts[item.name as GalaxyRoomName]} ${roomCounts[item.name as GalaxyRoomName] === 1 ? 'person' : 'people'} in your feed`}
+                  </em>
                 </span>
               </button>
             );
           })}
         </div>
         <p className="stand-note">
-          <Radio size={16} fill="currentColor" /> You can appear in Spike + one
-          Galaxy space
+          <Radio size={16} fill="currentColor" /> Spaces reflect shared
+          interests. You may appear in more than one.
         </p>
       </div>
     </section>
@@ -9289,15 +9433,25 @@ function PlanDialog({
 function RoomStack({
   room,
   profile,
+  count,
+  loading,
+  error,
   onBack,
+  onRetry,
+  onStartOver,
   onOpen,
   onPass,
   onLike,
   onSpark,
 }: {
-  room: string;
-  profile: Profile;
+  room: GalaxyRoomName;
+  profile?: Profile;
+  count: number;
+  loading: boolean;
+  error: boolean;
   onBack: () => void;
+  onRetry: () => void;
+  onStartOver: () => void;
   onOpen: () => void;
   onPass: () => void;
   onLike: () => void;
@@ -9311,23 +9465,62 @@ function RoomStack({
         </button>
         <div>
           <strong>{room}</strong>
-          <span>{room === 'Tonight' ? '84 here now' : 'Live now'}</span>
+          <span>
+            {loading
+              ? 'Checking…'
+              : `${count} ${count === 1 ? 'person' : 'people'} in your feed`}
+          </span>
         </div>
-        <span className="live-dot" />
+        <span aria-hidden="true" />
       </header>
       <div className="context-chip">
-        {room === 'Tonight' ? 'Free after 8' : `Into ${room.toLowerCase()}`}
+        {room === 'Tonight'
+          ? 'Available in the next 12 hours'
+          : `Into ${room.toLowerCase()}`}
       </div>
-      <div className="room-card-wrap">
-        <ProfileCard
-          profile={profile}
-          room={room}
-          onOpen={onOpen}
-          onSwipeLeft={onPass}
-          onSwipeRight={onLike}
-        />
-      </div>
-      <ActionRow onPass={onPass} onLike={onLike} onSpark={onSpark} />
+      {profile && !loading && !error ? (
+        <>
+          <div className="room-card-wrap">
+            <ProfileCard
+              profile={profile}
+              room={room}
+              onOpen={onOpen}
+              onSwipeLeft={onPass}
+              onSwipeRight={onLike}
+            />
+          </div>
+          <ActionRow onPass={onPass} onLike={onLike} onSpark={onSpark} />
+        </>
+      ) : (
+        <div className="room-empty" role="status">
+          <Orbit size={34} aria-hidden="true" />
+          <h2>
+            {error
+              ? 'Could not load this space'
+              : loading
+                ? 'Finding your people'
+                : count
+                  ? 'You’ve seen everyone here'
+                  : 'No one in this space yet'}
+          </h2>
+          <p>
+            {error
+              ? 'Check your connection and try again.'
+              : count
+                ? 'You can revisit this space or explore another.'
+                : 'Try another space, or check back when more people join.'}
+          </p>
+          {error ? (
+            <button type="button" onClick={onRetry}>
+              Try again
+            </button>
+          ) : count && !loading ? (
+            <button type="button" onClick={onStartOver}>
+              Start over
+            </button>
+          ) : null}
+        </div>
+      )}
     </section>
   );
 }
@@ -10033,10 +10226,14 @@ function ChatThread({
             ).find((el) => el.dataset.messageId === String(message.id));
             if (!element) return false;
             const rect = element.getBoundingClientRect();
-            const overlap = Math.min(rect.bottom, bounds.bottom) -
+            const overlap =
+              Math.min(rect.bottom, bounds.bottom) -
               Math.max(rect.top, bounds.top);
-            return rect.left < bounds.right && rect.right > bounds.left &&
-              overlap >= Math.min(rect.height * 0.5, 80);
+            return (
+              rect.left < bounds.right &&
+              rect.right > bounds.left &&
+              overlap >= Math.min(rect.height * 0.5, 80)
+            );
           })
           .map((message) => String(message.id))
           .slice(0, 80);
@@ -10254,11 +10451,17 @@ function ChatThread({
                   type="button"
                   className="bubble chat-photo-bubble"
                   aria-label={`View ${message.mine ? 'your' : contact.name + '’s'} photo`}
-                  onClick={() => setSelectedPhoto(`/api/chat-media/${message.id}`)}
+                  onClick={() =>
+                    setSelectedPhoto(`/api/chat-media/${message.id}`)
+                  }
                 >
                   <Image
                     src={`/api/chat-media/${message.id}`}
-                    alt={message.mine ? 'Shared by you' : `Shared by ${contact.name}`}
+                    alt={
+                      message.mine
+                        ? 'Shared by you'
+                        : `Shared by ${contact.name}`
+                    }
                     width={320}
                     height={240}
                     unoptimized
@@ -10291,20 +10494,32 @@ function ChatThread({
               )}
               {message.mine &&
                 index === messages.findLastIndex((item) => item.mine) && (
-                <span
-                  className={`message-status compact-marks ${message.readAt ? 'is-read' : ''}`}
-                  aria-label={message.readAt ? `Read at ${new Date(message.readAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : message.deliveredAt ? 'Delivered' : typeof message.id === 'number' && serverDataEnabled ? 'Sending' : 'Sent'}
-                >
-                  {message.deliveredAt || message.readAt ? <CheckCheck size={15} aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}
-                  {message.readAt
-                    ? `Read · ${new Date(message.readAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
-                    : message.deliveredAt
-                      ? 'Delivered'
-                      : typeof message.id === 'number' && serverDataEnabled
-                        ? 'Sending'
-                        : 'Sent'}
-                </span>
-              )}
+                  <span
+                    className={`message-status compact-marks ${message.readAt ? 'is-read' : ''}`}
+                    aria-label={
+                      message.readAt
+                        ? `Read at ${new Date(message.readAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+                        : message.deliveredAt
+                          ? 'Delivered'
+                          : typeof message.id === 'number' && serverDataEnabled
+                            ? 'Sending'
+                            : 'Sent'
+                    }
+                  >
+                    {message.deliveredAt || message.readAt ? (
+                      <CheckCheck size={15} aria-hidden="true" />
+                    ) : (
+                      <Check size={15} aria-hidden="true" />
+                    )}
+                    {message.readAt
+                      ? `Read · ${new Date(message.readAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+                      : message.deliveredAt
+                        ? 'Delivered'
+                        : typeof message.id === 'number' && serverDataEnabled
+                          ? 'Sending'
+                          : 'Sent'}
+                  </span>
+                )}
             </div>
           ))}
         </div>
@@ -10347,7 +10562,11 @@ function ChatThread({
           if (!loading) onSend();
         }}
       >
-        <ChatMediaActions key={contact.conversationId ?? contact.name} disabled={loading} onSend={onSendMedia} />
+        <ChatMediaActions
+          key={contact.conversationId ?? contact.name}
+          disabled={loading}
+          onSend={onSendMedia}
+        />
         <label className="chat-compose-field">
           <input
             value={composer}
@@ -10394,12 +10613,22 @@ function ChatThread({
       </Dialog>
       <Dialog
         open={Boolean(selectedPhoto)}
-        onOpenChange={(open) => { if (!open) setSelectedPhoto(null); }}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPhoto(null);
+        }}
       >
         <DialogContent className="chat-photo-viewer">
           <DialogTitle>Photo message</DialogTitle>
           <DialogDescription>Shared in this conversation.</DialogDescription>
-          {selectedPhoto && <Image src={selectedPhoto} alt="Shared attachment enlarged" width={800} height={800} unoptimized />}
+          {selectedPhoto && (
+            <Image
+              src={selectedPhoto}
+              alt="Shared attachment enlarged"
+              width={800}
+              height={800}
+              unoptimized
+            />
+          )}
         </DialogContent>
       </Dialog>
     </section>
@@ -10939,22 +11168,43 @@ function YourProfile({
   onCreateToday: () => void;
   onEditToday: (story: DailyStory) => void;
 }) {
-  const [reminderPreview, setReminderPreview] = useState<keyof EngagementPreferences>('today');
+  const [reminderPreview, setReminderPreview] =
+    useState<keyof EngagementPreferences>('today');
   const reminderGroups = [
     {
       title: 'SHOW UP',
       description: 'Keep your presence fresh',
       items: [
-        { key: 'today', title: 'Share your Today', description: 'Only when you have not posted', icon: Sun },
-        { key: 'like', title: 'Galaxy', description: 'When fresh profiles appear', icon: Compass },
+        {
+          key: 'today',
+          title: 'Share your Today',
+          description: 'Only when you have not posted',
+          icon: Sun,
+        },
+        {
+          key: 'like',
+          title: 'Galaxy',
+          description: 'When fresh profiles appear',
+          icon: Compass,
+        },
       ],
     },
     {
       title: 'MAKE A MOVE',
       description: 'Always optional',
       items: [
-        { key: 'super', title: 'Send a Spike', description: 'A thoughtful introduction idea', icon: SpikeIntroIcon },
-        { key: 'boost', title: 'Use Profile Lift', description: 'A suggestion when it may help', icon: ProfileLiftMark },
+        {
+          key: 'super',
+          title: 'Send a Spike',
+          description: 'A thoughtful introduction idea',
+          icon: SpikeIntroIcon,
+        },
+        {
+          key: 'boost',
+          title: 'Use Profile Lift',
+          description: 'A suggestion when it may help',
+          icon: ProfileLiftMark,
+        },
       ],
     },
   ] as const;
@@ -11505,13 +11755,19 @@ function YourProfile({
                 <ChevronDown size={16} aria-hidden="true" />
               </summary>
               <p>Examples only. These buttons will not send anything.</p>
-              <div className="reminder-preview-switcher" role="group" aria-label="Choose reminder preview">
-                {([
-                  ['today', 'Today'],
-                  ['like', 'Galaxy'],
-                  ['super', 'Spike'],
-                  ['boost', 'Lift'],
-                ] as const).map(([key, title]) => (
+              <div
+                className="reminder-preview-switcher"
+                role="group"
+                aria-label="Choose reminder preview"
+              >
+                {(
+                  [
+                    ['today', 'Today'],
+                    ['like', 'Galaxy'],
+                    ['super', 'Spike'],
+                    ['boost', 'Lift'],
+                  ] as const
+                ).map(([key, title]) => (
                   <button
                     type="button"
                     key={key}

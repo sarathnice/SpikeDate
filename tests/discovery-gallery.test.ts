@@ -76,4 +76,17 @@ it('returns ordered full-gallery media with an approved-only batched query', asy
   expect(
     queries.find((sql) => sql.startsWith('SELECT id, user_id, type')),
   ).toContain('ORDER BY position, id');
+  const candidateQuery = queries.find((sql) =>
+    sql.startsWith('SELECT profiles.user_id'),
+  );
+  expect(candidateQuery).toContain("updates.visibility = 'discover'");
+  expect(candidateQuery).toContain("availability_match.status = 'active'");
+});
+
+it('can include existing matches in a Galaxy-specific discovery refresh', async () => {
+  queries.length = 0;
+  await GET(new Request('http://local/api/discover?includeMatches=1'));
+  expect(
+    queries.find((sql) => sql.startsWith('SELECT profiles.user_id')),
+  ).toContain("room_match.status = 'active'");
 });

@@ -247,10 +247,13 @@ export async function POST(request: Request) {
     for (const [offset, fixture] of syntheticProfiles.entries()) {
       const connection = fixture.connection;
       const suffix = String(offset + 1).padStart(3, '0');
-      const interestLabels =
-        offset % 2
+      const interestLabels = [
+        ...(offset % 2
           ? ['Cooking', 'Live music', 'Road trips']
-          : ['Coffee', 'Indie music', 'Nature trips'];
+          : ['Coffee', 'Indie music', 'Nature trips']),
+        ...(offset % 5 === 0 ? ['Arts & culture'] : []),
+        ...(offset % 6 === 0 ? ['New in town'] : []),
+      ];
       await db.batch([
         db
           .prepare(

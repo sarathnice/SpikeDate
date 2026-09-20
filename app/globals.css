@@ -4260,6 +4260,58 @@ button > .lucide-calendar-check {
 .room-card-wrap .profile-card {
   height: 100%;
 }
+.room-empty {
+  flex: 1;
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
+  border-radius: 24px;
+  color: var(--foreground);
+}
+.room-empty-art {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      circle at 78% 25%,
+      color-mix(in srgb, var(--coral) 35%, transparent),
+      transparent 45%
+    ),
+    linear-gradient(135deg, #28252a, #101115);
+}
+.room-empty svg {
+  color: var(--coral);
+}
+.room-empty h2 {
+  margin: 0;
+  font-size: 1.12rem;
+  font-weight: 500;
+}
+.room-empty p {
+  margin: 0;
+  max-width: 26ch;
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.room-empty button,
+.galaxy-retry {
+  border: 1px solid color-mix(in srgb, var(--foreground) 25%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--foreground);
+  padding: 9px 16px;
+  cursor: pointer;
+}
+.galaxy-retry {
+  margin-bottom: 12px;
+}
 .room-caption {
   display: inline-flex;
   margin: 0 0 7px;

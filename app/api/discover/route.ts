@@ -49,6 +49,7 @@ export async function GET(request: Request) {
     const user = await requireUser(request, db);
     if (user instanceof Response) return user;
     const url = new URL(request.url);
+    const includeMatches = url.searchParams.get('includeMatches') === '1';
     const limit = Math.min(
       50,
       Math.max(1, Number(url.searchParams.get('limit')) || 20),
@@ -92,13 +93,21 @@ export async function GET(request: Request) {
           '(SELECT interest_id FROM user_interests WHERE user_id = ?) ' +
           'LEFT JOIN profile_lift_activations lifts ON lifts.user_id = profiles.user_id AND lifts.ends_at > ? ' +
           'LEFT JOIN daily_updates updates ON updates.user_id = profiles.user_id AND updates.expires_at > ? AND updates.deleted_at IS NULL ' +
+          "AND (updates.visibility = 'discover' OR " +
+          "(updates.visibility = 'liked' AND EXISTS (SELECT 1 FROM interactions liked WHERE liked.actor_id = updates.user_id AND liked.target_id = ? AND liked.kind IN ('like', 'super_spike') AND liked.undone_at IS NULL)) OR " +
+          "(updates.visibility = 'matches' AND EXISTS (SELECT 1 FROM matches update_match WHERE update_match.status = 'active' AND ((update_match.user_a_id = ? AND update_match.user_b_id = profiles.user_id) OR (update_match.user_b_id = ? AND update_match.user_a_id = profiles.user_id))))) " +
           'LEFT JOIN daily_availability availability ON availability.user_id = profiles.user_id AND availability.end_at > ? ' +
+          "AND EXISTS (SELECT 1 FROM matches availability_match WHERE availability_match.status = 'active' AND ((availability_match.user_a_id = ? AND availability_match.user_b_id = profiles.user_id) OR (availability_match.user_b_id = ? AND availability_match.user_a_id = profiles.user_id))) " +
           "WHERE profiles.user_id != ? AND profiles.discoverable = 1 AND users.status = 'active' " +
           'AND NOT EXISTS (SELECT 1 FROM safety_actions blocked WHERE blocked.kind = ? AND ' +
           '((blocked.reporter_id = ? AND blocked.subject_id = profiles.user_id) OR ' +
           '(blocked.reporter_id = profiles.user_id AND blocked.subject_id = ?))) ' +
-          'AND NOT EXISTS (SELECT 1 FROM interactions seen WHERE seen.actor_id = ? AND seen.target_id = profiles.user_id ' +
+          'AND (NOT EXISTS (SELECT 1 FROM interactions seen WHERE seen.actor_id = ? AND seen.target_id = profiles.user_id ' +
           "AND seen.kind IN ('like', 'super_spike', 'pass') AND seen.undone_at IS NULL) " +
+          (includeMatches
+            ? "OR EXISTS (SELECT 1 FROM matches room_match WHERE room_match.status = 'active' AND ((room_match.user_a_id = ? AND room_match.user_b_id = profiles.user_id) OR (room_match.user_b_id = ? AND room_match.user_a_id = profiles.user_id))) "
+            : '') +
+          ') ' +
           'GROUP BY profiles.user_id ' +
           'ORDER BY (lifts.ends_at IS NOT NULL) DESC, shared_interests DESC, users.last_active_at DESC, profiles.user_id ' +
           'LIMIT ?',
@@ -107,12 +116,18 @@ export async function GET(request: Request) {
         user.id,
         Date.now(),
         Date.now(),
+        user.id,
+        user.id,
+        user.id,
         Date.now(),
+        user.id,
+        user.id,
         user.id,
         'block',
         user.id,
         user.id,
         user.id,
+        ...(includeMatches ? [user.id, user.id] : []),
         limit,
       )
       .all<Candidate>();
