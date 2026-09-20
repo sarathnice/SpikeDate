@@ -9612,8 +9612,7 @@ function RoomStack({
   onLike: () => void;
   onSpark: () => void;
 }) {
-  const photoFirst =
-    room === 'Outdoors' && Boolean(profile) && !loading && !error;
+  const photoFirst = Boolean(profile) && !loading && !error;
   return (
     <section className={`room-stack${photoFirst ? ' photo-first-room' : ''}`}>
       <header className="room-header">

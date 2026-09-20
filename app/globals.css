@@ -11338,8 +11338,8 @@ button > .lucide-calendar-check {
   font-size: var(--profile-body-size) !important;
 }
 
-/* Outdoors uses the photo-first Galaxy layout: the image fills every pixel
-   above the tab bar, with navigation and actions layered over the portrait. */
+/* Galaxy Browse rooms use the photo-first layout whenever a profile is shown:
+   the image fills above the tab bar, with navigation and actions overlaid. */
 .room-stack.photo-first-room {
   --room-nav-height: 66px;
   position: relative;
