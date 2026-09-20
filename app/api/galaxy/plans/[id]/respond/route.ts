@@ -34,9 +34,10 @@ export async function POST(request: Request, context: Context) {
     const result = await db
       .prepare(
         'UPDATE galaxy_plan_invites SET status = ?, responded_at = ?, updated_at = ? ' +
-          "WHERE plan_id = ? AND invitee_id = ? AND status = 'pending'",
+          "WHERE plan_id = ? AND invitee_id = ? AND status = 'pending' " +
+          "AND EXISTS (SELECT 1 FROM galaxy_plans WHERE id = ? AND status = 'sent')",
       )
-      .bind(parsed.data.response, now, now, id, user.id)
+      .bind(parsed.data.response, now, now, id, user.id, id)
       .run();
     if (!Number(result.meta.changes ?? 0))
       return json({ error: 'Pending invitation not found.' }, { status: 404 });

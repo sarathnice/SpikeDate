@@ -387,6 +387,7 @@ type DailyStoryDraft = Pick<
 >;
 type DatingPlan = {
   id: number;
+  serverId?: string;
   planName: string;
   activity: string;
   day: string;
@@ -409,6 +410,22 @@ type DatingPlan = {
   safetyStatus?: 'scheduled' | 'safe' | 'ended';
   safetyAcknowledgedAt?: string;
   expiresAt?: string;
+};
+type ServerGalaxyPlanRow = {
+  id: string;
+  creator_id: string;
+  creator_name: string;
+  invitee_id: string | null;
+  invitee_name: string | null;
+  invite_status: string | null;
+  name: string;
+  activity: string;
+  venue_name: string;
+  venue_address: string;
+  latitude_e6: number | null;
+  longitude_e6: number | null;
+  starts_at: number;
+  status: string;
 };
 type Venue = {
   id: string;
@@ -1755,6 +1772,57 @@ function profileFromDiscovery(candidate: DiscoverCandidate): Profile {
   };
 }
 
+function planFromServer(
+  row: ServerGalaxyPlanRow,
+  viewerEmail: string,
+  viewerId: string,
+): DatingPlan {
+  const startsAt = new Date(row.starts_at);
+  const day = `${startsAt.getFullYear()}-${String(startsAt.getMonth() + 1).padStart(2, '0')}-${String(startsAt.getDate()).padStart(2, '0')}`;
+  const time = `${String(startsAt.getHours()).padStart(2, '0')}:${String(startsAt.getMinutes()).padStart(2, '0')}`;
+  let numericId = 2166136261;
+  for (const char of row.id)
+    numericId = Math.imul(numericId ^ char.charCodeAt(0), 16777619);
+  const isCreator = row.creator_id === viewerId;
+  const venue: Venue = {
+    id: `server-${row.id}`,
+    name: row.venue_name,
+    address: row.venue_address,
+    neighborhood: 'Public venue',
+    distance: 'Shared venue',
+    price: '$$',
+    category: row.activity,
+    latitude: row.latitude_e6 == null ? 0 : row.latitude_e6 / 1_000_000,
+    longitude: row.longitude_e6 == null ? 0 : row.longitude_e6 / 1_000_000,
+  };
+  return {
+    id: numericId >>> 0,
+    serverId: row.id,
+    planName: row.name,
+    activity: row.activity,
+    day,
+    time,
+    durationMinutes: 45,
+    neighborhood: venue.neighborhood,
+    venue,
+    invitees: isCreator
+      ? [row.invitee_name ?? 'Your match']
+      : [row.creator_name],
+    inviteeEmails: [],
+    creatorEmail: isCreator ? viewerEmail : 'matched-member',
+    status:
+      row.status === 'cancelled'
+        ? 'cancelled'
+        : row.invite_status === 'declined'
+          ? 'declined'
+          : row.status === 'accepted' || row.invite_status === 'accepted'
+            ? 'accepted'
+            : 'sent',
+    venueOptions: [venue],
+    expiresAt: new Date(row.starts_at + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+}
+
 export default function HomePage() {
   useEffect(() => {
     initializeMobileRuntime().catch((error) =>
@@ -1865,6 +1933,7 @@ export default function HomePage() {
   const [planOpen, setPlanOpen] = useState(false);
   const [planActivity, setPlanActivity] = useState('Coffee');
   const [datingPlans, setDatingPlans] = useState<DatingPlan[]>([]);
+  const [planRefresh, setPlanRefresh] = useState(0);
   const [planSafetyOpen, setPlanSafetyOpen] = useState(false);
   const [safetyPlan, setSafetyPlan] = useState<DatingPlan | null>(null);
   const [matchProfile, setMatchProfile] = useState<Profile>(profiles[0]);
@@ -3214,9 +3283,10 @@ export default function HomePage() {
           return next;
         });
     }
-    mirrorToServer(
-      () =>
-        serverJson('/api/galaxy/plans', {
+    mirrorToServer(async () => {
+      const result = await serverJson<{ plan: { id: string } }>(
+        '/api/galaxy/plans',
+        {
           method: 'POST',
           body: JSON.stringify({
             name: plan.planName,
@@ -3230,14 +3300,27 @@ export default function HomePage() {
             startsAt: new Date(`${plan.day}T${plan.time}`).getTime(),
             publicVenueConfirmed: true,
             safetyAcknowledged: Boolean(completePlan.safetyAcknowledgedAt),
-            inviteeIds: completePlan.inviteeEmails?.flatMap((email) => {
-              const id = testUserIdForEmail(email);
+            inviteeIds: plan.invitees.flatMap((name) => {
+              const contact = contacts.find((item) => item.name === name);
+              const id =
+                contact?.userId ??
+                (contact?.email
+                  ? testUserIdForEmail(contact.email)
+                  : undefined);
               return id ? [id] : [];
             }),
           }),
-        }),
-      'Plan saved on this device but could not be sent to every match.',
-    );
+        },
+      );
+      setDatingPlans((items) =>
+        items.map((item) =>
+          item.id === completePlan.id
+            ? { ...item, serverId: result.plan.id }
+            : item,
+        ),
+      );
+      setPlanRefresh((value) => value + 1);
+    }, 'Plan saved on this device but could not be sent to every match.');
     setPlanOpen(false);
     announce(
       `Plan sent to ${plan.invitees.length} ${plan.invitees.length === 1 ? 'match' : 'matches'}`,
@@ -3268,6 +3351,16 @@ export default function HomePage() {
       ),
     );
     announce(`${plan.planName} cancelled`);
+    if (plan.serverId)
+      mirrorToServer(async () => {
+        await serverJson(
+          `/api/galaxy/plans/${encodeURIComponent(plan.serverId!)}`,
+          {
+            method: 'DELETE',
+          },
+        );
+        setPlanRefresh((value) => value + 1);
+      });
   };
 
   const respondToDatingPlan = (
@@ -3284,6 +3377,17 @@ export default function HomePage() {
         ? `${plan.planName} confirmed`
         : 'Invitation declined privately',
     );
+    if (plan.serverId)
+      mirrorToServer(async () => {
+        await serverJson(
+          `/api/galaxy/plans/${encodeURIComponent(plan.serverId!)}/respond`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ response: status }),
+          },
+        );
+        setPlanRefresh((value) => value + 1);
+      });
   };
 
   const suggestPlanChange = (plan: DatingPlan, day?: string, time?: string) => {
@@ -5753,6 +5857,7 @@ export default function HomePage() {
           return [
             {
               id: plan.id,
+              serverId: plan.serverId,
               planName: plan.planName || `${plan.activity} date`,
               activity: plan.activity,
               day: plan.day,
@@ -5784,6 +5889,51 @@ export default function HomePage() {
       setDatingPlans([]);
     }
   }, [authEmail]);
+
+  useEffect(() => {
+    if (
+      !serverDataEnabled ||
+      !authEmail ||
+      tab !== 'Galaxy' ||
+      ownAccount?.email !== authEmail
+    )
+      return;
+    let cancelled = false;
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const data = await serverJson<{ plans: ServerGalaxyPlanRow[] }>(
+          '/api/galaxy/plans',
+        );
+        if (cancelled) return;
+        setDatingPlans((current) =>
+          data.plans.map((row) => {
+            const live = planFromServer(row, authEmail, ownAccount.id);
+            const saved = current.find((item) => item.serverId === row.id);
+            return saved
+              ? {
+                  ...live,
+                  safetyCheckInEnabled: saved.safetyCheckInEnabled,
+                  safetyCheckInMinutes: saved.safetyCheckInMinutes,
+                  safetyStatus: saved.safetyStatus,
+                  safetyAcknowledgedAt: saved.safetyAcknowledgedAt,
+                }
+              : live;
+          }),
+        );
+      } catch {
+        // Preserve the current plans until connectivity returns.
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 30_000);
+    window.addEventListener('focus', refresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [authEmail, tab, planRefresh, ownAccount]);
 
   useEffect(() => {
     const midnightAccent = midnightAccentThemes.has(theme);
@@ -8594,7 +8744,9 @@ function RoomsHub({
                   </em>
                   <em>
                     {plan.status === 'sent'
-                      ? `Invite sent to ${plan.invitees.join(', ')}`
+                      ? plan.creatorEmail && plan.creatorEmail !== viewerEmail
+                        ? `Invitation from ${plan.invitees.join(', ')}`
+                        : `Invite sent to ${plan.invitees.join(', ')}`
                       : plan.status}
                   </em>
                   {plan.safetyCheckInEnabled && (
@@ -8784,14 +8936,17 @@ function RoomsHub({
                       >
                         <Share2 size={15} /> Trusted contact
                       </button>
-                      <button
-                        type="button"
-                        className="cancel"
-                        onClick={() => onCancelPlan(plan)}
-                        aria-label={`Cancel ${plan.planName}`}
-                      >
-                        <X size={15} /> Cancel
-                      </button>
+                      {(!plan.creatorEmail ||
+                        plan.creatorEmail === viewerEmail) && (
+                        <button
+                          type="button"
+                          className="cancel"
+                          onClick={() => onCancelPlan(plan)}
+                          aria-label={`Cancel ${plan.planName}`}
+                        >
+                          <X size={15} /> Cancel
+                        </button>
+                      )}
                     </div>
                   )}
               </article>

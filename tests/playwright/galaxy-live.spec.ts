@@ -238,3 +238,108 @@ test('Tonight updates when a match shares availability, but stays private from n
     await matchContext.close();
   }
 });
+
+test('a private plan appears for both matches and acceptance/cancellation syncs between them', async ({
+  page,
+  browser,
+}) => {
+  await loginSynthetic(page, 1);
+  const otherContext = await browser.newContext();
+  const otherPage = await otherContext.newPage();
+  let serverPlanId: string | undefined;
+  const planName = `QA Galaxy sync ${Date.now()}`;
+  try {
+    await loginSynthetic(otherPage, 2);
+    const created = await page.evaluate(async (name) => {
+      const response = await fetch('/api/galaxy/plans', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          activity: 'Coffee',
+          venue: {
+            name: 'QA Public Coffee',
+            address: '1 Main Street, Boston',
+            latitude: 42.36,
+            longitude: -71.06,
+          },
+          startsAt: Date.now() + 20 * 60_000,
+          publicVenueConfirmed: true,
+          safetyAcknowledged: true,
+          inviteeIds: ['test-002'],
+        }),
+      });
+      return { status: response.status, body: await response.json() };
+    }, planName);
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    serverPlanId = (created.body as { plan: { id: string } }).plan.id;
+    const sharedPlan = await otherPage.evaluate(async () => {
+      const response = await fetch('/api/galaxy/plans');
+      return response.json() as Promise<{
+        plans: Array<Record<string, unknown>>;
+      }>;
+    });
+    const visiblePlan = sharedPlan.plans.find(
+      (plan) => plan.id === serverPlanId,
+    );
+    expect(visiblePlan).toBeTruthy();
+    expect(visiblePlan).not.toHaveProperty('creator_email');
+    expect(visiblePlan).not.toHaveProperty('invitee_email');
+    const strangerContext = await browser.newContext();
+    try {
+      const strangerPage = await strangerContext.newPage();
+      await loginSynthetic(strangerPage, 7);
+      const hiddenPlans = await strangerPage.evaluate(async () => {
+        const response = await fetch('/api/galaxy/plans');
+        return response.json() as Promise<{ plans: Array<{ id: string }> }>;
+      });
+      expect(hiddenPlans.plans.some((plan) => plan.id === serverPlanId)).toBe(false);
+    } finally {
+      await strangerContext.close();
+    }
+    await page.getByRole('button', { name: 'Galaxy', exact: true }).click();
+    await page.getByRole('tab', { name: 'Plans', exact: true }).click();
+    const creatorCard = page
+      .locator('.galaxy-upcoming-card')
+      .filter({ hasText: planName });
+    await expect(creatorCard).toContainText('Invite sent to');
+    await otherPage
+      .getByRole('button', { name: 'Galaxy', exact: true })
+      .click();
+    await otherPage.getByRole('tab', { name: 'Plans', exact: true }).click();
+    const recipientCard = otherPage
+      .locator('.galaxy-upcoming-card')
+      .filter({ hasText: planName });
+    await expect(recipientCard).toContainText('Invitation from');
+    await recipientCard
+      .getByRole('button', { name: 'Accept', exact: true })
+      .click();
+    await expect(recipientCard.locator('.plan-status')).toContainText(
+      'accepted',
+    );
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(creatorCard.locator('.plan-status')).toContainText('accepted');
+    await creatorCard
+      .getByRole('button', { name: `Cancel ${planName}` })
+      .click();
+    await expect(creatorCard.locator('.plan-status')).toContainText(
+      'cancelled',
+    );
+    await otherPage.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(recipientCard.locator('.plan-status')).toContainText(
+      'cancelled',
+    );
+  } finally {
+    if (serverPlanId)
+      await page
+        .evaluate(
+          (id) =>
+            fetch(`/api/galaxy/plans/${encodeURIComponent(id)}`, {
+              method: 'DELETE',
+            }),
+          serverPlanId,
+        )
+        .catch(() => null);
+    await otherContext.close();
+  }
+});

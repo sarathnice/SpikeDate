@@ -44,8 +44,13 @@ export async function GET(request: Request) {
       );
     const result = await db
       .prepare(
-        'SELECT DISTINCT galaxy_plans.* FROM galaxy_plans ' +
+        'SELECT galaxy_plans.*, creator_profile.display_name AS creator_name, ' +
+          'galaxy_plan_invites.invitee_id, invitee_profile.display_name AS invitee_name, ' +
+          'galaxy_plan_invites.status AS invite_status ' +
+          'FROM galaxy_plans ' +
+          'JOIN profiles creator_profile ON creator_profile.user_id = galaxy_plans.creator_id ' +
           'LEFT JOIN galaxy_plan_invites ON galaxy_plan_invites.plan_id = galaxy_plans.id ' +
+          'LEFT JOIN profiles invitee_profile ON invitee_profile.user_id = galaxy_plan_invites.invitee_id ' +
           'WHERE galaxy_plans.starts_at > ? AND (galaxy_plans.creator_id = ? OR galaxy_plan_invites.invitee_id = ?) ' +
           'ORDER BY galaxy_plans.starts_at ASC',
       )
