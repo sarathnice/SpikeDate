@@ -2,31 +2,70 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import Image from 'next/image';
+import { PresenceStatus } from '@/components/presence-status';
+import { syntheticProfiles } from '@/lib/synthetic-profiles';
+import {
+  LivePresenceProvider,
+  PresencePreferences,
+} from '@/components/live-presence';
+import { tonightWindow } from '@/lib/today-availability';
+import { vibePrompts, vibeSetupSteps } from '@/lib/registration-prompts';
+import {
+  ProfileConnectionFields,
+  ProfileConnectionSummary,
+} from '@/components/profile-connection';
+import {
+  emptyConnection,
+  connectionOptions,
+  type ProfileConnection,
+} from '@/lib/profile-connection';
+import {
+  isAdult,
+  heightToCentimeters,
+  passwordSchema,
+  type SignupDetails,
+} from '@/lib/account-validation';
 import {
   ArrowLeft,
+  ArrowUp,
   AudioLines,
   BadgeCheck,
   Ban,
   Baby,
+  BriefcaseBusiness,
+  Cigarette,
+  Dumbbell,
+  UsersRound,
+  Sprout,
+  HandHeart,
+  Mail,
   Bell,
   Bookmark,
   Camera,
   Check,
+  CheckCheck,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Crown,
   Coffee,
+  Compass,
   Edit3,
+  Eye,
   Flag,
   Footprints,
+  Gamepad2,
+  GraduationCap,
+  Leaf,
+  NotebookPen,
+  PawPrint,
   Heart,
   ImagePlus,
   LockKeyhole,
   LogOut,
   MapPin,
   MessageCircle,
-  MessageCirclePlus,
+  type LucideProps,
   Mic,
   Moon,
   Music2,
@@ -72,6 +111,8 @@ import {
 } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { PhotoCropper, type CroppedPhoto } from '@/components/photo-cropper';
+import { ProfileCamera } from '@/components/profile-camera';
+import { ChatMediaActions } from '@/components/chat-media-actions';
 import {
   PhotoVerificationDialog,
   type PhotoVerificationStatus,
@@ -82,9 +123,17 @@ import {
   voiceDeployment,
 } from '@/lib/voice-config';
 import { initializeMobileRuntime } from '@/lib/mobile-runtime';
+import { DatingGames } from '@/components/dating-games';
+import { AstrologyDiscovery } from '@/components/astrology-discovery';
+import { zodiacFromBirthDate, type ZodiacSign } from '@/lib/astrology';
 
 type Tab = 'Pulse' | 'Galaxy' | 'Likes' | 'Chat' | 'Profile';
-type ThemeName = 'default' | 'aurora' | 'velvet' | 'solar' | 'liquid' | 'lime';
+type ThemeName =
+  | 'default'
+  | 'electric-blue'
+  | 'spring-green'
+  | 'neon-orchid'
+  | 'vermilion';
 type VoiceSchedule = 'off' | 'morning' | 'evening' | 'twice';
 type VoiceMicStatus =
   | 'unknown'
@@ -129,6 +178,18 @@ type DailyAvailability = {
   timezone: string;
 };
 type Profile = {
+  matchDetails?: ProfileConnection;
+  zodiac?: ZodiacSign | null;
+  facts?: {
+    height: string;
+    occupation: string;
+    kids: string;
+    wantsKids: string;
+    smoking: string;
+    drinking: string;
+    education?: string;
+    pets?: string;
+  };
   id?: string;
   name: string;
   age: number;
@@ -141,6 +202,7 @@ type Profile = {
   intent: string;
   tags: string[];
   prompt: string;
+  prompts?: Array<{ prompt: string; answer: string }>;
   height: string;
   ethnicity: string;
   pets: string;
@@ -150,6 +212,7 @@ type Profile = {
   smoking: string;
   verified?: boolean;
   active?: boolean;
+  lastActiveAt?: number | null;
   tonight?: {
     plan: string;
     expiresAt: string;
@@ -165,6 +228,7 @@ type ChatContact = {
   preview: string;
   time: string;
   active?: boolean;
+  lastActiveAt?: number | null;
   unread?: number;
   availability?: DailyAvailability;
 };
@@ -203,17 +267,30 @@ type RegistrationData = {
   socialStyle: string;
   intents: string[];
   relationshipStyle: string;
+  datingPace?: string;
+  communicationPreference?: string;
+  rhythm?: string[];
   loveLanguage: string;
   interests: string[];
   values: string[];
   promptOne: string;
   promptTwo: string;
+  promptOneQuestion?: string;
+  promptTwoQuestion?: string;
   preferredGenders: Gender[];
   minAge: number;
   maxAge: number;
   maxDistance: number;
 };
-type ChatMessage = { id: number | string; text: string; mine: boolean };
+type ChatMessage = {
+  id: number | string;
+  text: string;
+  mine: boolean;
+  deliveredAt?: number | null;
+  readAt?: number | null;
+  mediaKind?: 'photo' | 'voice' | null;
+  mediaDurationMs?: number | null;
+};
 type InteractionKind = 'like' | 'super';
 type NoteTarget = string;
 type Membership = 'free' | 'plus';
@@ -360,6 +437,30 @@ declare global {
   }
 }
 
+function SpikeIntroIcon({ size = 24, className, ...props }: LucideProps) {
+  const dimension = Number(size);
+  return (
+    <span
+      className={`spike-intro-icon ${className ?? ''}`}
+      style={{ width: dimension, height: dimension }}
+      aria-hidden="true"
+    >
+      <MessageCircle size={dimension} {...props} />
+      <Star
+        className="spike-intro-star"
+        size={dimension * 0.34}
+        fill="currentColor"
+        strokeWidth={1.4}
+      />
+      <Plus
+        className="spike-intro-plus"
+        size={dimension * 0.3}
+        strokeWidth={2}
+      />
+    </span>
+  );
+}
+
 function ProfileSpikeBadge({ compact = false }: { compact?: boolean }) {
   return (
     <span
@@ -424,7 +525,7 @@ function ProfileLiftMark({
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      <Rocket size={size} strokeWidth={2.15} />
+      <Rocket size={size} fill="currentColor" strokeWidth={1.7} />
     </span>
   );
 }
@@ -837,6 +938,64 @@ const defaultFilters: Filters = {
   smoking: 'Any',
   wantsKids: 'Any',
 };
+
+function matchesFilters(profile: Profile, filters: Filters) {
+  return (
+    filters.genders.includes(profile.gender) &&
+    profile.age >= filters.minAge &&
+    profile.age <= filters.maxAge &&
+    profile.distanceMiles <= filters.maxDistance &&
+    (filters.intents.length === 0 ||
+      filters.intents.includes(profile.intent)) &&
+    (filters.smoking === 'Any' || profile.smoking === 'No') &&
+    (filters.wantsKids === 'Any' || profile.wantsKids === filters.wantsKids)
+  );
+}
+
+function filtersFromServerPreferences(
+  preferences: Record<string, unknown> | null,
+): Filters | null {
+  if (!preferences) return null;
+  try {
+    const serverGenders = JSON.parse(
+      typeof preferences.genders_json === 'string'
+        ? preferences.genders_json
+        : '[]',
+    ) as string[];
+    const serverGoals = JSON.parse(
+      typeof preferences.relationship_goals_json === 'string'
+        ? preferences.relationship_goals_json
+        : '[]',
+    ) as string[];
+    const genders = serverGenders
+      .map((gender) =>
+        gender.toLowerCase() === 'man'
+          ? 'Man'
+          : gender.toLowerCase() === 'woman'
+            ? 'Woman'
+            : gender.toLowerCase() === 'nonbinary'
+              ? 'Nonbinary'
+              : null,
+      )
+      .filter((gender): gender is Gender => gender !== null);
+    return {
+      ...defaultFilters,
+      genders: genders.length ? genders : ['Woman', 'Man', 'Nonbinary'],
+      minAge: Math.max(18, Math.min(60, Number(preferences.min_age) || 18)),
+      maxAge: Math.max(18, Math.min(60, Number(preferences.max_age) || 60)),
+      maxDistance: Math.max(
+        1,
+        Math.min(
+          50,
+          Math.round((Number(preferences.max_distance_km) || 80) / 1.609344),
+        ),
+      ),
+      intents: serverGoals,
+    };
+  } catch {
+    return null;
+  }
+}
 const relationshipOptions = [
   'Long-term',
   'Marriage',
@@ -852,25 +1011,30 @@ const interestOptions = [
   'Films',
   'Trail days',
   'Coffee',
+  'Indie music',
+  'Pop music',
+  'Jazz',
+  'R&B',
+  'Road trips',
+  'City breaks',
+  'Nature trips',
+  'Beach trips',
 ];
-const valueOptions = [
-  'Kindness',
-  'Curiosity',
-  'Communication',
-  'Family',
-  'Growth',
-  'Humor',
-  'Adventure',
-  'Stability',
-];
+const valueOptions = [...connectionOptions.values];
 const themeLabels: Record<ThemeName, string> = {
   default: 'Midnight',
-  aurora: 'Aurora',
-  velvet: 'Velvet Galaxy',
-  solar: 'Solar Minimal',
-  liquid: 'Liquid Mono',
-  lime: 'Liquid Lime',
+  'electric-blue': 'Electric Blue',
+  'spring-green': 'Spring Green',
+  'neon-orchid': 'Neon Orchid',
+  vermilion: 'Vermilion',
 };
+
+const midnightAccentThemes: ReadonlySet<ThemeName> = new Set([
+  'electric-blue',
+  'spring-green',
+  'neon-orchid',
+  'vermilion',
+]);
 
 const roomData = [
   {
@@ -1207,6 +1371,7 @@ function normalizeVerificationStatus(value: unknown): PhotoVerificationStatus {
     value === 'pending' ||
     value === 'needs_review' ||
     value === 'needs_retry' ||
+    value === 'capture_ready' ||
     value === 'photo_verified' ||
     value === 'identity_verified'
   )
@@ -1231,6 +1396,33 @@ async function serverJson<T>(path: string, init?: RequestInit): Promise<T> {
   return body;
 }
 
+async function serverAccepted(path: string, init: RequestInit): Promise<void> {
+  const headers = new Headers(init.headers);
+  if (init.body && !headers.has('content-type'))
+    headers.set('content-type', 'application/json');
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 20_000);
+  try {
+    const response = await fetch(path, {
+      ...init,
+      credentials: 'include',
+      headers,
+      signal: controller.signal,
+    });
+    void response.body?.cancel().catch(() => undefined);
+    if (!response.ok)
+      throw new Error('SpikeDate could not save that change. Try again.');
+  } catch (error) {
+    if (controller.signal.aborted)
+      throw new Error(
+        'Saving took too long. Your text remains here; please try again.',
+      );
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 function blobToDataUrl(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -1246,12 +1438,6 @@ function blobToDataUrl(blob: Blob) {
 function testUserIdForEmail(email?: string) {
   const match = email?.match(/^test(\d{3})@spikedate\.test$/);
   return match ? `test-${match[1]}` : null;
-}
-
-function heightToCm(value: string) {
-  const match = value.match(/^(\d)'\s*(\d{1,2})/);
-  if (!match) return null;
-  return Math.round((Number(match[1]) * 12 + Number(match[2])) * 2.54);
 }
 
 const todayPrompts = [
@@ -1483,6 +1669,7 @@ export default function HomePage() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteTarget, setNoteTarget] = useState<NoteTarget>('Lifestyle');
   const [noteMessage, setNoteMessage] = useState('');
+  const [noteTodayText, setNoteTodayText] = useState('');
   const [actionProfile, setActionProfile] = useState<Profile>(profiles[0]);
   const [superPulsesRemaining, setSuperPulsesRemaining] = useState(3);
   const [room, setRoom] = useState<string | null>(null);
@@ -1492,8 +1679,12 @@ export default function HomePage() {
   const allowanceOwner = useRef<string | null>(null);
   const boostOwner = useRef<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatLoadSequence = useRef(0);
   const [activeChat, setActiveChat] = useState<ChatContact>(chatContacts[0]);
-  const [contacts, setContacts] = useState<ChatContact[]>(chatContacts);
+  const [contacts, setContacts] = useState<ChatContact[]>(
+    serverDataEnabled ? [] : chatContacts,
+  );
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [safetyProfile, setSafetyProfile] = useState<Profile>(profiles[0]);
   const [safetyMode, setSafetyMode] = useState<'menu' | 'report' | 'block'>(
@@ -1559,9 +1750,10 @@ export default function HomePage() {
   const [boostClock, setBoostClock] = useState(() => Date.now());
   const [themeOpen, setThemeOpen] = useState(false);
   const [verificationOpen, setVerificationOpen] = useState(false);
+  const [registrationCameraCheck, setRegistrationCameraCheck] = useState(false);
   const [verificationStatus, setVerificationStatus] =
     useState<PhotoVerificationStatus>('unverified');
-  const [theme, setTheme] = useState<ThemeName>('default');
+  const [theme, setTheme] = useState<ThemeName>('vermilion');
   const [filterOpen, setFilterOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
   const [planActivity, setPlanActivity] = useState('Coffee');
@@ -1572,22 +1764,37 @@ export default function HomePage() {
   const [composer, setComposer] = useState('');
   const [messagesByContact, setMessagesByContact] =
     useState<Record<string, ChatMessage[]>>(demoChatMessages);
+  const hiddenChatMessages = useRef(new Set<number | string>());
   const [dailyAvailability, setDailyAvailability] =
     useState<DailyAvailability>();
   const [previewCard, setPreviewCard] = useState(false);
+  const [ownAccount, setOwnAccount] = useState<{ email: string; id: string }>();
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [sentLikes, setSentLikes] = useState<Profile[]>([
     profiles.find((profile) => profile.name === 'Noah')!,
   ]);
   const [savedProfileNames, setSavedProfileNames] = useState<string[]>([]);
   const [serverProfiles, setServerProfiles] = useState<Profile[]>([]);
+  const [serverIncomingRows, setServerIncomingRows] = useState<IncomingRow[]>(
+    [],
+  );
   const [ownProfileMedia, setOwnProfileMedia] = useState<MediaItem[]>([]);
   const [declinedIncoming, setDeclinedIncoming] = useState<string[]>([]);
   const [registered, setRegistered] = useState(false);
+  const [serverZodiac, setServerZodiac] = useState<ZodiacSign | null>(null);
   const [selfName, setSelfName] = useState('Alex');
   const [registrationData, setRegistrationData] =
     useState<RegistrationData>(initialRegistration);
   const [interactions, setInteractions] = useState<ProfileInteraction[]>([]);
+  const [outgoingConnections, setOutgoingConnections] = useState<
+    Record<string, 'like' | 'super_spike'>
+  >({});
+  const [sendBusy, setSendBusy] = useState(false);
+  const [serverSentLikes, setServerSentLikes] = useState<
+    { profile: Profile; status: ProfileInteraction['status'] }[]
+  >([]);
+  const sendLock = useRef(false);
+  const pendingSendKeys = useRef(new Map<string, string>());
   const [storedMessages, setStoredMessages] = useState<StoredMessage[]>([]);
   const signedInIdentity = identityForEmail(authEmail);
   const effectiveOwnMedia = ownProfileMedia.length
@@ -1611,6 +1818,7 @@ export default function HomePage() {
       saved === 'pending' ||
       saved === 'needs_review' ||
       saved === 'needs_retry' ||
+      saved === 'capture_ready' ||
       saved === 'photo_verified' ||
       saved === 'identity_verified'
     ) {
@@ -1638,23 +1846,14 @@ export default function HomePage() {
       setDailyAvailability(undefined);
     }
   }, [authEmail]);
-  const profileSource =
-    serverDataEnabled && serverProfiles.length ? serverProfiles : profiles;
-  const filteredProfiles = profileSource
-    .filter(
-      (profile) =>
-        !blockedProfiles.includes(profile.name) &&
-        profile.name !== signedInIdentity?.profile.name &&
-        filters.genders.includes(profile.gender) &&
-        profile.age >= filters.minAge &&
-        profile.age <= filters.maxAge &&
-        profile.distanceMiles <= filters.maxDistance &&
-        (filters.intents.length === 0 ||
-          filters.intents.includes(profile.intent)) &&
-        (filters.smoking === 'Any' || profile.smoking === 'No') &&
-        (filters.wantsKids === 'Any' ||
-          profile.wantsKids === filters.wantsKids),
-    )
+  const profileSource = serverDataEnabled ? serverProfiles : profiles;
+  const availableProfiles = profileSource.filter(
+    (profile) =>
+      !blockedProfiles.includes(profile.name) &&
+      profile.name !== signedInIdentity?.profile.name,
+  );
+  const filteredProfiles = availableProfiles
+    .filter((profile) => matchesFilters(profile, filters))
     .sort((a, b) => {
       const aBoosted = (activeBoosts[testEmails[a.name]] ?? 0) > boostClock;
       const bBoosted = (activeBoosts[testEmails[b.name]] ?? 0) > boostClock;
@@ -1705,34 +1904,37 @@ export default function HomePage() {
     (filters.maxDistance !== 15 ? 1 : 0) +
     (filters.smoking !== 'Any' ? 1 : 0) +
     (filters.wantsKids !== 'Any' ? 1 : 0);
-  const accountIncomingRows: IncomingRow[] = interactions
-    .filter(
-      (interaction) =>
-        interaction.toEmail === authEmail && interaction.status === 'pending',
-    )
-    .sort((a, b) =>
-      a.kind === b.kind
-        ? b.createdAt.localeCompare(a.createdAt)
-        : a.kind === 'super'
-          ? -1
-          : 1,
-    )
-    .flatMap((interaction) => {
-      const sender = identityForEmail(interaction.fromEmail);
-      if (!sender) return [];
-      return [
-        {
-          id: interaction.id,
-          profile: sender.profile,
-          liked:
-            interaction.kind === 'super'
-              ? `Sent you a Spike · ${interaction.target}`
-              : `Liked your ${interaction.target.toLowerCase()}`,
-          note: interaction.note ? `“${interaction.note}”` : '',
-          superPulse: interaction.kind === 'super',
-        },
-      ];
-    });
+  const accountIncomingRows: IncomingRow[] = serverDataEnabled
+    ? serverIncomingRows
+    : interactions
+        .filter(
+          (interaction) =>
+            interaction.toEmail === authEmail &&
+            interaction.status === 'pending',
+        )
+        .sort((a, b) =>
+          a.kind === b.kind
+            ? b.createdAt.localeCompare(a.createdAt)
+            : a.kind === 'super'
+              ? -1
+              : 1,
+        )
+        .flatMap((interaction) => {
+          const sender = identityForEmail(interaction.fromEmail);
+          if (!sender) return [];
+          return [
+            {
+              id: interaction.id,
+              profile: sender.profile,
+              liked:
+                interaction.kind === 'super'
+                  ? `Sent you a Spike · ${interaction.target}`
+                  : `Liked your ${interaction.target.toLowerCase()}`,
+              note: interaction.note ? `“${interaction.note}”` : '',
+              superPulse: interaction.kind === 'super',
+            },
+          ];
+        });
   const accountSentLikes = interactions
     .filter((interaction) => interaction.fromEmail === authEmail)
     .flatMap((interaction) => {
@@ -1751,7 +1953,16 @@ export default function HomePage() {
       .map(({ profile }) => profile),
     ...contacts.flatMap((contact) => {
       const profile = allProfiles.find((item) => item.name === contact.name);
-      return profile ? [profile] : [];
+      return profile
+        ? [
+            {
+              ...profile,
+              id: contact.userId ?? profile.id,
+              active: contact.active,
+              lastActiveAt: contact.lastActiveAt,
+            },
+          ]
+        : [];
     }),
   ].filter(
     (profile, index, list) =>
@@ -1768,7 +1979,8 @@ export default function HomePage() {
     (total, contact) => total + (contact.unread ?? 0),
     0,
   );
-  const incomingLikeCount = signedInIdentity ? accountIncomingRows.length : 3;
+  const incomingLikeCount =
+    serverDataEnabled || signedInIdentity ? accountIncomingRows.length : 3;
   const sentThisWeek = signedInIdentity
     ? accountSentLikes.length
     : sentLikes.length;
@@ -1871,13 +2083,11 @@ export default function HomePage() {
   const saveDailyAvailability = async (next: DailyAvailability) => {
     try {
       if (serverDataEnabled) {
-        const result = await serverJson<{
-          availability: DailyAvailability;
-        }>('/api/availability', {
+        await serverAccepted('/api/availability', {
           method: 'PUT',
           body: JSON.stringify(next),
         });
-        setDailyAvailability(result.availability);
+        setDailyAvailability(next);
       } else {
         window.localStorage.setItem(
           `spikedate-daily-availability:${authEmail}`,
@@ -1895,7 +2105,7 @@ export default function HomePage() {
   const clearDailyAvailability = async () => {
     try {
       if (serverDataEnabled) {
-        await serverJson('/api/availability', { method: 'DELETE' });
+        await serverAccepted('/api/availability', { method: 'DELETE' });
       } else {
         window.localStorage.removeItem(
           `spikedate-daily-availability:${authEmail}`,
@@ -2033,13 +2243,14 @@ export default function HomePage() {
     setViewedDailyStory(null);
     openNote(profile);
     setNoteTarget(`Today · ${story.prompt}`);
+    setNoteTodayText(story.caption);
   };
 
   const likeDailyStory = (story: DailyStory) => {
     const profile = identityForEmail(story.authorEmail)?.profile;
     if (!profile) return;
     setViewedDailyStory(null);
-    completeLike(profile);
+    void completeLike(profile);
   };
 
   const replyToDailyStory = (story: DailyStory, message: string) => {
@@ -2056,8 +2267,10 @@ export default function HomePage() {
     );
     setViewedDailyStory(null);
     if (!contact) {
-      recordInteraction(profile, 'like', text, 'Today post');
-      announce(`Introduction sent to ${profile.name} with their Today post`);
+      openNote(profile);
+      setNoteMessage(text);
+      setNoteTarget('Today post');
+      setNoteTodayText(story.caption);
       return;
     }
     const stored: StoredMessage = {
@@ -2117,121 +2330,231 @@ export default function HomePage() {
     });
   };
 
-  const recordInteraction = (
+  const connectionState = (profile: Profile) => {
+    const recipient = identityForProfile(profile);
+    const id = profile.id ?? testUserIdForEmail(recipient?.email);
+    if (serverDataEnabled) return id ? outgoingConnections[id] : undefined;
+    const prior = interactions.find(
+      (item) =>
+        item.fromEmail === authEmail && item.toEmail === recipient?.email,
+    );
+    return prior?.kind === 'super' ? 'super_spike' : prior ? 'like' : undefined;
+  };
+
+  const recordInteraction = async (
     profile: Profile,
     kind: InteractionKind,
     note: string,
     target: string,
-  ) => {
+    upgrade = false,
+  ): Promise<'sent' | 'duplicate' | 'matched' | 'failed'> => {
+    if (!authEmail || sendLock.current) return 'failed';
     const recipient = identityForProfile(profile);
-    if (!authEmail) return false;
-    if (!serverDataEnabled && (!signedInIdentity || !recipient)) return false;
-    if (recipient)
-      saveInteractions((current) => [
-        ...current.filter(
-          (item) =>
-            !(item.fromEmail === authEmail && item.toEmail === recipient.email),
-        ),
-        {
-          id: `${Date.now()}-${authEmail}-${recipient.email}`,
-          fromEmail: authEmail,
-          toEmail: recipient.email,
-          kind,
-          target,
-          note: note.trim(),
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-        },
-      ]);
     const targetUserId = profile.id ?? testUserIdForEmail(recipient?.email);
-    if (targetUserId)
-      mirrorToServer(() =>
-        serverJson('/api/interactions', {
+    const already = connectionState(profile);
+    if (
+      contacts.some(
+        (item) =>
+          (recipient && item.email === recipient.email) ||
+          (profile.id && item.userId === profile.id) ||
+          (!serverDataEnabled && item.name === profile.name),
+      )
+    ) {
+      setProfileOpen(false);
+      openChatWith('', profile);
+      return 'matched';
+    }
+    if (already === 'super_spike' || (already === 'like' && kind === 'like')) {
+      announce(
+        already === 'super_spike'
+          ? 'Spike already sent — no allowance used'
+          : 'Already liked — no allowance used',
+      );
+      return 'duplicate';
+    }
+    if (kind === 'super' && already === 'like' && !upgrade) {
+      announce('Confirm the upgrade to use 1 Spike');
+      return 'failed';
+    }
+    sendLock.current = true;
+    setSendBusy(true);
+    const key = `${authEmail}:${targetUserId ?? recipient?.email}:${kind}`;
+    const requestKey = pendingSendKeys.current.get(key) ?? crypto.randomUUID();
+    pendingSendKeys.current.set(key, requestKey);
+    try {
+      if (serverDataEnabled) {
+        if (!targetUserId) throw new Error('This profile is unavailable.');
+        const result = await serverJson<{
+          interaction?: { kind: 'like' | 'super_spike' };
+          duplicate?: boolean;
+          match?: { id: string } | null;
+          superSpikesRemaining?: number;
+        }>('/api/interactions', {
           method: 'POST',
           body: JSON.stringify({
             targetUserId,
             kind: kind === 'super' ? 'super_spike' : 'like',
-            note: note.trim() || undefined,
+            note: kind === 'super' ? note.trim() || undefined : undefined,
             targetType: target.startsWith('Today')
               ? 'daily_update'
               : target.toLowerCase().includes('photo')
                 ? 'photo'
-                : 'prompt',
+                : target.startsWith('Interest ·')
+                  ? 'profile'
+                  : 'prompt',
             targetRef: target,
-            idempotencyKey: crypto.randomUUID(),
+            idempotencyKey: requestKey,
+            upgrade,
           }),
-        }),
+        });
+        if (typeof result.superSpikesRemaining === 'number')
+          setSuperPulsesRemaining(result.superSpikesRemaining);
+        if (result.interaction)
+          setOutgoingConnections((items) => ({
+            ...items,
+            [targetUserId]: result.interaction!.kind,
+          }));
+        if (!result.duplicate && kind === 'like' && membership === 'free')
+          setDailyLikesRemaining((count) => Math.max(0, count - 1));
+        if (result.match) {
+          pendingSendKeys.current.delete(key);
+          setProfileOpen(false);
+          openChatWith('', profile);
+          return 'matched';
+        }
+        if (result.duplicate) {
+          pendingSendKeys.current.delete(key);
+          announce(
+            result.interaction?.kind === 'super_spike'
+              ? 'Spike already sent — no allowance used'
+              : 'Already liked — no allowance used',
+          );
+          return 'duplicate';
+        }
+      } else {
+        if (kind === 'super' && superPulsesRemaining <= 0)
+          throw new Error('No Spikes remaining this week');
+        if (kind === 'super')
+          setSuperPulsesRemaining((count) => Math.max(0, count - 1));
+      }
+      if (!serverDataEnabled && kind === 'like' && membership === 'free')
+        setDailyLikesRemaining((count) => Math.max(0, count - 1));
+      if (recipient)
+        saveInteractions((items) => [
+          ...items.filter(
+            (item) =>
+              !(
+                item.fromEmail === authEmail && item.toEmail === recipient.email
+              ),
+          ),
+          {
+            id: requestKey,
+            fromEmail: authEmail,
+            toEmail: recipient.email,
+            kind,
+            target,
+            note: kind === 'super' ? note.trim() : '',
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+      setSentLikes((items) =>
+        items.some(
+          (item) => item.id === profile.id && item.name === profile.name,
+        )
+          ? items
+          : [...items, profile],
       );
-    return true;
+      pendingSendKeys.current.delete(key);
+      announce(
+        `${kind === 'super' ? 'Spike' : 'Like'} sent to ${profile.name}`,
+      );
+      return 'sent';
+    } catch (error) {
+      // Retain this request ID: retrying an uncertain response must not debit again.
+      announce(
+        `${(error as Error).message} — could not confirm sending. Check You liked or retry safely.`,
+      );
+      return 'failed';
+    } finally {
+      sendLock.current = false;
+      setSendBusy(false);
+    }
   };
 
-  const completeLike = (
+  const completeLike = async (
     profile = actionProfile,
-    voiceNote?: { message: string; target: string },
+    _voiceNote?: { message: string; target: string },
   ) => {
-    const actionMessage = voiceNote?.message ?? noteMessage;
-    const actionTarget = voiceNote?.target ?? noteTarget;
-    const recipient = identityForProfile(profile);
-    const alreadySent = recipient
-      ? interactions.some(
-          (item) =>
-            item.fromEmail === authEmail && item.toEmail === recipient.email,
-        )
-      : sentLikes.some((item) => item.name === profile.name);
-    if (membership === 'free' && dailyLikesRemaining <= 0 && !alreadySent) {
+    const already = connectionState(profile);
+    const matched = contacts.some(
+      (item) =>
+        (profile.id && item.userId === profile.id) ||
+        (identityForProfile(profile)?.email &&
+          item.email === identityForProfile(profile)?.email) ||
+        (!serverDataEnabled && item.name === profile.name),
+    );
+    if (
+      membership === 'free' &&
+      dailyLikesRemaining <= 0 &&
+      !already &&
+      !matched
+    ) {
       setNoteOpen(false);
       setSubscriptionOpen(true);
       announce('Daily Likes used — SpikeDate+ keeps Likes unlimited');
       return;
     }
-    setProfileOpen(false);
-    setSentLikes((items) =>
-      items.some((item) => item.name === profile.name)
-        ? items
-        : [...items, profile],
-    );
-    if (membership === 'free' && !alreadySent)
-      setDailyLikesRemaining((remaining) => Math.max(0, remaining - 1));
-    if (recordInteraction(profile, 'like', actionMessage, actionTarget)) {
-      announce(`Like sent to ${profile.name} — they’ll see it in Likes`);
-      nextProfile();
-    } else if (profile.name === 'Maya') {
-      setMatchProfile(profile);
-      setMatchOpen(true);
-    } else {
-      announce(`Like sent to ${profile.name} — track it in You liked`);
-      nextProfile();
-    }
+    const outcome = await recordInteraction(profile, 'like', '', 'Profile');
+    if (outcome === 'sent' || outcome === 'duplicate') nextProfile();
   };
 
   const openNote = (profile = current) => {
+    if (
+      contacts.some(
+        (item) =>
+          (identityForProfile(profile)?.email &&
+            item.email === identityForProfile(profile)?.email) ||
+          (profile.id && item.userId === profile.id) ||
+          (!serverDataEnabled && item.name === profile.name),
+      )
+    ) {
+      setProfileOpen(false);
+      openChatWith('', profile);
+      return;
+    }
     setEngagementNudge(null);
     setProfileOpen(false);
     setActionProfile(profile);
-    setNoteTarget(profile.tags[0]);
+    setNoteTarget(
+      profile.prompts?.[0]?.answer?.trim() || profile.prompt?.trim()
+        ? 'Prompt'
+        : 'Photo 1',
+    );
     setNoteMessage('');
+    setNoteTodayText('');
     setNoteOpen(true);
   };
 
-  const sendNoteAction = () => {
-    if (superPulsesRemaining <= 0) {
+  const sendNoteAction = async () => {
+    const already = connectionState(actionProfile);
+    if (superPulsesRemaining <= 0 && already !== 'super_spike') {
       announce('No Spikes remaining this week');
       setNoteOpen(false);
       setSubscriptionOpen(true);
       return;
     }
-    recordInteraction(actionProfile, 'super', noteMessage, noteTarget);
-    setSentLikes((items) =>
-      items.some((item) => item.name === actionProfile.name)
-        ? items
-        : [...items, actionProfile],
+    const outcome = await recordInteraction(
+      actionProfile,
+      'super',
+      noteMessage,
+      noteTarget,
+      already === 'like',
     );
-    setSuperPulsesRemaining((count) => Math.max(0, count - 1));
-    setNoteOpen(false);
-    announce(
-      `Spike sent to ${actionProfile.name}${noteMessage.trim() ? ` with a note on ${noteTarget}` : ''} — your introduction is at the top of their Likes`,
-    );
-    nextProfile();
+    if (outcome === 'sent' || outcome === 'duplicate') {
+      setNoteOpen(false);
+      nextProfile();
+    } else if (outcome === 'matched') setNoteOpen(false);
   };
 
   const openFullProfile = (profile: Profile) => {
@@ -2449,13 +2772,26 @@ export default function HomePage() {
 
   const openChatWith = (text = '', profile = matchProfile) => {
     setMatchOpen(false);
+    const existingContact = contacts.find(
+      (item) =>
+        (profile.id && item.userId === profile.id) ||
+        (identityForProfile(profile)?.email &&
+          item.email === identityForProfile(profile)?.email) ||
+        (!serverDataEnabled && item.name === profile.name),
+    );
     const contact = {
+      ...existingContact,
       name: profile.name,
+      userId: profile.id ?? existingContact?.userId,
       image: profile.image,
       email: identityForProfile(profile)?.email,
       preview: text || 'You matched today',
       time: 'Now',
-      active: true,
+      active: profile.active ?? existingContact?.active ?? false,
+      lastActiveAt:
+        profile.lastActiveAt !== undefined
+          ? profile.lastActiveAt
+          : existingContact?.lastActiveAt,
       unread: 0,
     };
     setActiveChat(contact);
@@ -2474,7 +2810,13 @@ export default function HomePage() {
     setChatOpen(true);
   };
 
-  const likeBack = (profile: Profile, interactionId?: string) => {
+  const likeBack = async (profile: Profile, interactionId?: string) => {
+    const outcome = await recordInteraction(profile, 'like', '', 'Profile');
+    if (outcome === 'failed') return;
+    setServerIncomingRows((rows) =>
+      rows.filter((row) => row.id !== interactionId),
+    );
+    if (outcome === 'matched') return;
     if (interactionId)
       saveInteractions((current) =>
         current.map((item) =>
@@ -2488,17 +2830,24 @@ export default function HomePage() {
   const sendMessage = (preset?: string) => {
     const text = (preset ?? composer).trim();
     if (!text) return;
+    const draftId = Date.now();
+    const recipientName = activeChat.name;
     setMessagesByContact((items) => ({
       ...items,
       [activeChat.name]: [
         ...(items[activeChat.name] ?? []),
-        { id: Date.now(), text, mine: true },
+        { id: draftId, text, mine: true },
       ],
     }));
     setContacts((items) =>
       items.map((item) =>
         item.name === activeChat.name
-          ? { ...item, preview: text, time: 'Now', unread: 0 }
+          ? {
+              ...item,
+              preview: text,
+              time: 'Now',
+              unread: serverDataEnabled ? item.unread : 0,
+            }
           : item,
       ),
     );
@@ -2530,12 +2879,93 @@ export default function HomePage() {
       }
       if (!conversationId)
         throw new Error('Match before starting a conversation.');
-      await serverJson(`/api/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({ body: text, clientId: crypto.randomUUID() }),
-      });
+      const saved = await serverJson<{ message: { id: string } }>(
+        `/api/conversations/${conversationId}/messages`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ body: text, clientId: crypto.randomUUID() }),
+        },
+      );
+      if (hiddenChatMessages.current.has(draftId))
+        hiddenChatMessages.current.add(saved.message.id);
+      setMessagesByContact((items) => ({
+        ...items,
+        [recipientName]: (items[recipientName] ?? []).map((message) =>
+          message.id === draftId
+            ? { ...message, id: saved.message.id }
+            : message,
+        ),
+      }));
     }, 'Message kept on this device but could not be delivered.');
     setComposer('');
+  };
+
+  const sendChatAttachment = async (
+    file: Blob,
+    kind: 'photo' | 'voice',
+    durationMs?: number,
+    clientId?: string,
+  ) => {
+    if (!serverDataEnabled)
+      throw new Error('Photo and voice messages need a connected account.');
+    const contact = activeChat;
+    let conversationId = contact.conversationId;
+    if (!conversationId) {
+      const targetUserId = contact.userId ?? testUserIdForEmail(contact.email);
+      const result = await serverJson<{
+        conversations: Array<{ id: string; other_user_id: string }>;
+      }>('/api/conversations');
+      conversationId = result.conversations.find(
+        (item) => item.other_user_id === targetUserId,
+      )?.id;
+    }
+    if (!conversationId) throw new Error('Match before starting a conversation.');
+    const result = await serverJson<{
+      message: {
+        id: string;
+        body: string;
+        deliveredAt: number | null;
+        mediaDurationMs: number | null;
+      };
+    }>(`/api/conversations/${conversationId}/attachments`, {
+      method: 'POST',
+      headers: {
+        'content-type': file.type,
+        'x-spikedate-kind': kind,
+        'x-spikedate-client-id': clientId || crypto.randomUUID(),
+        ...(kind === 'voice'
+          ? { 'x-spikedate-duration-ms': String(durationMs ?? 0) }
+          : {}),
+      },
+      body: file,
+    });
+    const message: ChatMessage = {
+      id: result.message.id,
+      text: result.message.body,
+      mine: true,
+      deliveredAt: result.message.deliveredAt,
+      mediaKind: kind,
+      mediaDurationMs: result.message.mediaDurationMs,
+    };
+    setMessagesByContact((items) => ({
+      ...items,
+      [contact.name]: (items[contact.name] ?? []).some(
+        (entry) => entry.id === message.id,
+      )
+        ? (items[contact.name] ?? [])
+        : [...(items[contact.name] ?? []), message],
+    }));
+    setContacts((items) =>
+      items.map((item) =>
+        item.name === contact.name
+          ? {
+              ...item,
+              preview: kind === 'photo' ? 'Photo' : 'Voice message',
+              time: 'Now',
+            }
+          : item,
+      ),
+    );
   };
 
   const openPlanBuilder = (activity: string) => {
@@ -2854,13 +3284,20 @@ export default function HomePage() {
   };
 
   const openExistingChat = async (contact: ChatContact) => {
-    setActiveChat({ ...contact, unread: 0 });
+    const sequence = ++chatLoadSequence.current;
+    setChatLoading(Boolean(serverDataEnabled && contact.conversationId));
+    setActiveChat({
+      ...contact,
+      unread: serverDataEnabled ? contact.unread : 0,
+    });
     setContacts((items) =>
       items.map((item) =>
-        item.name === contact.name ? { ...item, unread: 0 } : item,
+        item.name === contact.name && !serverDataEnabled
+          ? { ...item, unread: 0 }
+          : item,
       ),
     );
-    if (authEmail && contact.email) {
+    if (!serverDataEnabled && authEmail && contact.email) {
       setStoredMessages((items) => {
         const readAt = new Date().toISOString();
         const next = items.map((message) =>
@@ -2882,21 +3319,223 @@ export default function HomePage() {
             id: string;
             sender_id: string;
             body: string;
+            delivered_at: number | null;
+            read_at: number | null;
+            media_kind: 'photo' | 'voice' | null;
+            media_duration_ms: number | null;
           }>;
         }>(`/api/conversations/${contact.conversationId}/messages`);
+        if (sequence !== chatLoadSequence.current) return;
         setMessagesByContact((items) => ({
           ...items,
-          [contact.name]: result.messages.map((message) => ({
-            id: message.id,
-            text: message.body,
-            mine: message.sender_id !== contact.userId,
-          })),
+          [contact.name]: result.messages
+            .filter((message) => !hiddenChatMessages.current.has(message.id))
+            .map((message) => ({
+              id: message.id,
+              text: message.body,
+              mine: message.sender_id !== contact.userId,
+              deliveredAt: message.delivered_at,
+              readAt: message.read_at,
+              mediaKind: message.media_kind,
+              mediaDurationMs: message.media_duration_ms,
+            })),
         }));
+        const receivedIds = result.messages
+          .filter(
+            (message) =>
+              message.sender_id === contact.userId && !message.delivered_at,
+          )
+          .map((message) => message.id)
+          .slice(0, 80);
+        if (receivedIds.length)
+          void serverJson(`/api/conversations/${contact.conversationId}/messages`, {
+            method: 'PATCH',
+            body: JSON.stringify({ deliveredIds: receivedIds }),
+          }).catch(() => {});
       } catch {
         announce('Messages are temporarily unavailable.');
+      } finally {
+        if (sequence === chatLoadSequence.current) setChatLoading(false);
       }
     }
   };
+
+  useEffect(() => {
+    if (
+      !serverDataEnabled ||
+      !chatOpen ||
+      tab !== 'Chat' ||
+      !activeChat.conversationId ||
+      chatLoading
+    )
+      return;
+    let cancelled = false;
+    let busy = false;
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible' || busy) return;
+      busy = true;
+      try {
+        const result = await serverJson<{
+          messages: Array<{
+            id: string;
+            sender_id: string;
+            body: string;
+            delivered_at: number | null;
+            read_at: number | null;
+            media_kind: 'photo' | 'voice' | null;
+            media_duration_ms: number | null;
+          }>;
+        }>(`/api/conversations/${activeChat.conversationId}/messages`);
+        if (!cancelled)
+          setMessagesByContact((items) => ({
+            ...items,
+            [activeChat.name]: [
+              ...result.messages
+                .filter(
+                  (message) => !hiddenChatMessages.current.has(message.id),
+                )
+                .map((message) => ({
+                  id: message.id,
+                  text: message.body,
+                  mine: message.sender_id !== activeChat.userId,
+                  deliveredAt: message.delivered_at,
+                  readAt: message.read_at,
+                  mediaKind: message.media_kind,
+                  mediaDurationMs: message.media_duration_ms,
+                })),
+              ...(items[activeChat.name] ?? []).filter(
+                (message) => typeof message.id === 'number',
+              ),
+            ],
+          }));
+        const receivedIds = result.messages
+          .filter(
+            (message) =>
+              message.sender_id === activeChat.userId && !message.delivered_at,
+          )
+          .map((message) => message.id)
+          .slice(0, 80);
+        if (receivedIds.length)
+          await serverJson(
+            `/api/conversations/${activeChat.conversationId}/messages`,
+            {
+              method: 'PATCH',
+              body: JSON.stringify({ deliveredIds: receivedIds }),
+            },
+          );
+      } catch {
+        /* Keep existing history when the network is unavailable. */
+      } finally {
+        busy = false;
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), 5000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [
+    chatOpen,
+    tab,
+    activeChat.conversationId,
+    activeChat.name,
+    activeChat.userId,
+    chatLoading,
+  ]);
+
+  const acknowledgeVisibleMessages = async (ids: string[]) => {
+    if (!serverDataEnabled || !activeChat.conversationId) return;
+    const name = activeChat.name;
+    const result = await serverJson<{
+      messages: Array<{
+        id: string;
+        delivered_at: number | null;
+        read_at: number | null;
+      }>;
+    }>(`/api/conversations/${activeChat.conversationId}/messages`, {
+      method: 'PATCH',
+      body: JSON.stringify({ messageIds: ids }),
+    });
+    const receipts = new Map(
+      result.messages.map((message) => [message.id, message]),
+    );
+    setMessagesByContact((items) => ({
+      ...items,
+      [name]: (items[name] ?? []).map((message) =>
+        receipts.has(String(message.id))
+          ? {
+              ...message,
+              readAt: receipts.get(String(message.id))?.read_at,
+              deliveredAt: receipts.get(String(message.id))?.delivered_at,
+            }
+          : message,
+      ),
+    }));
+    const counts = await serverJson<{
+      conversations: Array<{ id: string; unread_count: number }>;
+    }>('/api/conversations');
+    setContacts((items) =>
+      items.map((item) => {
+        const conversation = counts.conversations.find(
+          (entry) => entry.id === item.conversationId,
+        );
+        return conversation
+          ? { ...item, unread: Number(conversation.unread_count) }
+          : item;
+      }),
+    );
+  };
+
+  useEffect(() => {
+    if (!serverDataEnabled || !authEmail) return;
+    let cancelled = false;
+    let busy = false;
+    const refresh = async () => {
+      if (busy || document.visibilityState !== 'visible') return;
+      busy = true;
+      try {
+        const result = await serverJson<{
+          conversations: Array<{
+            id: string;
+            unread_count: number;
+            preview?: string | null;
+          }>;
+        }>('/api/conversations');
+        if (!cancelled)
+          setContacts((items) =>
+            items.map((item) => {
+              const conversation = result.conversations.find(
+                (entry) => entry.id === item.conversationId,
+              );
+              return conversation
+                ? {
+                    ...item,
+                    unread: Number(conversation.unread_count),
+                    preview: conversation.preview ?? item.preview,
+                  }
+                : item;
+            }),
+          );
+      } catch {
+        /* Keep the last known inbox counts while offline. */
+      } finally {
+        busy = false;
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(
+      () => void refresh(),
+      tab === 'Chat' ? 5000 : 15000,
+    );
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [authEmail, tab]);
 
   const shareProfile = async (profile: Profile) => {
     const shareData = {
@@ -3093,10 +3732,89 @@ export default function HomePage() {
     announce(media.type === 'video' ? 'Video removed' : 'Photo removed');
   };
 
-  const completeRegistration = (data: RegistrationData) => {
+  const completeRegistration = async (data: RegistrationData) => {
+    const newRegistration = !registered || registrationCameraCheck;
+    // Do not close setup or start the camera until the server has saved it.
+    if (serverDataEnabled)
+      await (async () => {
+        await serverJson('/api/profile', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            section: 'profile',
+            data: {
+              displayName: data.name,
+              birthDate: data.birthday,
+              gender: data.gender,
+              bio: data.bio,
+              pronouns: data.pronouns || null,
+              occupation: data.occupation || null,
+              education: data.education || null,
+              heightCm: heightToCentimeters(data.height),
+              ethnicity: data.ethnicity || null,
+              relationshipGoal: data.intents[0] || 'Dating',
+              kids: data.kids || null,
+              wantsKids: data.wantsKids || null,
+              drinking: data.drinking || null,
+              smoking: data.smoking || null,
+              pets: data.pets || null,
+              city: data.city || null,
+              country: 'US',
+              discoverable: true,
+            },
+          }),
+        });
+        await serverJson('/api/profile', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            section: 'preferences',
+            data: {
+              genders: data.preferredGenders,
+              minAge: data.minAge,
+              maxAge: data.maxAge,
+              maxDistanceKm: data.maxDistance,
+              relationshipGoals: data.intents,
+              dealbreakers: [],
+            },
+          }),
+        });
+        await serverJson('/api/profile', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            section: 'prompts',
+            data: [
+              {
+                prompt: data.promptOneQuestion || 'My ideal Sunday…',
+                answer: data.promptOne,
+              },
+              {
+                prompt:
+                  data.promptTwoQuestion || 'The quickest way to my heart…',
+                answer: data.promptTwo,
+              },
+            ].filter((item) => item.answer.trim().length >= 2),
+          }),
+        });
+        await serverJson('/api/profile', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            section: 'interests',
+            data: data.interests.slice(0, 20),
+          }),
+        });
+        await serverJson('/api/profile', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            section: 'connection',
+            data: connectionForRegistration(data),
+          }),
+        });
+      })();
     setSelfName(data.name || 'Alex');
     setRegistered(true);
-    setRegistrationData(data);
+    setRegistrationData({
+      ...data,
+      zodiac: zodiacFromBirthDate(data.birthday) ?? '',
+    });
     setFilters((value) => ({
       ...value,
       genders: data.preferredGenders,
@@ -3110,66 +3828,16 @@ export default function HomePage() {
         `pulse-registration:${authEmail}`,
         JSON.stringify(data),
       );
-    mirrorToServer(async () => {
-      await serverJson('/api/profile', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          section: 'profile',
-          data: {
-            displayName: data.name,
-            bio: data.bio,
-            pronouns: data.pronouns || null,
-            occupation: data.occupation || null,
-            education: data.education || null,
-            heightCm: heightToCm(data.height),
-            ethnicity: data.ethnicity || null,
-            relationshipGoal: data.intents[0] || 'Dating',
-            kids: data.kids || null,
-            wantsKids: data.wantsKids || null,
-            drinking: data.drinking || null,
-            smoking: data.smoking || null,
-            pets: data.pets || null,
-            city: data.city || null,
-            country: 'US',
-            discoverable: true,
-          },
-        }),
-      });
-      await serverJson('/api/profile', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          section: 'preferences',
-          data: {
-            genders: data.preferredGenders,
-            minAge: data.minAge,
-            maxAge: data.maxAge,
-            maxDistanceKm: data.maxDistance,
-            relationshipGoals: data.intents,
-            dealbreakers: [],
-          },
-        }),
-      });
-      await serverJson('/api/profile', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          section: 'prompts',
-          data: [
-            { prompt: 'A little more about me', answer: data.promptOne },
-            { prompt: 'Ask me about', answer: data.promptTwo },
-          ].filter((item) => item.answer.trim().length >= 2),
-        }),
-      });
-      await serverJson('/api/profile', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          section: 'interests',
-          data: [...data.interests, ...data.values].slice(0, 20),
-        }),
-      });
-    }, 'Profile saved on this device but could not sync yet.');
     setRegistrationOpen(false);
     setProfileIndex(0);
-    announce('Profile registered — you’re ready to be discovered');
+    if (newRegistration) {
+      setRegistrationCameraCheck(true);
+      setVerificationStatus('unverified');
+      setVerificationOpen(true);
+      announce(
+        'Profile saved. Next, capture your face; your profile stays private until verified.',
+      );
+    } else announce('Profile updated');
   };
 
   const handleTab = (value: Tab) => {
@@ -3510,7 +4178,7 @@ export default function HomePage() {
         setPendingVoiceAction(null);
         if (action.kind === 'like') {
           setVoiceOpen(false);
-          completeLike(action.profile, {
+          void completeLike(action.profile, {
             message: '',
             target: action.profile.tags[0] ?? 'Photo 1',
           });
@@ -3518,26 +4186,11 @@ export default function HomePage() {
           return;
         }
         if (action.kind === 'super') {
-          if (superPulsesRemaining <= 0) {
-            speakVoiceResponse('You have no Spikes remaining this week.');
-            return;
-          }
-          recordInteraction(
-            action.profile,
-            'super',
-            '',
-            action.profile.tags[0] ?? 'Photo 1',
-          );
-          setSentLikes((items) =>
-            items.some((item) => item.name === action.profile.name)
-              ? items
-              : [...items, action.profile],
-          );
-          setSuperPulsesRemaining((count) => Math.max(0, count - 1));
           setVoiceOpen(false);
-          nextProfile();
-          announce(`Spike sent to ${action.profile.name}`);
-          speakVoiceResponse(`Spike sent to ${action.profile.name}.`);
+          openNote(action.profile);
+          speakVoiceResponse(
+            'Review your Spike before sending. An upgrade uses 1 Spike.',
+          );
           return;
         }
         if (action.kind === 'boost') {
@@ -3849,6 +4502,14 @@ export default function HomePage() {
   };
 
   const openRegistrationAt = (step: number, singleSection = true) => {
+    if (!singleSection && authEmail) {
+      try {
+        if (localStorage.getItem(`spikedate-setup-draft:${authEmail}`))
+          setRegistrationCameraCheck(true);
+      } catch {
+        /* Unavailable local storage does not block the editor. */
+      }
+    }
     setRegistrationStep(step);
     setRegistrationSingleSection(singleSection);
     setRegistrationOpen(true);
@@ -3939,8 +4600,17 @@ export default function HomePage() {
   const createAccount = async (
     email: string,
     password: string,
+    details: SignupDetails,
     phoneVerificationToken?: string,
   ) => {
+    if (!isAdult(details.birthDate))
+      return 'You must be at least 18 to use SpikeDate.';
+    if (!['Woman', 'Man', 'Nonbinary'].includes(details.gender))
+      return 'Choose your gender.';
+    if (!details.termsAccepted)
+      return 'Accept the terms and privacy policy to continue.';
+    if (!passwordSchema.safeParse(password).success)
+      return 'Use 12–128 characters with uppercase, lowercase, and a number.';
     const normalized = email.trim().toLowerCase();
     if (serverDataEnabled) {
       try {
@@ -3949,11 +4619,11 @@ export default function HomePage() {
           body: JSON.stringify({
             email: normalized,
             password,
-            birthDate: '1990-01-01',
+            birthDate: details.birthDate,
             displayName: 'New member',
-            gender: 'Prefer not to say',
+            gender: details.gender,
             relationshipGoal: 'Dating',
-            termsAccepted: true,
+            termsAccepted: details.termsAccepted,
             phoneVerificationToken,
           }),
         });
@@ -3989,13 +4659,36 @@ export default function HomePage() {
     setAuthEmail(normalized);
     setProfileIndex(0);
     setRegistered(false);
-    setSelfName('Alex');
-    setRegistrationData(initialRegistration);
+    setSelfName('New member');
+    setRegistrationData({
+      ...initialRegistration,
+      name: '',
+      birthday: details.birthDate,
+      gender: details.gender as Gender,
+      city: '',
+      pronouns: '',
+      height: '',
+      ethnicity: '',
+      pets: '',
+      kids: '',
+      wantsKids: '',
+      drinking: '',
+      smoking: '',
+      intents: [],
+      interests: [],
+      promptOne: '',
+      promptTwo: '',
+      preferredGenders: [],
+    });
+    setRegistrationStep(0);
+    setRegistrationSingleSection(false);
+    setRegistrationCameraCheck(true);
     setRegistrationOpen(true);
     return null;
   };
 
   const logout = () => {
+    setRegistrationCameraCheck(false);
     if (serverDataEnabled)
       void serverJson('/api/auth/logout', { method: 'POST' }).catch(() => {});
     window.localStorage.removeItem('pulse-session');
@@ -4019,15 +4712,11 @@ export default function HomePage() {
 
   useEffect(() => {
     const saved = window.localStorage.getItem('pulse-theme');
-    if (
-      saved === 'default' ||
-      saved === 'aurora' ||
-      saved === 'velvet' ||
-      saved === 'solar' ||
-      saved === 'liquid' ||
-      saved === 'lime'
-    )
-      setTheme(saved);
+    if (saved && themeChoices.some((choice) => choice.id === saved)) {
+      setTheme(saved as ThemeName);
+    } else if (saved) {
+      window.localStorage.setItem('pulse-theme', 'vermilion');
+    }
   }, []);
 
   useEffect(() => {
@@ -4051,6 +4740,44 @@ export default function HomePage() {
   }, [authEmail]);
 
   useEffect(() => {
+    if (!serverDataEnabled || !authEmail || tab !== 'Chat') return;
+    let cancelled = false;
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const data = await serverJson<{
+          conversations: Array<{
+            other_user_id: string;
+            active: boolean;
+            lastActiveAt: number | null;
+          }>;
+        }>('/api/conversations');
+        if (cancelled) return;
+        const update = (contact: ChatContact) => {
+          const row = data.conversations.find(
+            (item) => item.other_user_id === contact.userId,
+          );
+          return row
+            ? { ...contact, active: row.active, lastActiveAt: row.lastActiveAt }
+            : { ...contact, active: false, lastActiveAt: null };
+        };
+        setContacts((current) => current.map(update));
+        setActiveChat((current) => (current ? update(current) : current));
+      } catch {
+        // Keep the last timestamp; the presence component still expires it.
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 60_000);
+    window.addEventListener('focus', refresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [authEmail, tab]);
+
+  useEffect(() => {
     if (!serverDataEnabled || !authEmail) {
       setServerProfiles([]);
       setOwnProfileMedia([]);
@@ -4059,7 +4786,12 @@ export default function HomePage() {
     let cancelled = false;
     void Promise.all([
       serverJson<{
+        zodiac: ZodiacSign | null;
+        connection?: ProfileConnection;
+        birthDate: string | null;
         profile: Record<string, unknown> | null;
+        prompts: Array<{ prompt: string; answer: string }>;
+        interests: Array<{ label: string }>;
         preferences: Record<string, unknown> | null;
         media: Array<{
           id: string;
@@ -4074,22 +4806,36 @@ export default function HomePage() {
         } | null;
         subscription: { status?: string } | null;
         availability: DailyAvailability | null;
+        dailyUpdate: {
+          id: string;
+          text: string;
+          visibility: DailyStoryVisibility;
+          created_at: number;
+          expires_at: number;
+        } | null;
       }>('/api/profile'),
       serverJson<{
         profiles: Array<{
           id: string;
           name: string;
           age: number;
+          zodiac?: ZodiacSign | null;
           gender?: string;
+          facts?: Profile['facts'];
+          connection?: ProfileConnection;
+          interests?: string[];
           bio?: string;
+          prompts?: Array<{ prompt: string; answer: string }>;
           city?: string | null;
           relationshipGoal?: string;
           imageUrl?: string | null;
+          media?: Array<{ type: 'photo' | 'video'; url: string }>;
           today?: string | null;
           availableTonight?: boolean;
           availability?: DailyAvailability | null;
           verified?: boolean;
           active?: boolean;
+          lastActiveAt?: number | null;
         }>;
       }>('/api/discover?limit=50'),
       serverJson<{
@@ -4099,6 +4845,8 @@ export default function HomePage() {
           display_name: string;
           preview?: string | null;
           unread_count?: number;
+          active?: boolean;
+          lastActiveAt?: number | null;
           availability_local_date?: string | null;
           availability_start_at?: number | null;
           availability_end_at?: number | null;
@@ -4116,6 +4864,9 @@ export default function HomePage() {
     ])
       .then(([account, discovery, conversationData, liftData]) => {
         if (cancelled) return;
+        setServerZodiac(account.zodiac ?? null);
+        const serverFilters = filtersFromServerPreferences(account.preferences);
+        if (serverFilters) setFilters(serverFilters);
         const wallet = liftData.wallet ?? account.wallet;
         setSuperPulsesRemaining(wallet?.super_spikes ?? 0);
         setPurchasedBoosts(wallet?.profile_lifts ?? 0);
@@ -4127,6 +4878,38 @@ export default function HomePage() {
           account.subscription?.status === 'active' ? 'plus' : 'free',
         );
         setDailyAvailability(account.availability ?? undefined);
+        const savedStories = readDailyStories().filter(
+          (story) => story.authorEmail !== authEmail,
+        );
+        const serverStory: DailyStory | null = account.dailyUpdate
+          ? {
+              id: account.dailyUpdate.id,
+              authorEmail: authEmail,
+              authorName:
+                typeof account.profile?.display_name === 'string'
+                  ? account.profile.display_name
+                  : selfName,
+              caption: account.dailyUpdate.text,
+              prompt: '',
+              visibility: account.dailyUpdate.visibility,
+              repliesEnabled: true,
+              viewedBy: [],
+              createdAt: new Date(account.dailyUpdate.created_at).toISOString(),
+              expiresAt: new Date(account.dailyUpdate.expires_at).toISOString(),
+            }
+          : null;
+        const restoredStories = normalizeDailyStories(
+          serverStory ? [serverStory, ...savedStories] : savedStories,
+        );
+        setDailyStories(restoredStories);
+        try {
+          window.localStorage.setItem(
+            'pulse-daily-stories',
+            JSON.stringify(restoredStories),
+          );
+        } catch {
+          // The live Today state remains available even if local storage is full.
+        }
         setOwnProfileMedia(
           account.media.map((item) => ({
             id: item.id,
@@ -4145,19 +4928,38 @@ export default function HomePage() {
         setServerProfiles(
           discovery.profiles.map((candidate, index) => {
             const known = profiles.find((item) => item.name === candidate.name);
+            const gender: Gender =
+              candidate.gender === 'man'
+                ? 'Man'
+                : candidate.gender === 'nonbinary'
+                  ? 'Nonbinary'
+                  : 'Woman';
             if (known)
               return {
                 ...known,
                 id: candidate.id,
+                zodiac: candidate.zodiac ?? null,
+                facts: candidate.facts,
+                matchDetails: candidate.connection,
+                tags: candidate.interests || [],
+                prompt: candidate.bio || '',
+                prompts: candidate.prompts || [],
+                gender,
                 image: candidate.imageUrl || known.image,
-                media: candidate.imageUrl
-                  ? [{ type: 'photo', src: candidate.imageUrl }]
-                  : known.media,
+                media: candidate.media?.length
+                  ? candidate.media.map((item) => ({
+                      type: item.type,
+                      src: item.url,
+                    }))
+                  : candidate.imageUrl
+                    ? [{ type: 'photo', src: candidate.imageUrl }]
+                    : known.media,
                 age: candidate.age,
                 place: candidate.city || known.place,
                 intent: candidate.relationshipGoal || known.intent,
                 verified: candidate.verified,
                 active: candidate.active,
+                lastActiveAt: candidate.lastActiveAt ?? null,
                 availability: candidate.availability ?? undefined,
                 tonight:
                   candidate.availability?.localDate === dateInputValue()
@@ -4167,29 +4969,32 @@ export default function HomePage() {
                       }
                     : undefined,
               };
-            const gender: Gender =
-              candidate.gender === 'man'
-                ? 'Man'
-                : candidate.gender === 'nonbinary'
-                  ? 'Nonbinary'
-                  : 'Woman';
             const image =
               candidate.imageUrl ||
               profiles[index % profiles.length]?.image ||
               '/imani.png';
             return {
               id: candidate.id,
+              zodiac: candidate.zodiac ?? null,
+              facts: candidate.facts,
+              matchDetails: candidate.connection,
               name: candidate.name,
               age: candidate.age,
               gender,
               image,
-              media: [{ type: 'photo', src: image }],
+              media: candidate.media?.length
+                ? candidate.media.map((item) => ({
+                    type: item.type,
+                    src: item.url,
+                  }))
+                : [{ type: 'photo', src: image }],
               place: candidate.city || 'Nearby',
               distance: 'Nearby',
               distanceMiles: 2,
               intent: candidate.relationshipGoal || 'Dating',
-              tags: [],
+              tags: candidate.interests || [],
               prompt: candidate.bio || 'Ask me what I am looking forward to.',
+              prompts: candidate.prompts,
               height: 'Not shared',
               ethnicity: 'Not shared',
               pets: 'Not shared',
@@ -4199,6 +5004,7 @@ export default function HomePage() {
               smoking: 'Not shared',
               verified: candidate.verified,
               active: candidate.active,
+              lastActiveAt: candidate.lastActiveAt ?? null,
               availability: candidate.availability ?? undefined,
               tonight:
                 candidate.availability?.localDate === dateInputValue()
@@ -4228,6 +5034,8 @@ export default function HomePage() {
                 preview: conversation.preview || 'You matched on SpikeDate',
                 time: 'Recent',
                 unread: Number(conversation.unread_count ?? 0),
+                active: conversation.active,
+                lastActiveAt: conversation.lastActiveAt ?? null,
                 availability:
                   conversation.availability_local_date &&
                   conversation.availability_start_at &&
@@ -4249,20 +5057,55 @@ export default function HomePage() {
           }),
         );
         const profile = account.profile;
+        if (typeof profile?.user_id === 'string')
+          setOwnAccount({ email: authEmail, id: profile.user_id });
         const profileText = (key: string, fallback: string) =>
           typeof profile?.[key] === 'string'
             ? (profile[key] as string)
             : fallback;
-        if (profile && profileText('display_name', '') !== 'New member') {
-          setSelfName(profileText('display_name', 'Alex'));
+        if (profile) {
+          const isNewMember = profileText('display_name', '') === 'New member';
+          setSelfName(profileText('display_name', 'New member'));
           setRegistered(Boolean(profile.completed_at || profile.bio));
           setRegistrationData((currentData) => ({
             ...currentData,
-            name: profileText('display_name', currentData.name),
+            name: isNewMember
+              ? ''
+              : profileText('display_name', currentData.name),
+            birthday: account.birthDate ?? currentData.birthday,
+            gender: (profileText('gender', currentData.gender) ||
+              currentData.gender) as Gender,
+            zodiac: account.zodiac ?? '',
             bio: profileText('bio', currentData.bio),
+            pronouns: profileText('pronouns', ''),
+            height:
+              typeof profile.height_cm === 'number' && profile.height_cm > 0
+                ? `${profile.height_cm} cm`
+                : '',
+            ethnicity: profileText('ethnicity', ''),
+            pets: profileText('pets', ''),
+            kids: profileText('kids', ''),
+            wantsKids: profileText('wants_kids', ''),
+            drinking: profileText('drinking', ''),
+            smoking: profileText('smoking', ''),
+            intents: isNewMember
+              ? currentData.intents
+              : [profileText('relationship_goal', 'Dating')],
+            preferredGenders:
+              serverFilters?.genders ?? currentData.preferredGenders,
+            minAge: serverFilters?.minAge ?? currentData.minAge,
+            maxAge: serverFilters?.maxAge ?? currentData.maxAge,
+            maxDistance: serverFilters?.maxDistance ?? currentData.maxDistance,
+            promptOne: account.prompts?.[0]?.answer ?? profileText('bio', ''),
+            promptTwo: account.prompts?.[1]?.answer ?? '',
+            promptOneQuestion: account.prompts?.[0]?.prompt,
+            promptTwoQuestion: account.prompts?.[1]?.prompt,
+            interests:
+              account.interests?.map((interest) => interest.label) ?? [],
             city: profileText('city', currentData.city),
             occupation: profileText('occupation', currentData.occupation),
             education: profileText('education', currentData.education),
+            ...(account.connection || emptyConnection),
           }));
         }
         if (profile)
@@ -4275,6 +5118,161 @@ export default function HomePage() {
       cancelled = true;
     };
   }, [authEmail]);
+
+  useEffect(() => {
+    if (!serverDataEnabled || !authEmail) {
+      setServerIncomingRows([]);
+      setOutgoingConnections({});
+      setServerSentLikes([]);
+      return;
+    }
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const data = await serverJson<{
+          outgoing: Array<{
+            target_id: string;
+            kind: 'like' | 'super_spike';
+            display_name: string;
+            gender: string;
+            bio: string;
+            city: string | null;
+            relationship_goal: string;
+            age: number;
+            media_id: string | null;
+            matched: number;
+            media: { type: 'photo' | 'video'; src: string }[];
+          }>;
+          incoming: Array<{
+            id: string;
+            actor_id: string;
+            display_name: string;
+            age: number;
+            gender: string;
+            bio: string;
+            city: string | null;
+            relationship_goal: string;
+            verification_status: string;
+            kind: string;
+            note: string | null;
+            target_ref: string | null;
+            imageUrl: string | null;
+          }>;
+        }>('/api/interactions');
+        if (cancelled) return;
+        setOutgoingConnections(
+          Object.fromEntries(
+            data.outgoing.map((row) => [
+              row.target_id,
+              data.outgoing.some(
+                (other) =>
+                  other.target_id === row.target_id &&
+                  other.kind === 'super_spike',
+              )
+                ? 'super_spike'
+                : row.kind,
+            ]),
+          ),
+        );
+        setServerSentLikes(
+          data.outgoing.map((row) => ({
+            status: row.matched ? 'accepted' : 'pending',
+            profile: {
+              id: row.target_id,
+              media: row.media,
+              name: row.display_name,
+              age: row.age,
+              gender:
+                row.gender === 'Woman' || row.gender === 'woman'
+                  ? 'Woman'
+                  : row.gender === 'Man' || row.gender === 'man'
+                    ? 'Man'
+                    : 'Nonbinary',
+              image: row.media_id
+                ? `/api/media/${row.media_id}?variant=full`
+                : '/profile-placeholder.svg',
+              place: row.city || 'Not shared',
+              intent: row.relationship_goal,
+              prompt: row.bio,
+              distance: 'Not shared',
+              distanceMiles: 0,
+              tags: [],
+              height: 'Not shared',
+              ethnicity: 'Not shared',
+              pets: 'Not shared',
+              kids: 'Not shared',
+              wantsKids: 'Not shared',
+              drinking: 'Not shared',
+              smoking: 'Not shared',
+            },
+          })),
+        );
+        setServerIncomingRows(
+          data.incoming.map((row) => {
+            const suffix = row.actor_id.match(/^test-(\d{3})$/)?.[1];
+            const known = suffix
+              ? identityForEmail(`test${suffix}@spikedate.test`)?.profile
+              : undefined;
+            const profile: Profile = {
+              ...(known ?? {
+                distance: 'Not shared',
+                distanceMiles: 0,
+                tags: [],
+                height: 'Not shared',
+                ethnicity: 'Not shared',
+                pets: 'Not shared',
+                kids: 'Not shared',
+                wantsKids: 'Not shared',
+                drinking: 'Not shared',
+                smoking: 'Not shared',
+              }),
+              id: row.actor_id,
+              name: row.display_name,
+              age: row.age,
+              gender:
+                row.gender === 'woman'
+                  ? 'Woman'
+                  : row.gender === 'man'
+                    ? 'Man'
+                    : 'Nonbinary',
+              place: row.city || 'Not shared',
+              intent: row.relationship_goal,
+              prompt: row.bio,
+              verified: [
+                'verified',
+                'photo_verified',
+                'identity_verified',
+              ].includes(row.verification_status),
+              image: row.imageUrl ?? '/profile-placeholder.svg',
+              media: row.imageUrl ? [{ type: 'photo', src: row.imageUrl }] : [],
+            };
+            return {
+              id: row.id,
+              profile,
+              liked:
+                row.kind === 'super_spike'
+                  ? 'Sent you a Spike'
+                  : 'Liked your profile',
+              note: row.note ? `“${row.note}”` : '',
+              superPulse: row.kind === 'super_spike',
+            };
+          }),
+        );
+      } catch {
+        if (!cancelled)
+          announce('Could not refresh incoming Likes. Try again.');
+      }
+    };
+    void refresh();
+    const timer =
+      tab === 'Likes'
+        ? window.setInterval(() => void refresh(), 15000)
+        : undefined;
+    return () => {
+      cancelled = true;
+      if (timer) window.clearInterval(timer);
+    };
+  }, [authEmail, tab]);
 
   useEffect(() => {
     setDailyStories(readDailyStories());
@@ -4598,7 +5596,7 @@ export default function HomePage() {
           email: otherEmail,
           preview: latest?.text ?? 'You matched today',
           time: latest ? 'Now' : 'Today',
-          active: true,
+          active: other.profile.active,
           unread: conversation.filter(
             (message) =>
               message.toEmail === authEmail &&
@@ -4706,10 +5704,10 @@ export default function HomePage() {
   }, [authEmail]);
 
   useEffect(() => {
-    document.documentElement.dataset.pulseTheme =
-      theme === 'lime' ? 'liquid' : theme;
-    if (theme === 'lime') {
-      document.documentElement.dataset.pulseAccent = 'lime';
+    const midnightAccent = midnightAccentThemes.has(theme);
+    document.documentElement.dataset.pulseTheme = 'default';
+    if (midnightAccent) {
+      document.documentElement.dataset.pulseAccent = theme;
     } else {
       delete document.documentElement.dataset.pulseAccent;
     }
@@ -4768,7 +5766,7 @@ export default function HomePage() {
       },
       annotations: { readOnlyHint: false, untrustedContentHint: false },
       execute: () => {
-        completeLike(current);
+        void completeLike(current);
         return { liked: current.name, sentToIncoming: true };
       },
     });
@@ -4788,511 +5786,638 @@ export default function HomePage() {
     return <AuthScreen onSignIn={signIn} onCreate={createAccount} />;
 
   return (
-    <main className="app-shell" data-theme={theme}>
-      <div className="phone-frame" data-active-tab={tab}>
-        <button
-          className={`global-boost-button ${boostActive ? 'active' : ''}`}
-          aria-label={
-            boostActive ? 'View active Profile Lift' : 'Lift my profile'
-          }
-          onClick={() => setBoostOpen(true)}
-        >
-          <Rocket size={21} />
-          <span className="sr-only">
-            {boostActive
-              ? 'Profile Lift active'
-              : `${boostsRemaining} Profile Lifts left`}
-          </span>
-        </button>
-        {tab === 'Pulse' && (
-          <DiscoverHeader
-            onFilters={() => setFilterOpen(true)}
-            onVoice={openVoice}
-            voiceEnabled={voiceAvailable}
-            activeFilterCount={activeFilterCount}
-          />
-        )}
-        {tab === 'Pulse' &&
-          (filteredProfiles.length ? (
-            <DiscoverScreen
-              profile={current}
-              story={storyForProfile(current)}
-              todayCount={visibleDailyStories.length}
-              todayActive={Boolean(ownDailyStory || dailyAvailability)}
-              onOpen={() => openFullProfile(current)}
-              onOpenStory={openDailyStory}
-              onSeeAllToday={() => setTodayFeedOpen(true)}
-              onPostToday={() =>
-                ownDailyStory ? openEditToday(ownDailyStory) : openNewToday()
+    <LivePresenceProvider
+      key={authEmail}
+      enabled={serverDataEnabled}
+      account={authEmail}
+    >
+      <main className="app-shell" data-theme={theme}>
+        <div className="phone-frame" data-active-tab={tab}>
+          <button
+            className={`global-boost-button ${boostActive ? 'active' : ''}`}
+            aria-label={
+              boostActive ? 'View active Profile Lift' : 'Lift my profile'
+            }
+            onClick={() => setBoostOpen(true)}
+          >
+            <ProfileLiftMark size={23} />
+            <span className="sr-only">
+              {boostActive
+                ? 'Profile Lift active'
+                : `${boostsRemaining} Profile Lifts left`}
+            </span>
+          </button>
+          {tab === 'Pulse' && (
+            <DiscoverHeader
+              onFilters={() => setFilterOpen(true)}
+              onVoice={openVoice}
+              voiceEnabled={voiceAvailable}
+              activeFilterCount={activeFilterCount}
+            />
+          )}
+          {tab === 'Pulse' &&
+            (filteredProfiles.length ? (
+              <DiscoverScreen
+                profile={current}
+                connection={connectionState(current)}
+                busy={sendBusy}
+                story={storyForProfile(current)}
+                todayCount={visibleDailyStories.length}
+                todayActive={Boolean(ownDailyStory || dailyAvailability)}
+                onOpen={() => openFullProfile(current)}
+                onOpenStory={openDailyStory}
+                onSeeAllToday={() => setTodayFeedOpen(true)}
+                onPostToday={() =>
+                  ownDailyStory ? openEditToday(ownDailyStory) : openNewToday()
+                }
+                onPass={nextProfile}
+                onLike={() => completeLike(current)}
+                onSpark={() => {
+                  if (
+                    matchedProfiles.some((item) => item.name === current.name)
+                  )
+                    openChatWith('', current);
+                  else openNote(current);
+                }}
+                matched={matchedProfiles.some(
+                  (item) => item.name === current.name,
+                )}
+                onTonight={() => openNote(current)}
+                saved={savedProfileNames.includes(current.name)}
+                onToggleSaved={() => toggleSavedProfile(current)}
+              />
+            ) : (
+              <EmptyDiscover
+                onFilters={() => setFilterOpen(true)}
+                availableCount={availableProfiles.length}
+                onShowAll={() => {
+                  setFilters({
+                    ...defaultFilters,
+                    genders: ['Woman', 'Man', 'Nonbinary'],
+                    minAge: 18,
+                    maxAge: 60,
+                    maxDistance: 50,
+                  });
+                  setProfileIndex(0);
+                }}
+              />
+            ))}
+          {tab === 'Galaxy' && !room && (
+            <RoomsHub
+              onGames={() => handleTab('Chat')}
+              astrology={
+                <AstrologyDiscovery
+                  sign={
+                    serverDataEnabled
+                      ? serverZodiac
+                      : zodiacFromBirthDate(
+                          registered
+                            ? registrationData.birthday
+                            : birthdays[selfName],
+                        )
+                  }
+                  people={profileSource.map((person) => ({
+                    ...person,
+                    zodiac: serverDataEnabled
+                      ? person.zodiac
+                      : zodiacFromBirthDate(birthdays[person.name]),
+                  }))}
+                  onProfile={(person) => {
+                    const profile = profileSource.find((p) =>
+                      person.id ? p.id === person.id : p.name === person.name,
+                    );
+                    if (profile) openFullProfile(profile);
+                  }}
+                />
               }
+              onOpenRoom={setRoom}
+              onCreatePlan={openPlanBuilder}
+              plans={datingPlans}
+              onDirections={openPlanDirections}
+              onCalendar={addPlanToCalendar}
+              onSharePlan={shareDatingPlan}
+              onCancelPlan={cancelDatingPlan}
+              viewerEmail={authEmail}
+              onRespondPlan={respondToDatingPlan}
+              onSuggestPlan={suggestPlanChange}
+              onAcceptAlternate={acceptAlternatePlan}
+              onVoteVenue={voteForPlanVenue}
+              onMarkSafe={markPlanSafe}
+              onSafetyOptions={openPlanSafety}
+            />
+          )}
+          {tab === 'Galaxy' && room && (
+            <RoomStack
+              room={room}
+              profile={current}
+              onBack={() => setRoom(null)}
+              onOpen={() => openFullProfile(current)}
               onPass={nextProfile}
               onLike={() => completeLike(current)}
-              onSpark={() => {
-                if (matchedProfiles.some((item) => item.name === current.name))
-                  openChatWith('', current);
-                else openNote(current);
-              }}
-              matched={matchedProfiles.some(
-                (item) => item.name === current.name,
-              )}
-              onTonight={() => openNote(current)}
-              saved={savedProfileNames.includes(current.name)}
-              onToggleSaved={() => toggleSavedProfile(current)}
+              onSpark={() => openNote(current)}
             />
-          ) : (
-            <EmptyDiscover onFilters={() => setFilterOpen(true)} />
-          ))}
-        {tab === 'Galaxy' && !room && (
-          <RoomsHub
-            onOpenRoom={setRoom}
-            onCreatePlan={openPlanBuilder}
-            plans={datingPlans}
-            onDirections={openPlanDirections}
-            onCalendar={addPlanToCalendar}
-            onSharePlan={shareDatingPlan}
-            onCancelPlan={cancelDatingPlan}
-            viewerEmail={authEmail}
-            onRespondPlan={respondToDatingPlan}
-            onSuggestPlan={suggestPlanChange}
-            onAcceptAlternate={acceptAlternatePlan}
-            onVoteVenue={voteForPlanVenue}
-            onMarkSafe={markPlanSafe}
-            onSafetyOptions={openPlanSafety}
-          />
-        )}
-        {tab === 'Galaxy' && room && (
-          <RoomStack
-            room={room}
-            profile={current}
-            onBack={() => setRoom(null)}
-            onOpen={() => openFullProfile(current)}
-            onPass={nextProfile}
-            onLike={() => completeLike(current)}
-            onSpark={() => openNote(current)}
-          />
-        )}
-        {tab === 'Likes' && (
-          <LikesScreen
-            sentLikes={
-              signedInIdentity
-                ? accountSentLikes
-                : sentLikes.map((profile) => ({
-                    profile,
-                    status:
-                      profile.name === 'Maya'
-                        ? ('accepted' as const)
-                        : ('pending' as const),
-                  }))
-            }
-            incomingRows={signedInIdentity ? accountIncomingRows : undefined}
-            matchedProfiles={matchedProfiles}
-            declined={declinedIncoming}
-            onLikeBack={likeBack}
-            onPass={(name, interactionId) => {
-              if (interactionId)
-                saveInteractions((current) =>
-                  current.map((item) =>
-                    item.id === interactionId
-                      ? { ...item, status: 'declined' }
-                      : item,
-                  ),
+          )}
+          {tab === 'Likes' && (
+            <LikesScreen
+              sentLikes={
+                serverDataEnabled
+                  ? serverSentLikes
+                  : signedInIdentity
+                    ? accountSentLikes
+                    : sentLikes.map((profile) => ({
+                        profile,
+                        status:
+                          profile.name === 'Maya'
+                            ? ('accepted' as const)
+                            : ('pending' as const),
+                      }))
+              }
+              incomingRows={
+                serverDataEnabled || signedInIdentity
+                  ? accountIncomingRows
+                  : undefined
+              }
+              matchedProfiles={matchedProfiles}
+              declined={declinedIncoming}
+              onLikeBack={likeBack}
+              onPass={(name, interactionId) => {
+                if (serverDataEnabled) {
+                  const row = serverIncomingRows.find(
+                    (row) => row.id === interactionId,
+                  );
+                  if (row?.profile.id)
+                    mirrorToServer(() =>
+                      serverJson('/api/interactions', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          targetUserId: row.profile.id,
+                          kind: 'pass',
+                          idempotencyKey: crypto.randomUUID(),
+                        }),
+                      }),
+                    );
+                  setServerIncomingRows((rows) =>
+                    rows.filter((row) => row.id !== interactionId),
+                  );
+                }
+                if (interactionId)
+                  saveInteractions((current) =>
+                    current.map((item) =>
+                      item.id === interactionId
+                        ? { ...item, status: 'declined' }
+                        : item,
+                    ),
+                  );
+                setDeclinedIncoming((items) => [...items, name]);
+                announce(`${name} marked Not for me`);
+              }}
+              onMessage={(profile) => openChatWith('', profile)}
+              onProfile={openFullProfile}
+              savedProfiles={savedProfiles}
+              onToggleSaved={toggleSavedProfile}
+              membership={membership}
+              onUpgrade={() => setSubscriptionOpen(true)}
+              onBrowse={() => handleTab('Pulse')}
+            />
+          )}
+          {tab === 'Chat' && !chatOpen && (
+            <ChatList
+              contacts={contacts}
+              onBrowse={() => handleTab('Pulse')}
+              onOpen={openExistingChat}
+              onProfile={(contact) => {
+                const profile = allProfiles.find(
+                  (item) => item.name === contact.name,
                 );
-              setDeclinedIncoming((items) => [...items, name]);
-              announce(`${name} marked Not for me`);
-            }}
-            onMessage={(profile) => openChatWith('', profile)}
-            onProfile={openFullProfile}
-            savedProfiles={savedProfiles}
-            onToggleSaved={toggleSavedProfile}
-            membership={membership}
-            onUpgrade={() => setSubscriptionOpen(true)}
-            onBrowse={() => handleTab('Pulse')}
-          />
-        )}
-        {tab === 'Chat' && !chatOpen && (
-          <ChatList
-            contacts={contacts}
-            onBrowse={() => handleTab('Pulse')}
-            onOpen={openExistingChat}
-            onProfile={(contact) => {
-              const profile = allProfiles.find(
-                (item) => item.name === contact.name,
-              );
-              if (profile) openFullProfile(profile);
-            }}
-          />
-        )}
-        {tab === 'Chat' && chatOpen && (
-          <ChatThread
-            contact={activeChat}
-            messages={activeMessages}
-            plan={datingPlans.find(
-              (plan) =>
-                plan.invitees.includes(activeChat.name) &&
-                plan.status !== 'declined' &&
-                plan.status !== 'cancelled',
-            )}
-            composer={composer}
-            onComposer={setComposer}
-            onSend={sendMessage}
-            onSendPreset={sendMessage}
-            onPlan={() => openPlanBuilder('Coffee')}
-            onBack={() => setChatOpen(false)}
-            onProfile={() => {
-              const profile = allProfiles.find(
-                (item) => item.name === activeChat.name,
-              );
-              if (profile) openFullProfile(profile);
-            }}
-            onSafety={() => {
-              const profile = allProfiles.find(
-                (item) => item.name === activeChat.name,
-              );
-              if (profile) openProfileSafety(profile);
-            }}
-            onUnsend={(id) =>
-              setMessagesByContact((items) => ({
-                ...items,
-                [activeChat.name]: (items[activeChat.name] ?? []).filter(
-                  (item) => item.id !== id,
-                ),
-              }))
-            }
-            onPlanDirections={openPlanDirections}
-            onPlanCalendar={addPlanToCalendar}
-            onPlanShare={shareDatingPlan}
-            onPlanRespond={respondToDatingPlan}
-            onPlanSuggest={suggestPlanChange}
-            viewerEmail={authEmail}
-          />
-        )}
-        {tab === 'Profile' && !previewCard && (
-          <YourProfile
-            name={selfName}
-            email={authEmail}
-            image={ownProfileImage}
-            details={registrationData}
-            registered={registered}
-            theme={theme}
-            availability={dailyAvailability}
-            onPreview={() => setPreviewCard(true)}
-            onRegistration={() => openRegistrationAt(0, false)}
-            onEditSection={openRegistrationAt}
-            onTheme={() => setThemeOpen(true)}
-            onSubscription={() => setSubscriptionOpen(true)}
-            verificationStatus={verificationStatus}
-            onVerification={() => setVerificationOpen(true)}
-            superPulsesRemaining={superPulsesRemaining}
-            membership={membership}
-            dailyLikesRemaining={dailyLikesRemaining}
-            engagementPreferences={engagementPreferences}
-            onEngagementPreference={updateEngagementPreference}
-            pushPreferences={pushPreferences}
-            onPushPreference={updatePushPreference}
-            onQuietHours={updateQuietHours}
-            todayReminderTime={todayReminderTime}
-            onTodayReminderTime={updateTodayReminderTime}
-            onVoice={openVoice}
-            voiceDeploymentEnabled={voiceDeployment.enabled}
-            voiceEnabled={voiceUserEnabled}
-            onVoiceEnabled={(checked) => {
-              setVoiceUserEnabled(checked);
-              window.localStorage.setItem(
-                `pulse-voice-enabled:${authEmail}`,
-                String(checked),
-              );
-              if (!checked) closeVoiceBriefing(false);
-            }}
-            onLogout={logout}
-            todayStory={ownDailyStory}
-            onCreateToday={openNewToday}
-            onEditToday={openEditToday}
-          />
-        )}
-        {tab === 'Profile' && previewCard && (
-          <ProfilePreview
-            name={selfName}
-            sourceProfile={signedInIdentity?.profile}
-            media={effectiveOwnMedia}
-            details={registrationData}
-            onBack={() => setPreviewCard(false)}
-          />
-        )}
-        <TabBar
-          active={tab}
-          onChange={handleTab}
-          unreadCount={unreadMessages}
-          incomingLikeCount={incomingLikeCount}
-        />
-        {engagementNudge && (
-          <EngagementPrompt
-            nudge={engagementNudge}
-            membership={membership}
-            boostsRemaining={boostsRemaining}
-            dailyLikesRemaining={dailyLikesRemaining}
-            superPulsesRemaining={superPulsesRemaining}
-            profileCount={Math.min(3, filteredProfiles.length)}
-            onDismiss={dismissEngagementNudge}
-            onAction={useEngagementNudge}
-          />
-        )}
-      </div>
+                if (profile)
+                  openFullProfile({
+                    ...profile,
+                    id: contact.userId ?? profile.id,
+                    active: contact.active,
+                    lastActiveAt: contact.lastActiveAt,
+                  });
+              }}
+            />
+          )}
+          {tab === 'Chat' && chatOpen && (
+            <ChatThread
+              contact={activeChat}
+              loading={chatLoading}
+              messages={activeMessages}
+              onReadVisible={acknowledgeVisibleMessages}
+              plan={datingPlans.find(
+                (plan) =>
+                  plan.invitees.includes(activeChat.name) &&
+                  plan.status !== 'declined' &&
+                  plan.status !== 'cancelled',
+              )}
+              composer={composer}
+              onComposer={setComposer}
+              onSend={sendMessage}
+              onSendMedia={sendChatAttachment}
+              onPlan={() => openPlanBuilder('Coffee')}
+              onBack={() => setChatOpen(false)}
+              onProfile={() => {
+                const profile = allProfiles.find(
+                  (item) => item.name === activeChat.name,
+                );
+                if (profile)
+                  openFullProfile({
+                    ...profile,
+                    id: activeChat.userId ?? profile.id,
+                    active: activeChat.active,
+                    lastActiveAt: activeChat.lastActiveAt,
+                  });
+              }}
+              onSafety={() => {
+                const profile = allProfiles.find(
+                  (item) => item.name === activeChat.name,
+                );
+                if (profile) openProfileSafety(profile);
+              }}
+              onUnsend={(id) => {
+                hiddenChatMessages.current.add(id);
+                setMessagesByContact((items) => ({
+                  ...items,
+                  [activeChat.name]: (items[activeChat.name] ?? []).filter(
+                    (item) => item.id !== id,
+                  ),
+                }));
+              }}
+              onPlanDirections={openPlanDirections}
+              onPlanCalendar={addPlanToCalendar}
+              onPlanShare={shareDatingPlan}
+              onPlanRespond={respondToDatingPlan}
+              onPlanSuggest={suggestPlanChange}
+              viewerEmail={authEmail}
+            />
+          )}
+          {tab === 'Profile' && !previewCard && (
+            <YourProfile
+              name={selfName}
+              email={authEmail}
+              image={ownProfileImage}
+              media={effectiveOwnMedia}
+              details={registrationData}
+              registered={registered}
+              theme={theme}
+              availability={dailyAvailability}
+              onPreview={() => {
+                setToast('');
+                setPreviewCard(true);
+              }}
+              onRegistration={() => openRegistrationAt(0, false)}
+              onEditSection={openRegistrationAt}
+              onTheme={() => setThemeOpen(true)}
+              onSubscription={() => setSubscriptionOpen(true)}
+              verificationStatus={verificationStatus}
+              onVerification={() => {
+                setRegistrationCameraCheck(false);
+                setVerificationOpen(true);
+              }}
+              superPulsesRemaining={superPulsesRemaining}
+              membership={membership}
+              dailyLikesRemaining={dailyLikesRemaining}
+              engagementPreferences={engagementPreferences}
+              onEngagementPreference={updateEngagementPreference}
+              pushPreferences={pushPreferences}
+              onPushPreference={updatePushPreference}
+              onQuietHours={updateQuietHours}
+              todayReminderTime={todayReminderTime}
+              onTodayReminderTime={updateTodayReminderTime}
+              onVoice={openVoice}
+              voiceDeploymentEnabled={voiceDeployment.enabled}
+              voiceEnabled={voiceUserEnabled}
+              onVoiceEnabled={(checked) => {
+                setVoiceUserEnabled(checked);
+                window.localStorage.setItem(
+                  `pulse-voice-enabled:${authEmail}`,
+                  String(checked),
+                );
+                if (!checked) closeVoiceBriefing(false);
+              }}
+              onLogout={logout}
+              todayStory={ownDailyStory}
+              onCreateToday={openNewToday}
+              onEditToday={openEditToday}
+            />
+          )}
+          {tab === 'Profile' && previewCard && (
+            <ProfilePreview
+              name={selfName}
+              sourceProfile={signedInIdentity?.profile}
+              userId={
+                ownAccount?.email === authEmail
+                  ? ownAccount.id
+                  : (testUserIdForEmail(authEmail) ?? undefined)
+              }
+              todayCount={visibleDailyStories.length}
+              media={effectiveOwnMedia}
+              details={registrationData}
+              story={ownDailyStory}
+              availability={dailyAvailability}
+              onBack={() => setPreviewCard(false)}
+              onEdit={() => {
+                setPreviewCard(false);
+                openRegistrationAt(0, false);
+              }}
+            />
+          )}
+          {!(tab === 'Chat' && chatOpen) && (
+            <TabBar
+              active={tab}
+              onChange={handleTab}
+              unreadCount={unreadMessages}
+              incomingLikeCount={incomingLikeCount}
+            />
+          )}
+          {engagementNudge && (
+            <EngagementPrompt
+              nudge={engagementNudge}
+              membership={membership}
+              boostsRemaining={boostsRemaining}
+              dailyLikesRemaining={dailyLikesRemaining}
+              superPulsesRemaining={superPulsesRemaining}
+              profileCount={Math.min(3, filteredProfiles.length)}
+              onDismiss={dismissEngagementNudge}
+              onAction={useEngagementNudge}
+            />
+          )}
+        </div>
 
-      <FullProfile
-        profile={selectedProfile ?? current}
-        open={profileOpen}
-        onOpenChange={closeOrUpdateFullProfile}
-        onPass={nextProfile}
-        onLike={() => completeLike(selectedProfile ?? current)}
-        onSpark={() => {
-          const profile = selectedProfile ?? current;
-          if (matchedProfiles.some((item) => item.name === profile.name))
-            openChatWith('', profile);
-          else openNote(profile);
-        }}
-        onBoost={() => {
-          setProfileOpen(false);
-          setBoostOpen(true);
-        }}
-        matched={matchedProfiles.some(
-          (item) => item.name === (selectedProfile ?? current).name,
-        )}
-        onShare={() => shareProfile(selectedProfile ?? current)}
-        onReport={() => openProfileSafety(selectedProfile ?? current, 'report')}
-        onBlock={() => openProfileSafety(selectedProfile ?? current, 'block')}
-        saved={savedProfileNames.includes((selectedProfile ?? current).name)}
-        onToggleSaved={() => toggleSavedProfile(selectedProfile ?? current)}
-        todayActive={Boolean(ownDailyStory || dailyAvailability)}
-        onPostToday={() => {
-          setProfileOpen(false);
-          if (ownDailyStory) openEditToday(ownDailyStory);
-          else openNewToday();
-        }}
-      />
-      <NoteDialog
-        profile={actionProfile}
-        open={noteOpen}
-        onOpenChange={setNoteOpen}
-        target={noteTarget}
-        onTarget={setNoteTarget}
-        message={noteMessage}
-        onMessage={setNoteMessage}
-        remaining={superPulsesRemaining}
-        onSend={sendNoteAction}
-        onCancel={() => setNoteOpen(false)}
-      />
-      <MatchModal
-        open={matchOpen}
-        onOpenChange={setMatchOpen}
-        profile={matchProfile}
-        room={room}
-        onIcebreaker={(text) => openChatWith(text, matchProfile)}
-        onBrowse={() => {
-          setMatchOpen(false);
-          nextProfile();
-        }}
-      />
-      <SafetyDialog
-        open={safetyOpen}
-        onOpenChange={setSafetyOpen}
-        profile={safetyProfile}
-        mode={safetyMode}
-        onAction={announce}
-        onReport={() => reportProfile(safetyProfile)}
-        onBlock={() => blockProfile(safetyProfile)}
-      />
-      <RegistrationDialog
-        open={registrationOpen}
-        onOpenChange={setRegistrationOpen}
-        onComplete={completeRegistration}
-        initialData={registrationData}
-        initialStep={registrationStep}
-        editing={registered}
-        singleSection={registrationSingleSection}
-        media={effectiveOwnMedia}
-        onAddPhoto={addProfilePhoto}
-        onAddVideo={addProfileVideo}
-        onMakeMainPhoto={makeMainProfilePhoto}
-        onRemovePhoto={removeProfilePhoto}
-      />
-      <PhotoVerificationDialog
-        open={verificationOpen}
-        onOpenChange={setVerificationOpen}
-        status={verificationStatus}
-        serverEnabled={serverDataEnabled}
-        accountKey={authEmail ?? 'signed-out'}
-        onStatusChange={(next) => {
-          setVerificationStatus(next);
-          announce(
-            next === 'photo_verified' || next === 'identity_verified'
-              ? 'Your profile is Photo Verified'
-              : next === 'needs_review'
-                ? 'Your camera check is ready for review'
-                : 'Photo verification updated',
-          );
-        }}
-      />
-      <FilterDialog
-        open={filterOpen}
-        onOpenChange={setFilterOpen}
-        filters={filters}
-        membership={membership}
-        onUpgrade={() => {
-          setFilterOpen(false);
-          setSubscriptionOpen(true);
-        }}
-        onApply={(next) => {
-          setFilters(next);
-          setProfileIndex(0);
-          setFilterOpen(false);
-          announce('Preferences applied');
-        }}
-      />
-      {datePlansEnabled && (
-        <PlanDialog
-          open={planOpen}
-          onOpenChange={setPlanOpen}
-          activity={planActivity}
-          matchedContacts={contacts}
-          onSend={sendPlanInvites}
+        <FullProfile
+          profile={selectedProfile ?? current}
+          connection={connectionState(selectedProfile ?? current)}
+          busy={sendBusy}
+          open={profileOpen}
+          onOpenChange={closeOrUpdateFullProfile}
+          onPass={nextProfile}
+          onLike={() => completeLike(selectedProfile ?? current)}
+          onSpark={() => {
+            const profile = selectedProfile ?? current;
+            if (matchedProfiles.some((item) => item.name === profile.name))
+              openChatWith('', profile);
+            else openNote(profile);
+          }}
+          onBoost={() => {
+            setProfileOpen(false);
+            setBoostOpen(true);
+          }}
+          matched={matchedProfiles.some(
+            (item) => item.name === (selectedProfile ?? current).name,
+          )}
+          onShare={() => shareProfile(selectedProfile ?? current)}
+          onReport={() =>
+            openProfileSafety(selectedProfile ?? current, 'report')
+          }
+          onBlock={() => openProfileSafety(selectedProfile ?? current, 'block')}
+          saved={savedProfileNames.includes((selectedProfile ?? current).name)}
+          onToggleSaved={() => toggleSavedProfile(selectedProfile ?? current)}
+          todayActive={Boolean(ownDailyStory || dailyAvailability)}
+          onPostToday={() => {
+            setProfileOpen(false);
+            if (ownDailyStory) openEditToday(ownDailyStory);
+            else openNewToday();
+          }}
         />
-      )}
-      <PlanSafetyDialog
-        open={planSafetyOpen}
-        onOpenChange={setPlanSafetyOpen}
-        plan={safetyPlan}
-        onShare={shareDatingPlan}
-        onEnd={endDatingPlan}
-      />
-      <TodayComposerDialog
-        open={todayComposerOpen}
-        onOpenChange={(open) => {
-          setTodayComposerOpen(open);
-          if (!open) setTodayComposerStory(null);
-        }}
-        existing={todayComposerStory ?? undefined}
-        replacing={Boolean(ownDailyStory && !todayComposerStory)}
-        existingAvailability={dailyAvailability}
-        onPublish={publishDailyStory}
-      />
-      <TodayFeedDialog
-        open={todayFeedOpen}
-        stories={visibleDailyStories}
-        viewerEmail={authEmail}
-        onOpenChange={setTodayFeedOpen}
-        onOpenStory={(story) => {
-          setTodayFeedOpen(false);
-          openDailyStory(story);
-        }}
-      />
-      <TodayViewerDialog
-        story={viewedDailyStory}
-        viewerEmail={authEmail}
-        onOpenChange={(open) => {
-          if (!open) setViewedDailyStory(null);
-        }}
-        onLike={likeDailyStory}
-        onSpike={spikeDailyStory}
-        onReply={replyToDailyStory}
-        onProfile={(story) => {
-          const profile = identityForEmail(story.authorEmail)?.profile;
-          setViewedDailyStory(null);
-          if (profile) openFullProfile(profile);
-        }}
-        onEdit={openEditToday}
-        onDelete={deleteOwnDailyStory}
-      />
-      <SubscriptionDialog
-        open={subscriptionOpen}
-        onOpenChange={setSubscriptionOpen}
-        membership={membership}
-        dailyLikesRemaining={dailyLikesRemaining}
-        superPulsesRemaining={superPulsesRemaining}
-        onChoose={choosePulsePlus}
-        onBoost={() => {
-          setSubscriptionOpen(false);
-          setBoostOpen(true);
-        }}
-      />
-      <BoostDialog
-        open={boostOpen}
-        onOpenChange={setBoostOpen}
-        membership={membership}
-        boostsRemaining={boostsRemaining}
-        activeUntil={ownBoostEndsAt}
-        now={boostClock}
-        onActivate={activateBoost}
-        onPurchase={purchaseBoosts}
-        onUpgrade={() => {
-          setBoostOpen(false);
-          setSubscriptionOpen(true);
-        }}
-      />
-      <VoiceBriefingDialog
-        open={voiceOpen}
-        onOpenChange={closeVoiceBriefing}
-        name={selfName}
-        matchCount={contacts.length}
-        incomingLikeCount={incomingLikeCount}
-        unreadMessages={unreadMessages}
-        sentThisWeek={sentThisWeek}
-        superPulsesRemaining={superPulsesRemaining}
-        boostsRemaining={boostsRemaining}
-        mode={voiceMode}
-        onMode={chooseVoiceMode}
-        commandEnabled={voiceDeployment.commandEnabled}
-        liveEnabled={liveVoiceAvailable}
-        testMode={voiceDeployment.testMode}
-        cloudEnabled={voiceDeployment.cloudEnabled}
-        schedule={voiceSchedule}
-        onSchedule={chooseVoiceSchedule}
-        playing={voicePlaying}
-        promptVisible={voicePromptVisible}
-        listening={voiceListening}
-        micStatus={voiceMicStatus}
-        cloudRecording={cloudVoiceRecording}
-        transcript={voiceTranscript}
-        response={voiceResponse}
-        browseMode={voiceBrowseMode}
-        profile={current}
-        onPlay={playVoiceBriefing}
-        onStop={stopVoiceBriefing}
-        onListen={toggleVoiceListening}
-        onCloudListen={toggleCloudVoice}
-        onTranscript={setVoiceTranscript}
-        onCommand={processVoiceCommand}
-        onIncoming={() => {
-          closeVoiceBriefing(false);
-          handleTab('Likes');
-        }}
-        onMessages={() => {
-          closeVoiceBriefing(false);
-          handleTab('Chat');
-        }}
-        onBoost={() => {
-          closeVoiceBriefing(false);
-          setBoostOpen(true);
-        }}
-        onProfile={() => {
-          closeVoiceBriefing(false);
-          handleTab('Profile');
-        }}
-      />
-      <ThemeDialog
-        open={themeOpen}
-        onOpenChange={setThemeOpen}
-        selected={theme}
-        onChoose={chooseTheme}
-      />
-      <div
-        className={`toast ${toast ? 'show' : ''}`}
-        role="status"
-        aria-live="polite"
-      >
-        <BrandHeartMark size={18} />
-        {toast}
-      </div>
-    </main>
+        <NoteDialog
+          profile={actionProfile}
+          open={noteOpen}
+          onOpenChange={setNoteOpen}
+          target={noteTarget}
+          onTarget={setNoteTarget}
+          message={noteMessage}
+          todayText={noteTodayText}
+          onMessage={setNoteMessage}
+          remaining={superPulsesRemaining}
+          busy={sendBusy}
+          sent={connectionState(actionProfile)}
+          onSend={sendNoteAction}
+          onCancel={() => setNoteOpen(false)}
+        />
+        <MatchModal
+          open={matchOpen}
+          onOpenChange={setMatchOpen}
+          profile={matchProfile}
+          room={room}
+          onIcebreaker={(text) => openChatWith(text, matchProfile)}
+          onBrowse={() => {
+            setMatchOpen(false);
+            nextProfile();
+          }}
+        />
+        <SafetyDialog
+          open={safetyOpen}
+          onOpenChange={setSafetyOpen}
+          profile={safetyProfile}
+          mode={safetyMode}
+          onAction={announce}
+          onReport={() => reportProfile(safetyProfile)}
+          onBlock={() => blockProfile(safetyProfile)}
+        />
+        <RegistrationDialog
+          open={registrationOpen}
+          onOpenChange={setRegistrationOpen}
+          onComplete={completeRegistration}
+          initialData={registrationData}
+          draftKey={authEmail ?? ''}
+          initialStep={registrationStep}
+          editing={registered && !registrationCameraCheck}
+          singleSection={registrationSingleSection}
+          media={effectiveOwnMedia}
+          onAddPhoto={addProfilePhoto}
+          onAddVideo={addProfileVideo}
+          onMakeMainPhoto={makeMainProfilePhoto}
+          onRemovePhoto={removeProfilePhoto}
+        />
+        <PhotoVerificationDialog
+          open={verificationOpen}
+          onOpenChange={(open) => {
+            setVerificationOpen(open);
+            if (!open) setRegistrationCameraCheck(false);
+          }}
+          status={verificationStatus}
+          serverEnabled={serverDataEnabled}
+          accountKey={authEmail ?? 'signed-out'}
+          registration={registrationCameraCheck}
+          onStatusChange={(next) => {
+            setVerificationStatus(next);
+            announce(
+              next === 'photo_verified' || next === 'identity_verified'
+                ? 'Your profile is Photo Verified'
+                : next === 'capture_ready'
+                  ? 'Face capture check complete — photo verification is still required'
+                  : next === 'needs_review'
+                    ? 'Your camera check is ready for review'
+                    : 'Photo verification updated',
+            );
+          }}
+        />
+        <FilterDialog
+          open={filterOpen}
+          onOpenChange={setFilterOpen}
+          filters={filters}
+          availableProfiles={availableProfiles}
+          membership={membership}
+          onUpgrade={() => {
+            setFilterOpen(false);
+            setSubscriptionOpen(true);
+          }}
+          onApply={(next) => {
+            setFilters(next);
+            setProfileIndex(0);
+            setFilterOpen(false);
+            announce('Preferences applied');
+          }}
+        />
+        {datePlansEnabled && (
+          <PlanDialog
+            open={planOpen}
+            onOpenChange={setPlanOpen}
+            activity={planActivity}
+            matchedContacts={contacts}
+            onSend={sendPlanInvites}
+          />
+        )}
+        <PlanSafetyDialog
+          open={planSafetyOpen}
+          onOpenChange={setPlanSafetyOpen}
+          plan={safetyPlan}
+          onShare={shareDatingPlan}
+          onEnd={endDatingPlan}
+        />
+        <TodayComposerDialog
+          open={todayComposerOpen}
+          onOpenChange={(open) => {
+            setTodayComposerOpen(open);
+            if (!open) setTodayComposerStory(null);
+          }}
+          existing={todayComposerStory ?? undefined}
+          replacing={Boolean(ownDailyStory && !todayComposerStory)}
+          existingAvailability={dailyAvailability}
+          onPublish={publishDailyStory}
+        />
+        <TodayFeedDialog
+          open={todayFeedOpen}
+          stories={visibleDailyStories}
+          viewerEmail={authEmail}
+          onOpenChange={setTodayFeedOpen}
+          onOpenStory={(story) => {
+            setTodayFeedOpen(false);
+            openDailyStory(story);
+          }}
+        />
+        <TodayViewerDialog
+          story={viewedDailyStory}
+          viewerEmail={authEmail}
+          onOpenChange={(open) => {
+            if (!open) setViewedDailyStory(null);
+          }}
+          onLike={likeDailyStory}
+          onSpike={spikeDailyStory}
+          onReply={replyToDailyStory}
+          onProfile={(story) => {
+            const profile = identityForEmail(story.authorEmail)?.profile;
+            setViewedDailyStory(null);
+            if (profile) openFullProfile(profile);
+          }}
+          onEdit={openEditToday}
+          onDelete={deleteOwnDailyStory}
+        />
+        <SubscriptionDialog
+          open={subscriptionOpen}
+          onOpenChange={setSubscriptionOpen}
+          membership={membership}
+          dailyLikesRemaining={dailyLikesRemaining}
+          superPulsesRemaining={superPulsesRemaining}
+          onChoose={choosePulsePlus}
+          onBoost={() => {
+            setSubscriptionOpen(false);
+            setBoostOpen(true);
+          }}
+        />
+        <BoostDialog
+          open={boostOpen}
+          onOpenChange={setBoostOpen}
+          membership={membership}
+          boostsRemaining={boostsRemaining}
+          activeUntil={ownBoostEndsAt}
+          now={boostClock}
+          onActivate={activateBoost}
+          onPurchase={purchaseBoosts}
+          onUpgrade={() => {
+            setBoostOpen(false);
+            setSubscriptionOpen(true);
+          }}
+        />
+        <VoiceBriefingDialog
+          open={voiceOpen}
+          onOpenChange={closeVoiceBriefing}
+          name={selfName}
+          matchCount={contacts.length}
+          incomingLikeCount={incomingLikeCount}
+          unreadMessages={unreadMessages}
+          sentThisWeek={sentThisWeek}
+          superPulsesRemaining={superPulsesRemaining}
+          boostsRemaining={boostsRemaining}
+          mode={voiceMode}
+          onMode={chooseVoiceMode}
+          commandEnabled={voiceDeployment.commandEnabled}
+          liveEnabled={liveVoiceAvailable}
+          testMode={voiceDeployment.testMode}
+          cloudEnabled={voiceDeployment.cloudEnabled}
+          schedule={voiceSchedule}
+          onSchedule={chooseVoiceSchedule}
+          playing={voicePlaying}
+          promptVisible={voicePromptVisible}
+          listening={voiceListening}
+          micStatus={voiceMicStatus}
+          cloudRecording={cloudVoiceRecording}
+          transcript={voiceTranscript}
+          response={voiceResponse}
+          browseMode={voiceBrowseMode}
+          profile={current}
+          onPlay={playVoiceBriefing}
+          onStop={stopVoiceBriefing}
+          onListen={toggleVoiceListening}
+          onCloudListen={toggleCloudVoice}
+          onTranscript={setVoiceTranscript}
+          onCommand={processVoiceCommand}
+          onIncoming={() => {
+            closeVoiceBriefing(false);
+            handleTab('Likes');
+          }}
+          onMessages={() => {
+            closeVoiceBriefing(false);
+            handleTab('Chat');
+          }}
+          onBoost={() => {
+            closeVoiceBriefing(false);
+            setBoostOpen(true);
+          }}
+          onProfile={() => {
+            closeVoiceBriefing(false);
+            handleTab('Profile');
+          }}
+        />
+        <ThemeDialog
+          open={themeOpen}
+          onOpenChange={setThemeOpen}
+          selected={theme}
+          onChoose={chooseTheme}
+        />
+        {!verificationOpen && (
+          <div
+            className={`toast ${toast ? 'show' : ''}`}
+            role="status"
+            aria-live="polite"
+          >
+            <BrandHeartMark size={18} />
+            {toast}
+          </div>
+        )}
+      </main>
+    </LivePresenceProvider>
   );
 }
 
@@ -5359,8 +6484,7 @@ function TodayComposerDialog({
       const now = new Date();
       availability = {
         localDate: dateInputValue(),
-        startAt: now.toISOString(),
-        endAt: nextMorningAtFive(),
+        ...tonightWindow(now),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       };
     }
@@ -5383,7 +6507,10 @@ function TodayComposerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="today-composer-dialog">
+      <DialogContent
+        showCloseButton={false}
+        className="today-composer-dialog editorial-popup"
+      >
         <button
           type="button"
           className="match-close"
@@ -5392,10 +6519,17 @@ function TodayComposerDialog({
         >
           <X size={19} />
         </button>
-        <p className="today-kicker">VISIBLE FOR 24 HOURS</p>
-        <DialogTitle>Today</DialogTitle>
+        <div className="editorial-popup-heading">
+          <span className="editorial-popup-icon" aria-hidden="true">
+            <Sun size={20} />
+          </span>
+          <div>
+            <p className="today-kicker">24-HOUR MOMENT</p>
+            <DialogTitle>Today</DialogTitle>
+          </div>
+        </div>
         <DialogDescription>
-          Share one quick update and optionally show that you are free tonight.
+          One little update can start a conversation.
         </DialogDescription>
 
         <label className="today-field today-simple-update">
@@ -5426,7 +6560,7 @@ function TodayComposerDialog({
         </div>
         <button
           type="button"
-          className="primary-button today-publish-button"
+          className="primary-button today-publish-button editorial-popup-action"
           disabled={
             saving ||
             (!caption.trim() &&
@@ -5627,7 +6761,7 @@ function TodayViewerDialog({
               <BrandHeartMark size={20} /> Like
             </button>
             <button type="button" onClick={() => onSpike(story)}>
-              <MessageCirclePlus size={20} /> Spike
+              <SpikeIntroIcon size={20} /> Spike
             </button>
             {story.repliesEnabled && (
               <form
@@ -5709,21 +6843,40 @@ function SpikeDateWordmark({ context }: { context: 'header' | 'auth' }) {
   );
 }
 
-function EmptyDiscover({ onFilters }: { onFilters: () => void }) {
+function EmptyDiscover({
+  onFilters,
+  onShowAll,
+  availableCount,
+}: {
+  onFilters: () => void;
+  onShowAll: () => void;
+  availableCount: number;
+}) {
   return (
     <section className="empty-discover">
       <SlidersHorizontal size={30} />
       <h1>No profiles match yet</h1>
-      <p>Try widening your age, distance or lifestyle preferences.</p>
+      <p>
+        {availableCount
+          ? `${availableCount} profiles are available before your Home filters. Try widening your preferences.`
+          : 'No new profiles are available right now. Check again later.'}
+      </p>
       <button className="primary-button" onClick={onFilters}>
         Adjust preferences
       </button>
+      {availableCount > 0 && (
+        <button className="secondary-button" onClick={onShowAll}>
+          Show all available profiles
+        </button>
+      )}
     </section>
   );
 }
 
 function DiscoverScreen({
   profile,
+  connection,
+  busy,
   story,
   todayCount,
   todayActive,
@@ -5738,8 +6891,11 @@ function DiscoverScreen({
   onTonight,
   saved,
   onToggleSaved,
+  preview = false,
 }: {
   profile: Profile;
+  connection?: 'like' | 'super_spike';
+  busy: boolean;
   story?: DailyStory;
   todayCount: number;
   todayActive: boolean;
@@ -5754,28 +6910,44 @@ function DiscoverScreen({
   onTonight: () => void;
   saved: boolean;
   onToggleSaved: () => void;
+  preview?: boolean;
 }) {
   return (
-    <section className="discover-screen" aria-label="SpikeDate profiles">
+    <section
+      className="discover-screen quiet-rail-home"
+      aria-label="SpikeDate profiles"
+    >
       <ProfileCard
         profile={profile}
+        preview={preview}
+        connection={connection}
         story={story}
         onOpen={onOpen}
         onOpenStory={onOpenStory}
         onTonight={onTonight}
-        onSwipeLeft={onPass}
-        onSwipeRight={onLike}
+        onSwipeLeft={preview ? undefined : onPass}
+        onSwipeRight={preview ? undefined : onLike}
       />
-      <div className="home-action-rail" aria-label="Profile actions">
+      <div
+        className="home-action-rail"
+        aria-label={preview ? 'Profile action preview' : 'Profile actions'}
+      >
         <button onClick={onPass} aria-label={`Pass on ${profile.name}`}>
           <X size={21} />
         </button>
         <button
           className="like"
           onClick={onLike}
+          disabled={busy}
           aria-label={`Like ${profile.name}`}
         >
           <BrandHeartMark size={20} />
+          <Heart
+            className="gallery-like-heart"
+            size={32}
+            fill="currentColor"
+            aria-hidden="true"
+          />
         </button>
         <button
           className="spark"
@@ -5785,12 +6957,9 @@ function DiscoverScreen({
               ? `Message ${profile.name}`
               : `Send ${profile.name} a Spike introduction`
           }
+          disabled={busy}
         >
-          {matched ? (
-            <MessageCircle size={20} />
-          ) : (
-            <MessageCirclePlus size={20} />
-          )}
+          {matched ? <MessageCircle size={20} /> : <SpikeIntroIcon size={20} />}
         </button>
         <button
           className={saved ? 'saved' : ''}
@@ -5804,6 +6973,8 @@ function DiscoverScreen({
         >
           <Bookmark size={20} fill={saved ? 'currentColor' : 'none'} />
         </button>
+      </div>
+      <div className="home-today-tools" aria-label="Today updates">
         <button
           className={`today-compose ${todayActive ? 'active' : ''}`}
           onClick={onPostToday}
@@ -5817,6 +6988,7 @@ function DiscoverScreen({
           aria-label={`${todayCount} fresh Today updates. See all`}
         >
           <Sun size={20} />
+          <span className="gallery-fresh-label">Fresh</span>
           <span className="today-count-badge">{todayCount}</span>
         </button>
       </div>
@@ -5837,7 +7009,7 @@ function CinematicPortrait({
   priority?: boolean;
   variant?: 'card' | 'full';
 }) {
-  const unoptimized = src.startsWith('/api/media/') || src.startsWith('data:');
+  const unoptimized = src.startsWith('/') || src.startsWith('data:');
   const imageSource = src.startsWith('/api/media/')
     ? `${src.split('?')[0]}?variant=${variant}`
     : src;
@@ -5861,6 +7033,7 @@ function CinematicPortrait({
 
 function ProfileCard({
   profile,
+  connection,
   story,
   onOpen,
   onOpenStory,
@@ -5871,6 +7044,7 @@ function ProfileCard({
   onSwipeRight,
 }: {
   profile: Profile;
+  connection?: 'like' | 'super_spike';
   story?: DailyStory;
   onOpen?: () => void;
   onOpenStory?: (story: DailyStory) => void;
@@ -6003,7 +7177,7 @@ function ProfileCard({
         className="profile-card-open"
         aria-label={
           preview
-            ? 'Preview of your dating card'
+            ? 'Open your full profile preview'
             : `Open ${profile.name}'s full profile`
         }
       />
@@ -6012,19 +7186,21 @@ function ProfileCard({
         {!preview && (
           <p className="tap-hint">Tap the photo for the full profile</p>
         )}
-        {profile.active && !preview && (
-          <p
-            className="profile-presence"
-            aria-label={`${profile.name} is online now`}
-          >
-            <span aria-hidden="true" />
-            Online now
-          </p>
-        )}
+        <PresenceStatus
+          name={profile.name}
+          userId={profile.id}
+          lastActiveAt={profile.lastActiveAt}
+          demoActive={!serverDataEnabled && profile.active}
+        />
         <div className="name-row">
           <h1>
             {profile.name}, {profile.age}
           </h1>
+          {connection && (
+            <small className="connection-sent-state">
+              {connection === 'super_spike' ? 'Spike sent' : 'Liked'}
+            </small>
+          )}
           {profile.verified !== false && (
             <BadgeCheck
               size={22}
@@ -6035,56 +7211,82 @@ function ProfileCard({
           )}
         </div>
         <p className="distance">
+          <MapPin size={13} className="home-detail-icon" aria-hidden="true" />
           {profile.place} · {profile.distance}
         </p>
         <div className="chips">
-          <span>{profile.intent}</span>
+          <span>
+            <Heart size={13} className="home-detail-icon" aria-hidden="true" />
+            {profile.intent}
+          </span>
           {profile.tags.map((tag) => (
             <span key={tag}>{tag}</span>
           ))}
         </div>
         <p className="card-story">{profile.prompt}</p>
-        {(story || tonight) && !preview && (
+        {(story || tonight) && (
           <div
             className="today-card-combined"
             aria-label={`${profile.name}'s Today`}
           >
-            {story && (
-              <button
-                type="button"
-                className="today-card-pill"
-                aria-label={`View ${profile.name}'s Today post`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onOpenStory?.(story);
-                }}
-              >
-                <span className="today-card-icon" aria-hidden="true">
-                  <Sun size={14} />
-                </span>
-                <span>
-                  <small>TODAY</small>
-                  <strong>{story.caption}</strong>
-                </span>
-                <ChevronRight size={14} />
-              </button>
-            )}
-            {tonight && (
-              <button
-                type="button"
-                className="tonight-card-status"
-                aria-label={`${profile.name} is available tonight. Send a Spike`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onTonight?.();
-                }}
-              >
-                <Moon size={14} fill="currentColor" aria-hidden="true" />
-                <span>
-                  <strong>Available tonight</strong>
-                </span>
-              </button>
-            )}
+            {story &&
+              (preview ? (
+                <div className="today-card-pill" aria-label="Your Today post">
+                  <span className="today-card-icon" aria-hidden="true">
+                    <Sun size={14} />
+                  </span>
+                  <span>
+                    <small>TODAY</small>
+                    <strong>{story.caption}</strong>
+                  </span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="today-card-pill"
+                  aria-label={`View ${profile.name}'s Today post`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpenStory?.(story);
+                  }}
+                >
+                  <span className="today-card-icon" aria-hidden="true">
+                    <Sun size={14} />
+                  </span>
+                  <span>
+                    <small>TODAY</small>
+                    <strong>{story.caption}</strong>
+                  </span>
+                  <ChevronRight size={14} />
+                </button>
+              ))}
+            {tonight &&
+              (preview ? (
+                <div
+                  className="tonight-card-status"
+                  aria-label="Your tonight availability"
+                >
+                  <Moon size={14} fill="currentColor" aria-hidden="true" />
+                  <span>
+                    <strong>Available tonight</strong>
+                  </span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="tonight-card-status"
+                  aria-label={`${profile.name} is available tonight. Send a Spike`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onTonight?.();
+                  }}
+                >
+                  <Moon size={14} fill="currentColor" aria-hidden="true" />
+                  <span>
+                    <strong>Available tonight</strong>
+                  </span>
+                </button>
+              ))}
           </div>
         )}
       </div>
@@ -6099,6 +7301,7 @@ function ActionRow({
   saved,
   onToggleSaved,
   matched = false,
+  busy = false,
 }: {
   onPass: () => void;
   onLike: () => void;
@@ -6106,13 +7309,19 @@ function ActionRow({
   saved?: boolean;
   onToggleSaved?: () => void;
   matched?: boolean;
+  busy?: boolean;
 }) {
   return (
     <div className="action-row" aria-label="Profile actions">
       <button className="action-button pass" aria-label="Pass" onClick={onPass}>
         <X size={27} />
       </button>
-      <button className="action-button like" aria-label="Like" onClick={onLike}>
+      <button
+        className="action-button like"
+        aria-label="Like"
+        onClick={onLike}
+        disabled={busy}
+      >
         <BrandHeartMark size={29} />
       </button>
       {onSpark && (
@@ -6121,12 +7330,9 @@ function ActionRow({
           aria-label={matched ? 'Message match' : 'Send a Spike introduction'}
           title={matched ? 'Message' : 'Spike'}
           onClick={onSpark}
+          disabled={busy}
         >
-          {matched ? (
-            <MessageCircle size={25} />
-          ) : (
-            <MessageCirclePlus size={25} />
-          )}
+          {matched ? <MessageCircle size={25} /> : <SpikeIntroIcon size={25} />}
         </button>
       )}
       {onToggleSaved && (
@@ -6152,8 +7358,13 @@ function EngagementPrompt({
   profileCount,
   onDismiss,
   onAction,
+  preview = false,
 }: {
-  nudge: EngagementNudge;
+  nudge:
+    | { kind: 'today' }
+    | { kind: 'boost' }
+    | { kind: 'like' }
+    | { kind: 'super'; profile: Pick<Profile, 'name'> };
   membership: Membership;
   boostsRemaining: number;
   dailyLikesRemaining: number;
@@ -6161,6 +7372,7 @@ function EngagementPrompt({
   profileCount: number;
   onDismiss: () => void;
   onAction: () => void;
+  preview?: boolean;
 }) {
   const promptOfTheDay =
     todayPrompts[Math.floor(Date.now() / 86_400_000) % todayPrompts.length];
@@ -6173,57 +7385,53 @@ function EngagementPrompt({
           title: 'Share one fresh moment',
           copy: promptOfTheDay,
           meta: 'One active post · disappears in 24 hours',
-          dismiss: 'Maybe later',
           action: 'Post Today',
         }
       : nudge.kind === 'boost'
         ? {
             icon: ProfileLiftMark,
             tone: 'boost',
-            eyebrow: 'VISIBILITY OPPORTUNITY',
-            title: 'A good moment for Profile Lift',
+            eyebrow: 'PROFILE LIFT',
+            title: 'Be seen a little sooner',
             copy: 'Your profile is ready. Profile Lift shows it sooner to compatible people for 30 minutes.',
             meta: `${boostsRemaining} Profile ${boostsRemaining === 1 ? 'Lift' : 'Lifts'} available`,
-            dismiss: 'Not now',
             action: 'See Profile Lift',
           }
         : nudge.kind === 'like'
           ? {
-              icon: BrandHeartMark,
+              icon: Compass,
               tone: 'like',
-              eyebrow: 'TODAY’S PROFILES',
-              title: `${profileCount || 1} strong ${profileCount === 1 ? 'match' : 'matches'} today`,
-              copy: 'Review them when you have a minute. A thoughtful Like is better than rushing.',
+              eyebrow: 'FRESH PEOPLE',
+              title: `${profileCount || 1} new ${profileCount === 1 ? 'person' : 'people'} in Galaxy`,
+              copy: 'Take a look when you have a minute. A thoughtful Like goes further.',
               meta:
                 membership === 'plus'
                   ? 'Unlimited Likes'
                   : `${dailyLikesRemaining} Likes left today`,
-              dismiss: 'Later',
               action: 'Show profiles',
             }
           : {
-              icon: MessageCirclePlus,
+              icon: SpikeIntroIcon,
               tone: 'super',
               eyebrow: 'HIGH-INTENT MOMENT',
               title: `${nudge.profile.name} stands out`,
-              copy: 'Send a personal Spike when someone truly stands out. It appears at the top of their Likes.',
+              copy: 'A personal Spike puts your intro at the top of their Likes.',
               meta: `${superPulsesRemaining} Spike${superPulsesRemaining === 1 ? '' : 's'} left this week`,
-              dismiss: 'Keep browsing',
               action: 'Write an intro',
             };
   const Icon = content.icon;
 
   return (
     <section
-      className={`engagement-prompt ${content.tone}`}
-      role="dialog"
-      aria-modal="false"
+      className={`engagement-prompt ${content.tone}${preview ? ' reminder-preview-card' : ''}`}
+      role={preview ? 'group' : 'dialog'}
+      aria-modal={preview ? undefined : false}
       aria-label={content.title}
     >
       <div className="engagement-prompt-heading">
         <span className="engagement-prompt-icon" aria-hidden="true">
           <Icon
-            size={21}
+            size={nudge.kind === 'super' ? 27 : 21}
             fill={nudge.kind === 'like' ? 'currentColor' : 'none'}
           />
         </span>
@@ -6231,21 +7439,28 @@ function EngagementPrompt({
           <small>{content.eyebrow}</small>
           <strong>{content.title}</strong>
         </span>
-        <button
-          className="engagement-prompt-close"
-          onClick={onDismiss}
-          aria-label={`Dismiss ${content.title}`}
-        >
-          <X size={18} />
-        </button>
+        {preview ? (
+          <span className="engagement-prompt-close" aria-hidden="true">
+            <X size={18} />
+          </span>
+        ) : (
+          <button
+            className="engagement-prompt-close"
+            onClick={onDismiss}
+            aria-label={`Dismiss ${content.title}`}
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
       <p className="engagement-prompt-copy">{content.copy}</p>
-      <p className="engagement-prompt-meta">{content.meta}</p>
+      <p className="engagement-prompt-meta">
+        {nudge.kind === 'super' && <Star size={13} fill="currentColor" aria-hidden="true" />}
+        {content.meta}
+      </p>
       <div className="engagement-prompt-actions">
-        <button className="secondary" onClick={onDismiss}>
-          {content.dismiss}
-        </button>
-        <button className="primary" onClick={onAction}>
+        <button className="primary" onClick={onAction} disabled={preview}>
+          {nudge.kind === 'super' && <SpikeIntroIcon size={17} />}
           {content.action}
         </button>
       </div>
@@ -6309,7 +7524,9 @@ function TabBar({
 }
 
 function FullProfile({
-  profile,
+  profile: initialProfile,
+  connection,
+  busy = false,
   open,
   onOpenChange,
   onPass,
@@ -6324,8 +7541,13 @@ function FullProfile({
   onToggleSaved,
   todayActive,
   onPostToday,
+  readOnly = false,
+  detailsOverride,
+  story,
 }: {
   profile: Profile;
+  connection?: 'like' | 'super_spike';
+  busy?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPass: () => void;
@@ -6340,8 +7562,105 @@ function FullProfile({
   onToggleSaved: () => void;
   todayActive: boolean;
   onPostToday: () => void;
+  readOnly?: boolean;
+  detailsOverride?: RegistrationData;
+  story?: DailyStory;
 }) {
-  const richDetails = identityForProfile(profile)?.registration;
+  const [publicProfile, setPublicProfile] = useState<Partial<Profile> | null>(
+    null,
+  );
+  const profile = {
+    ...initialProfile,
+    ...(publicProfile?.id === initialProfile.id ? publicProfile : {}),
+  };
+  const richDetails =
+    detailsOverride ??
+    (profile.facts ? undefined : identityForProfile(profile)?.registration);
+  const savedFacts = profile.facts;
+  const [publicConnection, setPublicConnection] =
+    useState<ProfileConnection | null>(null);
+  useEffect(() => {
+    setPublicConnection(null);
+    setPublicProfile(null);
+    if (!open || !profile.id || detailsOverride || !serverDataEnabled) return;
+    let cancelled = false;
+    void serverJson<{
+      connection: ProfileConnection;
+      profile?: Partial<Profile>;
+    }>(`/api/profiles/${encodeURIComponent(profile.id)}/connection`)
+      .then((data) => {
+        if (!cancelled) {
+          setPublicConnection(data.connection);
+          setPublicProfile(data.profile || null);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, profile.id, detailsOverride]);
+  const connectionDetails = detailsOverride
+    ? connectionForRegistration(detailsOverride)
+    : publicConnection || profile.matchDetails || emptyConnection;
+  const profileFacts = [
+    {
+      label: 'Looking for',
+      value: richDetails?.intents.join(' · ') || profile.intent,
+      Icon: Heart,
+    },
+    {
+      label: 'Height',
+      value: richDetails
+        ? richDetails.height
+        : (savedFacts?.height ?? profile.height),
+      Icon: Ruler,
+    },
+    {
+      label: 'Open to kids',
+      value: richDetails
+        ? richDetails.wantsKids
+        : (savedFacts?.wantsKids ?? profile.wantsKids),
+      Icon: Sprout,
+    },
+    {
+      label: 'Work',
+      value: richDetails ? richDetails.occupation : savedFacts?.occupation,
+      Icon: BriefcaseBusiness,
+    },
+    {
+      label: 'Gender',
+      value: richDetails?.gender || profile.gender,
+      Icon: UserRound,
+    },
+    {
+      label: 'Have kids',
+      value: richDetails
+        ? richDetails.kids
+        : (savedFacts?.kids ?? profile.kids),
+      Icon: UsersRound,
+    },
+    {
+      label: 'Smoking',
+      value: richDetails
+        ? richDetails.smoking
+        : (savedFacts?.smoking ?? profile.smoking),
+      Icon: Cigarette,
+    },
+    {
+      label: 'Drinking',
+      value: richDetails
+        ? richDetails.drinking
+        : (savedFacts?.drinking ?? profile.drinking),
+      Icon: Wine,
+    },
+    { label: 'Workout', value: richDetails?.exercise, Icon: Dumbbell },
+    { label: 'Religion', value: richDetails?.religion, Icon: HandHeart },
+    {
+      label: 'Education',
+      value: richDetails?.education || savedFacts?.education,
+      Icon: GraduationCap,
+    },
+  ];
   const photos = profile.media
     .filter((item) => item.type === 'photo')
     .slice(0, 6);
@@ -6364,7 +7683,7 @@ function FullProfile({
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className="profile-sheet"
+        className={`profile-sheet ${readOnly ? 'profile-preview-sheet' : ''}`}
       >
         <SheetTitle className="sr-only">
           {profile.name}&apos;s full profile
@@ -6381,29 +7700,31 @@ function FullProfile({
         </button>
         <div className="profile-scroll">
           <div className="profile-film">
-            <div className="profile-film-tools">
-              <button
-                className={`profile-utility profile-today ${todayActive ? 'active' : ''}`}
-                onClick={onPostToday}
-                aria-label="Post or edit your Today update"
-              >
-                <TodayActionIcon active={todayActive} />
-              </button>
-              <button
-                className="profile-utility profile-boost"
-                onClick={onBoost}
-                aria-label="Lift my profile"
-              >
-                <Rocket size={20} />
-              </button>
-              <button
-                className="profile-utility profile-share"
-                onClick={onShare}
-                aria-label={`Share ${profile.name}'s profile with friends or family`}
-              >
-                <Share2 size={20} />
-              </button>
-            </div>
+            {!readOnly && (
+              <div className="profile-film-tools">
+                <button
+                  className={`profile-utility profile-today ${todayActive ? 'active' : ''}`}
+                  onClick={onPostToday}
+                  aria-label="Post or edit your Today update"
+                >
+                  <TodayActionIcon active={todayActive} />
+                </button>
+                <button
+                  className="profile-utility profile-boost"
+                  onClick={onBoost}
+                  aria-label="Lift my profile"
+                >
+                  <ProfileLiftMark size={20} />
+                </button>
+                <button
+                  className="profile-utility profile-share"
+                  onClick={onShare}
+                  aria-label={`Share ${profile.name}'s profile with friends or family`}
+                >
+                  <Share2 size={20} />
+                </button>
+              </div>
+            )}
             {active.type === 'video' ? (
               <video
                 src={active.src}
@@ -6457,11 +7778,22 @@ function FullProfile({
               </>
             )}
             <div className="profile-title">
+              <PresenceStatus
+                name={profile.name}
+                userId={profile.id}
+                lastActiveAt={profile.lastActiveAt}
+                demoActive={!serverDataEnabled && profile.active}
+              />
               <div className="profile-title-line">
                 <div className="name-row">
                   <h2>
                     {profile.name}, {profile.age}
                   </h2>
+                  {connection && (
+                    <small className="connection-sent-state">
+                      {connection === 'super_spike' ? 'Spike sent' : 'Liked'}
+                    </small>
+                  )}
                   {profile.verified !== false && (
                     <BadgeCheck
                       size={21}
@@ -6477,68 +7809,167 @@ function FullProfile({
               </p>
             </div>
           </div>
-          <div className="profile-details full-profile-passport">
+          {photos.length > 1 && (
             <div
-              className="full-passport-facts"
-              aria-label={`${profile.name}'s profile highlights`}
+              className="profile-photo-strip"
+              aria-label="Profile photo gallery"
             >
-              <div>
-                <BrandHeartMark size={18} />
-                <span>
-                  <small>Looking for</small>
-                  <strong>{profile.intent}</strong>
-                </span>
-              </div>
-              <div>
-                <Ruler size={17} />
-                <span>
-                  <small>Height</small>
-                  <strong>{profile.height}</strong>
-                </span>
-              </div>
-              <div>
-                <Baby size={17} />
-                <span>
-                  <small>Family plans</small>
-                  <strong>{profile.wantsKids}</strong>
-                </span>
-              </div>
-              <div>
-                <UserRound size={17} />
-                <span>
-                  <small>Work</small>
-                  <strong>{richDetails?.occupation || profile.place}</strong>
-                </span>
-              </div>
+              {photos.map((photo, index) => (
+                <button
+                  key={photo.id ?? photo.src}
+                  type="button"
+                  aria-label={`View profile photo ${index + 1}`}
+                  aria-pressed={mediaIndex === index}
+                  onClick={() => setMediaIndex(index)}
+                >
+                  <Image
+                    src={photo.src}
+                    alt={`Profile photo ${index + 1}`}
+                    fill
+                    sizes="100px"
+                    unoptimized
+                  />
+                </button>
+              ))}
             </div>
+          )}
+          <div className="profile-details full-profile-passport">
+            {readOnly && (story || profile.tonight) && (
+              <section
+                className="full-preview-today"
+                aria-label="Your Today and availability"
+              >
+                {story && (
+                  <>
+                    <span className="section-label">
+                      <CalendarCheck size={17} aria-hidden="true" /> Today
+                    </span>
+                    <p>{story.caption}</p>
+                  </>
+                )}
+                {profile.tonight && (
+                  <p>
+                    <Moon size={14} aria-hidden="true" /> Available tonight
+                  </p>
+                )}
+              </section>
+            )}
+            <section className="atelier-intention">
+              <span className="section-label">
+                <Heart size={17} aria-hidden="true" /> Looking for
+              </span>
+              <p>{profileFacts[0].value || 'Not shared'}</p>
+            </section>
+            {[
+              {
+                title: 'The essentials',
+                Icon: UserRound,
+                labels: ['Gender', 'Height', 'Work', 'Education'],
+              },
+              {
+                title: 'Family & future',
+                Icon: Baby,
+                labels: ['Have kids', 'Open to kids'],
+              },
+              {
+                title: 'Everyday life',
+                Icon: Leaf,
+                labels: ['Smoking', 'Drinking', 'Workout', 'Religion'],
+              },
+            ].map(({ title, Icon: CategoryIcon, labels }) => (
+              <section
+                key={title}
+                className="atelier-fact-group"
+                aria-label={title}
+              >
+                <span className="section-label">
+                  <CategoryIcon size={17} aria-hidden="true" /> {title}
+                </span>
+                <div
+                  className="full-passport-facts"
+                  aria-label={`${profile.name}'s ${title.toLowerCase()}`}
+                >
+                  {labels
+                    .map((label) =>
+                      profileFacts.find((fact) => fact.label === label)!,
+                    )
+                    .map(({ label, value, Icon }) => (
+                      <div key={label}>
+                        <Icon size={19} strokeWidth={1.5} aria-hidden="true" />
+                        <span>
+                          <small>{label}</small>
+                          <strong>{value?.trim() || 'Not shared'}</strong>
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </section>
+            ))}
             <section className="passport-story">
-              <span className="section-label">PROFILE STORY</span>
+              <span className="section-label">
+                <NotebookPen size={17} aria-hidden="true" /> A little about me
+              </span>
               <p>{richDetails?.bio || profile.prompt}</p>
             </section>
-            <section>
-              <span className="section-label">A perfect ordinary Sunday</span>
-              <p>
-                {profile.name === 'Maya'
-                  ? 'Cold brew, a long walk with no route, then making dinner with a record on.'
-                  : profile.prompt}
-              </p>
-            </section>
+            <ProfileConnectionSummary value={connectionDetails} />
+            {detailsOverride?.promptOneQuestion || profile.prompts?.length ? (
+              (detailsOverride
+                ? [
+                    {
+                      prompt:
+                        detailsOverride.promptOneQuestion || 'My ideal Sunday…',
+                      answer: detailsOverride.promptOne,
+                    },
+                    {
+                      prompt:
+                        detailsOverride.promptTwoQuestion ||
+                        'The quickest way to my heart…',
+                      answer: detailsOverride.promptTwo,
+                    },
+                  ]
+                : profile.prompts || []
+              )
+                .filter((item) => item.answer.trim())
+                .map((item) => (
+                  <section key={item.prompt}>
+                    <span className="section-label">
+                      <NotebookPen size={17} aria-hidden="true" /> {item.prompt}
+                    </span>
+                    <p>{item.answer}</p>
+                  </section>
+                ))
+            ) : (
+              <>
+                <section>
+                  <span className="section-label">
+                    <Sun size={17} aria-hidden="true" /> A perfect ordinary
+                    Sunday
+                  </span>
+                  <p>
+                    {detailsOverride
+                      ? detailsOverride.promptTwo
+                      : profile.name === 'Maya'
+                        ? 'Cold brew, a long walk with no route, then making dinner with a record on.'
+                        : profile.prompt}
+                  </p>
+                </section>
+                <section>
+                  <span className="section-label">
+                    <Heart size={17} aria-hidden="true" />
+                    The quickest way to my heart
+                  </span>
+                  <p>{profile.prompt}</p>
+                </section>
+              </>
+            )}
             <section>
               <span className="section-label">
-                The quickest way to my heart
+                <HandHeart size={17} aria-hidden="true" /> Values & identity
               </span>
-              <p>{profile.prompt}</p>
-            </section>
-            <section>
-              <span className="section-label">LIFESTYLE & BASICS</span>
               <div className="detail-chips">
                 <span>{profile.ethnicity}</span>
                 <span>{profile.pets}</span>
-                <span>{profile.kids}</span>
-                <span>Drinks: {profile.drinking}</span>
-                <span>Smokes: {profile.smoking}</span>
                 {richDetails?.education && <span>{richDetails.education}</span>}
-                {richDetails?.religion && <span>{richDetails.religion}</span>}
                 {richDetails?.politics && <span>{richDetails.politics}</span>}
                 {richDetails?.zodiac && <span>{richDetails.zodiac}</span>}
                 {richDetails?.orientation && (
@@ -6547,9 +7978,6 @@ function FullProfile({
                 {richDetails?.relationshipStyle && (
                   <span>{richDetails.relationshipStyle}</span>
                 )}
-                {richDetails?.exercise && (
-                  <span>Exercise: {richDetails.exercise}</span>
-                )}
                 {richDetails?.diet && <span>{richDetails.diet}</span>}
                 {richDetails?.languages.map((language) => (
                   <span key={language}>{language}</span>
@@ -6557,7 +7985,9 @@ function FullProfile({
               </div>
             </section>
             <section>
-              <span className="section-label">INTERESTS & VALUES</span>
+              <span className="section-label">
+                <WandSparkles size={17} aria-hidden="true" /> What I’m into
+              </span>
               <div className="detail-chips coral">
                 {profile.tags.map((tag) => (
                   <span key={tag}>{tag}</span>
@@ -6567,29 +7997,34 @@ function FullProfile({
                 ))}
               </div>
             </section>
-            <div className="profile-end-actions">
-              <span>Safety options</span>
-              <div>
-                <button onClick={onReport}>
-                  <Flag size={16} /> Report
-                </button>
-                <button className="block-profile" onClick={onBlock}>
-                  <Ban size={17} /> Block
-                </button>
+            {!readOnly && (
+              <div className="profile-end-actions">
+                <span>Safety options</span>
+                <div>
+                  <button onClick={onReport}>
+                    <Flag size={16} /> Report
+                  </button>
+                  <button className="block-profile" onClick={onBlock}>
+                    <Ban size={17} /> Block
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
-        <div className="sheet-actions">
-          <ActionRow
-            onPass={onPass}
-            onLike={onLike}
-            onSpark={onSpark}
-            matched={matched}
-            saved={saved}
-            onToggleSaved={onToggleSaved}
-          />
-        </div>
+        {!readOnly && (
+          <div className="sheet-actions">
+            <ActionRow
+              onPass={onPass}
+              busy={busy}
+              onLike={onLike}
+              onSpark={onSpark}
+              matched={matched}
+              saved={saved}
+              onToggleSaved={onToggleSaved}
+            />
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );
@@ -6603,7 +8038,10 @@ function NoteDialog({
   onTarget,
   message,
   onMessage,
+  todayText,
   remaining,
+  busy,
+  sent,
   onSend,
   onCancel,
 }: {
@@ -6614,18 +8052,54 @@ function NoteDialog({
   onTarget: (target: NoteTarget) => void;
   message: string;
   onMessage: (message: string) => void;
+  todayText: string;
   remaining: number;
+  busy: boolean;
+  sent?: 'like' | 'super_spike';
   onSend: () => void;
   onCancel: () => void;
 }) {
-  const targets: NoteTarget[] = ['Photo 1', profile.tags[0], 'Two truths'];
-  const noteContext = target === 'Photo 1' ? 'photo' : 'prompt';
+  const isToday = target.startsWith('Today');
+  const promptText =
+    profile.prompts?.[0]?.answer?.trim() || profile.prompt?.trim() || '';
+  const interest = profile.tags[0]?.trim() || '';
+  const targets = [
+    ...(isToday ? [{ value: target, label: 'Today', Icon: Sun }] : []),
+    { value: 'Photo 1', label: 'Photo', Icon: Camera },
+    ...(promptText
+      ? [{ value: 'Prompt', label: 'Prompt', Icon: NotebookPen }]
+      : []),
+    ...(interest
+      ? [
+          {
+            value: `Interest · ${interest.slice(0, 80)}`,
+            label: 'Interest',
+            Icon: Heart,
+          },
+        ]
+      : []),
+  ];
+  const noteContext = isToday
+    ? 'today'
+    : target === 'Photo 1'
+      ? 'photo'
+      : target.startsWith('Interest ·')
+        ? 'interest'
+        : 'prompt';
+  const contextText =
+    noteContext === 'today'
+      ? todayText || `${profile.name}’s Today update`
+      : noteContext === 'photo'
+        ? `${profile.name}’s main profile photo`
+        : noteContext === 'interest'
+          ? interest
+          : promptText;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className="note-dialog note-sheet spark-note"
+        className="note-dialog note-sheet spark-note spike-focused-sheet"
       >
         <button
           className="note-sheet-handle"
@@ -6636,14 +8110,11 @@ function NoteDialog({
         </button>
         <div className="note-sheet-header">
           <span className="note-sheet-action-mark" aria-hidden="true">
-            <MessageCirclePlus className="note-sheet-spark" size={24} />
+            <SpikeIntroIcon className="note-sheet-spark" size={24} />
           </span>
           <span className="note-sheet-heading">
             <SheetTitle>{`Spike ${profile.name}`}</SheetTitle>
-            <SheetDescription>
-              {remaining} Spike{remaining === 1 ? '' : 's'} left this week ·
-              delivered at the top of Likes
-            </SheetDescription>
+            <SheetDescription>An introduction that stands out</SheetDescription>
           </span>
           <button
             type="button"
@@ -6654,62 +8125,86 @@ function NoteDialog({
             <X size={20} />
           </button>
         </div>
-        <div className="note-context-card">
-          <span className="note-context-photo">
+        <div className="spike-recipient">
+          <span className="spike-recipient-photo">
             <Image
               src={profile.image}
               alt=""
               fill
-              sizes="66px"
+              sizes="52px"
               className="profile-photo"
             />
-            <ProfileSpikeBadge />
           </span>
           <span>
-            <small>COMMENTING ON</small>
-            <strong>{target}</strong>
-            <p>
-              {noteContext === 'photo'
-                ? `${profile.name}’s main profile photo`
-                : profile.prompt}
-            </p>
+            <strong>
+              {profile.name}, {profile.age}
+            </strong>
+            <small>
+              {remaining} Spike{remaining === 1 ? '' : 's'} left this week
+            </small>
           </span>
         </div>
         <div
-          className="connect-suggestions note-targets"
-          aria-label="Choose what to note"
+          className="spike-context-options"
+          aria-label="Choose what to mention"
         >
           {targets.map((item) => (
             <button
               type="button"
-              key={item}
-              className={target === item ? 'active' : ''}
-              aria-pressed={target === item}
-              onClick={() => onTarget(item)}
+              key={item.value}
+              className={target === item.value ? 'active' : ''}
+              aria-pressed={target === item.value}
+              onClick={() => onTarget(item.value)}
             >
-              {item}
+              <item.Icon size={16} aria-hidden="true" />
+              {item.label}
             </button>
           ))}
         </div>
+        <div className="spike-context-quote" aria-live="polite">
+          <small>
+            {noteContext === 'today'
+              ? 'TODAY'
+              : noteContext === 'photo'
+                ? 'THEIR PHOTO'
+                : noteContext === 'interest'
+                  ? 'SHARED INTEREST'
+                  : 'THEIR PROMPT'}
+          </small>
+          <p>{contextText}</p>
+        </div>
         <label className="connect-message">
           <span className="note-input-label">
-            <strong>Your note</strong>
-            <span>Optional · commenting on this {noteContext}</span>
+            <strong>Your message</strong>
+            <span>Optional</span>
           </span>
           <textarea
             aria-label="Profile note"
             maxLength={140}
             value={message}
             onChange={(event) => onMessage(event.target.value)}
-            placeholder={`Introduce yourself to ${profile.name}…`}
+            placeholder={`Write a thoughtful opener to ${profile.name}…`}
           />
           <small className="note-character-count">{message.length}/140</small>
         </label>
         <div className="note-dialog-actions">
-          <button className="primary-button" onClick={onSend}>
-            <MessageCirclePlus size={20} />
-            Send Spike
+          <button
+            className="primary-button"
+            onClick={onSend}
+            disabled={busy || sent === 'super_spike'}
+          >
+            <SpikeIntroIcon size={20} />
+            {busy
+              ? 'Sending…'
+              : sent === 'super_spike'
+                ? 'Spike already sent'
+                : sent === 'like'
+                  ? 'Upgrade to Spike · uses 1 Spike'
+                  : 'Send Spike'}
           </button>
+          <p className="spike-delivery-note">
+            Uses 1 Spike · delivered at the top of Likes
+          </p>
         </div>
       </SheetContent>
     </Sheet>
@@ -6717,6 +8212,8 @@ function NoteDialog({
 }
 
 function RoomsHub({
+  astrology,
+  onGames,
   onOpenRoom,
   onCreatePlan,
   plans,
@@ -6732,6 +8229,8 @@ function RoomsHub({
   onMarkSafe,
   onSafetyOptions,
 }: {
+  astrology: React.ReactNode;
+  onGames: () => void;
   onOpenRoom: (name: string) => void;
   onCreatePlan: (activity: string) => void;
   plans: DatingPlan[];
@@ -6747,6 +8246,19 @@ function RoomsHub({
   onMarkSafe: (plan: DatingPlan) => void;
   onSafetyOptions: (plan: DatingPlan) => void;
 }) {
+  const [exploreSection, setExploreSection] = useState<
+    'browse' | 'plans' | 'connect'
+  >('browse');
+  const roomIcons: Record<string, typeof Moon> = {
+    Tonight: Moon,
+    Music: Music2,
+    Outdoors: Footprints,
+    'Food lovers': Utensils,
+    'New in town': MapPin,
+    'Coffee dates': Coffee,
+    'Pet people': PawPrint,
+    'Arts & culture': Palette,
+  };
   const [selectedPlan, setSelectedPlan] = useState(galaxyPlans[0]);
   const [suggestingPlanId, setSuggestingPlanId] = useState<number | null>(null);
   const [alternateDay, setAlternateDay] = useState(() => {
@@ -6764,363 +8276,450 @@ function RoomsHub({
           ? [profiles[2], profiles[4], profiles[0]]
           : [profiles[0], profiles[3], profiles[1]];
   return (
-    <section className="screen scroll-screen galaxy-hub">
+    <section className="screen scroll-screen galaxy-hub explore-hub">
       <header className="page-header galaxy-page-header">
-        <p className="eyebrow">Start with a plan</p>
         <h1>Galaxy</h1>
-        <p>Choose the kind of date you’d enjoy.</p>
       </header>
-
-      {datePlansEnabled ? (
-        <section
-          className="galaxy-plan-builder"
-          aria-labelledby="galaxy-plan-title"
+      <div className="explore-tabs" role="tablist" aria-label="Galaxy sections">
+        {(
+          [
+            ['browse', 'Browse', Orbit],
+            ['plans', 'Plans', CalendarDays],
+            ['connect', 'Connect', HandHeart],
+          ] as const
+        ).map(([value, label, Icon]) => (
+          <button
+            type="button"
+            role="tab"
+            key={value}
+            id={`explore-tab-${value}`}
+            aria-controls={`explore-panel-${value}`}
+            aria-selected={exploreSection === value}
+            onClick={() => setExploreSection(value)}
+            onKeyDown={(event) => {
+              if (
+                !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)
+              )
+                return;
+              event.preventDefault();
+              const sections = ['browse', 'plans', 'connect'] as const;
+              const index = sections.indexOf(value);
+              const next =
+                event.key === 'Home'
+                  ? 0
+                  : event.key === 'End'
+                    ? 2
+                    : (index + (event.key === 'ArrowRight' ? 1 : 2)) % 3;
+              setExploreSection(sections[next]);
+              document.getElementById(`explore-tab-${sections[next]}`)?.focus();
+            }}
+          >
+            <Icon size={17} aria-hidden="true" /> {label}
+          </button>
+        ))}
+      </div>
+      <div
+        role="tabpanel"
+        id="explore-panel-connect"
+        aria-labelledby="explore-tab-connect"
+        hidden={exploreSection !== 'connect'}
+      >
+        {astrology}
+        <button
+          className="explore-games-shortcut"
+          type="button"
+          onClick={onGames}
         >
-          <div className="galaxy-section-heading">
-            <div>
-              <p>MAKE A CONNECTION</p>
-              <h2 id="galaxy-plan-title">What sounds good?</h2>
-            </div>
-            <span>Today</span>
-          </div>
-          <div className="galaxy-plan-grid">
-            {galaxyPlans.map((plan) => {
-              const Icon = plan.icon;
-              const active = selectedPlan.name === plan.name;
-              return (
-                <button
-                  type="button"
-                  key={plan.name}
-                  className={`galaxy-plan-tile ${active ? 'selected' : ''}`}
-                  aria-pressed={active}
-                  onClick={() => setSelectedPlan(plan)}
-                >
-                  <Icon size={20} />
-                  <strong>{plan.name}</strong>
-                  <small>{plan.detail}</small>
-                </button>
-              );
-            })}
-          </div>
-
-          <article className="galaxy-plan-result">
-            <div className="galaxy-plan-result-top">
-              <div className="galaxy-plan-faces" aria-hidden="true">
-                {planProfiles.map((profile) => (
-                  <span key={profile.name}>
-                    <Image src={profile.image} alt="" width={42} height={42} />
-                    <ProfileSpikeBadge compact />
-                  </span>
-                ))}
+          <Gamepad2 size={24} aria-hidden="true" />
+          <span>
+            <strong>Play Together</strong>
+            <small>Choose a match in Chat to start a game</small>
+          </span>
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
+      </div>
+      <div
+        role="tabpanel"
+        id="explore-panel-plans"
+        aria-labelledby="explore-tab-plans"
+        hidden={exploreSection !== 'plans'}
+      >
+        {datePlansEnabled ? (
+          <section
+            className="galaxy-plan-builder"
+            aria-labelledby="galaxy-plan-title"
+          >
+            <div className="galaxy-section-heading">
+              <div>
+                <p>MAKE A CONNECTION</p>
+                <h2 id="galaxy-plan-title">What sounds good?</h2>
               </div>
-              <span className="galaxy-fit-badge">Best fit</span>
+              <span>Today</span>
             </div>
-            <div className="galaxy-plan-copy" aria-live="polite">
-              <h3>
-                3 people match your {selectedPlan.name.toLowerCase()} plan
-              </h3>
-              <p>Available soon, nearby, and aligned with your preferences.</p>
+            <div className="galaxy-plan-grid">
+              {galaxyPlans.map((plan) => {
+                const Icon = plan.icon;
+                const active = selectedPlan.name === plan.name;
+                return (
+                  <button
+                    type="button"
+                    key={plan.name}
+                    className={`galaxy-plan-tile ${active ? 'selected' : ''}`}
+                    aria-pressed={active}
+                    onClick={() => setSelectedPlan(plan)}
+                  >
+                    <Icon size={20} />
+                    <strong>{plan.name}</strong>
+                    <small>{plan.detail}</small>
+                  </button>
+                );
+              })}
             </div>
-            <button
-              type="button"
-              className="primary-button galaxy-plan-action"
-              onClick={() => onCreatePlan(selectedPlan.name)}
-            >
-              Plan a {selectedPlan.name.toLowerCase()} date
-              <ChevronRight size={17} />
-            </button>
-          </article>
-        </section>
-      ) : (
-        <section className="galaxy-plan-builder plan-feature-paused">
-          <ShieldCheck size={24} />
-          <div>
-            <h2>Date planning is paused</h2>
-            <p>
-              You can still browse Galaxy spaces and chat with your matches.
-            </p>
-          </div>
-        </section>
-      )}
 
-      {plans.length > 0 && (
-        <section
-          className="galaxy-upcoming"
-          aria-labelledby="galaxy-upcoming-title"
-        >
-          <div className="galaxy-browse-heading">
+            <article className="galaxy-plan-result">
+              <div className="galaxy-plan-result-top">
+                <div className="galaxy-plan-faces" aria-hidden="true">
+                  {planProfiles.map((profile) => (
+                    <span key={profile.name}>
+                      <Image
+                        src={profile.image}
+                        alt=""
+                        width={42}
+                        height={42}
+                      />
+                      <ProfileSpikeBadge compact />
+                    </span>
+                  ))}
+                </div>
+                <span className="galaxy-fit-badge">Best fit</span>
+              </div>
+              <div className="galaxy-plan-copy" aria-live="polite">
+                <h3>
+                  3 people match your {selectedPlan.name.toLowerCase()} plan
+                </h3>
+                <p>
+                  Available soon, nearby, and aligned with your preferences.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="primary-button galaxy-plan-action"
+                onClick={() => onCreatePlan(selectedPlan.name)}
+              >
+                Plan a {selectedPlan.name.toLowerCase()} date
+                <ChevronRight size={17} />
+              </button>
+            </article>
+          </section>
+        ) : (
+          <section className="galaxy-plan-builder plan-feature-paused">
+            <ShieldCheck size={24} />
             <div>
-              <p>PRIVATE DATE INVITES</p>
-              <h2 id="galaxy-upcoming-title">Your date plans</h2>
+              <h2>Date planning is paused</h2>
+              <p>
+                You can still browse Galaxy spaces and chat with your matches.
+              </p>
             </div>
-            <span>{plans.length}</span>
-          </div>
-          {plans.slice(0, 2).map((plan) => (
-            <article key={plan.id} className="galaxy-upcoming-card">
-              <span className="galaxy-upcoming-icon">
-                {plan.activity === 'Coffee' ? (
-                  <Coffee size={18} />
-                ) : plan.activity === 'Dinner' ? (
-                  <Utensils size={18} />
-                ) : plan.activity === 'Music' ? (
-                  <Music2 size={18} />
-                ) : (
-                  <Footprints size={18} />
-                )}
-              </span>
-              <span>
-                <strong>{plan.planName}</strong>
-                <small>
-                  {new Date(`${plan.day}T${plan.time}`).toLocaleString(
-                    undefined,
-                    {
-                      weekday: 'short',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    },
-                  )}{' '}
-                  · {plan.durationMinutes} min
-                </small>
-                <em>
-                  <MapPin size={12} /> {plan.venue.name} ·{' '}
-                  {plan.venue.neighborhood}
-                </em>
-                <em>
-                  {plan.status === 'sent'
-                    ? `Invite sent to ${plan.invitees.join(', ')}`
-                    : plan.status}
-                </em>
-                {plan.safetyCheckInEnabled && (
-                  <em className="plan-safety-status">
-                    <ShieldCheck size={12} /> Safety check-in{' '}
-                    {plan.safetyStatus === 'safe'
-                      ? 'completed'
-                      : `${plan.safetyCheckInMinutes ?? 30} min after start`}
-                  </em>
-                )}
-              </span>
-              <span className={`plan-status ${plan.status}`}>
-                {plan.status === 'sent' ? 'Sent' : plan.status}
-              </span>
-              {(plan.venueOptions?.length ?? 0) > 1 &&
-                plan.status === 'sent' && (
-                  <div className="plan-venue-vote" aria-label="Vote on a venue">
-                    <strong>Vote on a meeting place</strong>
-                    <p>Your choice is shared only with this match.</p>
-                    <div>
-                      {plan.venueOptions!.map((venue) => {
-                        const selected =
-                          plan.venueVotes?.[viewerEmail] === venue.id;
-                        const votes = Object.values(
-                          plan.venueVotes ?? {},
-                        ).filter((venueId) => venueId === venue.id).length;
-                        return (
-                          <button
-                            type="button"
-                            key={venue.id}
-                            className={selected ? 'selected' : ''}
-                            aria-pressed={selected}
-                            onClick={() => onVoteVenue(plan, venue.id)}
-                          >
-                            <MapPin size={13} /> {venue.name}
-                            <small>{votes || ''}</small>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              {plan.alternateDay && plan.alternateTime && (
-                <div className="plan-alternate-proposal">
-                  <span>
-                    <CalendarDays size={15} /> Alternate suggested:{' '}
-                    <strong>
-                      {new Date(
-                        `${plan.alternateDay}T${plan.alternateTime}`,
-                      ).toLocaleString(undefined, {
+          </section>
+        )}
+
+        {plans.length > 0 && (
+          <section
+            className="galaxy-upcoming"
+            aria-labelledby="galaxy-upcoming-title"
+          >
+            <div className="galaxy-browse-heading">
+              <div>
+                <p>PRIVATE DATE INVITES</p>
+                <h2 id="galaxy-upcoming-title">Your date plans</h2>
+              </div>
+              <span>{plans.length}</span>
+            </div>
+            {plans.slice(0, 2).map((plan) => (
+              <article key={plan.id} className="galaxy-upcoming-card">
+                <span className="galaxy-upcoming-icon">
+                  {plan.activity === 'Coffee' ? (
+                    <Coffee size={18} />
+                  ) : plan.activity === 'Dinner' ? (
+                    <Utensils size={18} />
+                  ) : plan.activity === 'Music' ? (
+                    <Music2 size={18} />
+                  ) : (
+                    <Footprints size={18} />
+                  )}
+                </span>
+                <span>
+                  <strong>{plan.planName}</strong>
+                  <small>
+                    {new Date(`${plan.day}T${plan.time}`).toLocaleString(
+                      undefined,
+                      {
                         weekday: 'short',
                         month: 'short',
                         day: 'numeric',
                         hour: 'numeric',
                         minute: '2-digit',
-                      })}
-                    </strong>
-                  </span>
-                  {plan.alternateSuggestedBy !== viewerEmail && (
-                    <button
-                      type="button"
-                      onClick={() => onAcceptAlternate(plan)}
-                    >
-                      Accept new time
-                    </button>
+                      },
+                    )}{' '}
+                    · {plan.durationMinutes} min
+                  </small>
+                  <em>
+                    <MapPin size={12} /> {plan.venue.name} ·{' '}
+                    {plan.venue.neighborhood}
+                  </em>
+                  <em>
+                    {plan.status === 'sent'
+                      ? `Invite sent to ${plan.invitees.join(', ')}`
+                      : plan.status}
+                  </em>
+                  {plan.safetyCheckInEnabled && (
+                    <em className="plan-safety-status">
+                      <ShieldCheck size={12} /> Safety check-in{' '}
+                      {plan.safetyStatus === 'safe'
+                        ? 'completed'
+                        : `${plan.safetyCheckInMinutes ?? 30} min after start`}
+                    </em>
                   )}
-                </div>
-              )}
-              {suggestingPlanId === plan.id && (
-                <div className="plan-alternate-editor">
-                  <label>
-                    New date
-                    <input
-                      aria-label="Alternate plan date"
-                      type="date"
-                      min={new Date().toISOString().slice(0, 10)}
-                      value={alternateDay}
-                      onChange={(event) => setAlternateDay(event.target.value)}
-                    />
-                  </label>
-                  <label>
-                    New time
-                    <input
-                      aria-label="Alternate plan time"
-                      type="time"
-                      value={alternateTime}
-                      onChange={(event) => setAlternateTime(event.target.value)}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    disabled={!alternateDay || !alternateTime}
-                    onClick={() => {
-                      onSuggestPlan(plan, alternateDay, alternateTime);
-                      setSuggestingPlanId(null);
-                    }}
-                  >
-                    Send option
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSuggestingPlanId(null)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-              {plan.status === 'sent' &&
-                plan.creatorEmail &&
-                plan.creatorEmail !== viewerEmail && (
-                  <div className="galaxy-plan-response-tools">
+                </span>
+                <span className={`plan-status ${plan.status}`}>
+                  {plan.status === 'sent' ? 'Sent' : plan.status}
+                </span>
+                {(plan.venueOptions?.length ?? 0) > 1 &&
+                  plan.status === 'sent' && (
+                    <div
+                      className="plan-venue-vote"
+                      aria-label="Vote on a venue"
+                    >
+                      <strong>Vote on a meeting place</strong>
+                      <p>Your choice is shared only with this match.</p>
+                      <div>
+                        {plan.venueOptions!.map((venue) => {
+                          const selected =
+                            plan.venueVotes?.[viewerEmail] === venue.id;
+                          const votes = Object.values(
+                            plan.venueVotes ?? {},
+                          ).filter((venueId) => venueId === venue.id).length;
+                          return (
+                            <button
+                              type="button"
+                              key={venue.id}
+                              className={selected ? 'selected' : ''}
+                              aria-pressed={selected}
+                              onClick={() => onVoteVenue(plan, venue.id)}
+                            >
+                              <MapPin size={13} /> {venue.name}
+                              <small>{votes || ''}</small>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                {plan.alternateDay && plan.alternateTime && (
+                  <div className="plan-alternate-proposal">
+                    <span>
+                      <CalendarDays size={15} /> Alternate suggested:{' '}
+                      <strong>
+                        {new Date(
+                          `${plan.alternateDay}T${plan.alternateTime}`,
+                        ).toLocaleString(undefined, {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
+                      </strong>
+                    </span>
+                    {plan.alternateSuggestedBy !== viewerEmail && (
+                      <button
+                        type="button"
+                        onClick={() => onAcceptAlternate(plan)}
+                      >
+                        Accept new time
+                      </button>
+                    )}
+                  </div>
+                )}
+                {suggestingPlanId === plan.id && (
+                  <div className="plan-alternate-editor">
+                    <label>
+                      New date
+                      <input
+                        aria-label="Alternate plan date"
+                        type="date"
+                        min={new Date().toISOString().slice(0, 10)}
+                        value={alternateDay}
+                        onChange={(event) =>
+                          setAlternateDay(event.target.value)
+                        }
+                      />
+                    </label>
+                    <label>
+                      New time
+                      <input
+                        aria-label="Alternate plan time"
+                        type="time"
+                        value={alternateTime}
+                        onChange={(event) =>
+                          setAlternateTime(event.target.value)
+                        }
+                      />
+                    </label>
                     <button
                       type="button"
-                      className="accept"
-                      onClick={() => onRespondPlan(plan, 'accepted')}
+                      disabled={!alternateDay || !alternateTime}
+                      onClick={() => {
+                        onSuggestPlan(plan, alternateDay, alternateTime);
+                        setSuggestingPlanId(null);
+                      }}
                     >
-                      <Check size={15} /> Accept
+                      Send option
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSuggestingPlanId(plan.id)}
+                      onClick={() => setSuggestingPlanId(null)}
                     >
-                      Suggest change
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onRespondPlan(plan, 'declined')}
-                    >
-                      Not this time
+                      Cancel
                     </button>
                   </div>
                 )}
-              {plan.status === 'accepted' &&
-                plan.safetyCheckInEnabled &&
-                plan.safetyStatus !== 'safe' && (
-                  <div className="plan-check-in-actions">
-                    <button
-                      type="button"
-                      className="plan-safe-button"
-                      onClick={() => onMarkSafe(plan)}
-                    >
-                      <ShieldCheck size={15} /> I’m safe
-                    </button>
-                  </div>
-                )}
-              {plan.status === 'accepted' && (
-                <button
-                  type="button"
-                  className="plan-safety-options"
-                  onClick={() => onSafetyOptions(plan)}
-                >
-                  <ShieldCheck size={15} /> Safety options
-                </button>
-              )}
-              {plan.status !== 'cancelled' &&
-                !(
-                  plan.status === 'sent' &&
+                {plan.status === 'sent' &&
                   plan.creatorEmail &&
-                  plan.creatorEmail !== viewerEmail
-                ) && (
-                  <div className="galaxy-plan-tools">
-                    <button
-                      type="button"
-                      onClick={() => onDirections(plan)}
-                      aria-label={`Directions to ${plan.venue.name}`}
-                    >
-                      <ExternalLink size={15} /> Directions
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onCalendar(plan)}
-                      aria-label={`Add ${plan.planName} to calendar`}
-                    >
-                      <CalendarDays size={15} /> Calendar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onSharePlan(plan)}
-                      aria-label={`Share ${plan.planName} with a trusted contact`}
-                    >
-                      <Share2 size={15} /> Trusted contact
-                    </button>
-                    <button
-                      type="button"
-                      className="cancel"
-                      onClick={() => onCancelPlan(plan)}
-                      aria-label={`Cancel ${plan.planName}`}
-                    >
-                      <X size={15} /> Cancel
-                    </button>
-                  </div>
+                  plan.creatorEmail !== viewerEmail && (
+                    <div className="galaxy-plan-response-tools">
+                      <button
+                        type="button"
+                        className="accept"
+                        onClick={() => onRespondPlan(plan, 'accepted')}
+                      >
+                        <Check size={15} /> Accept
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSuggestingPlanId(plan.id)}
+                      >
+                        Suggest change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRespondPlan(plan, 'declined')}
+                      >
+                        Not this time
+                      </button>
+                    </div>
+                  )}
+                {plan.status === 'accepted' &&
+                  plan.safetyCheckInEnabled &&
+                  plan.safetyStatus !== 'safe' && (
+                    <div className="plan-check-in-actions">
+                      <button
+                        type="button"
+                        className="plan-safe-button"
+                        onClick={() => onMarkSafe(plan)}
+                      >
+                        <ShieldCheck size={15} /> I’m safe
+                      </button>
+                    </div>
+                  )}
+                {plan.status === 'accepted' && (
+                  <button
+                    type="button"
+                    className="plan-safety-options"
+                    onClick={() => onSafetyOptions(plan)}
+                  >
+                    <ShieldCheck size={15} /> Safety options
+                  </button>
                 )}
-            </article>
-          ))}
-        </section>
-      )}
-
-      <div className="galaxy-browse-heading">
-        <div>
-          <p>EXPLORE BY ENERGY</p>
-          <h2>Browse the Galaxy</h2>
+                {plan.status !== 'cancelled' &&
+                  !(
+                    plan.status === 'sent' &&
+                    plan.creatorEmail &&
+                    plan.creatorEmail !== viewerEmail
+                  ) && (
+                    <div className="galaxy-plan-tools">
+                      <button
+                        type="button"
+                        onClick={() => onDirections(plan)}
+                        aria-label={`Directions to ${plan.venue.name}`}
+                      >
+                        <ExternalLink size={15} /> Directions
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onCalendar(plan)}
+                        aria-label={`Add ${plan.planName} to calendar`}
+                      >
+                        <CalendarDays size={15} /> Calendar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onSharePlan(plan)}
+                        aria-label={`Share ${plan.planName} with a trusted contact`}
+                      >
+                        <Share2 size={15} /> Trusted contact
+                      </button>
+                      <button
+                        type="button"
+                        className="cancel"
+                        onClick={() => onCancelPlan(plan)}
+                        aria-label={`Cancel ${plan.planName}`}
+                      >
+                        <X size={15} /> Cancel
+                      </button>
+                    </div>
+                  )}
+              </article>
+            ))}
+          </section>
+        )}
+      </div>
+      <div
+        role="tabpanel"
+        id="explore-panel-browse"
+        aria-labelledby="explore-tab-browse"
+        hidden={exploreSection !== 'browse'}
+      >
+        <div className="galaxy-browse-heading">
+          <div>
+            <h2>Find your kind of connection</h2>
+          </div>
+          <span>{roomData.length} spaces</span>
         </div>
-        <span>{roomData.length} spaces</span>
+        <div className="room-grid">
+          {roomData.map((item) => {
+            const Icon = roomIcons[item.name] ?? Orbit;
+            return (
+              <button
+                key={item.name}
+                className={`room-tile ${item.className ?? ''}`}
+                onClick={() => onOpenRoom(item.name)}
+              >
+                <Image
+                  src={item.image}
+                  alt=""
+                  fill
+                  sizes="390px"
+                  className="profile-photo"
+                />
+                <span className="room-shade" />
+                <span className="room-copy">
+                  <strong>
+                    <Icon size={17} aria-hidden="true" />
+                    {item.name}
+                  </strong>
+                  <small>{item.caption}</small>
+                  <em>{item.count}</em>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="stand-note">
+          <Radio size={16} fill="currentColor" /> You can appear in Spike + one
+          Galaxy space
+        </p>
       </div>
-      <div className="room-grid">
-        {roomData.map((item) => (
-          <button
-            key={item.name}
-            className={`room-tile ${item.className ?? ''}`}
-            onClick={() => onOpenRoom(item.name)}
-          >
-            <Image
-              src={item.image}
-              alt=""
-              fill
-              sizes="390px"
-              className="profile-photo"
-            />
-            <span className="room-shade" />
-            <span className="room-copy">
-              <strong>{item.name}</strong>
-              <small>{item.caption}</small>
-              <em>{item.count}</em>
-            </span>
-          </button>
-        ))}
-      </div>
-      <p className="stand-note">
-        <Radio size={16} fill="currentColor" /> You can appear in Spike + one
-        Galaxy
-      </p>
     </section>
   );
 }
@@ -7764,8 +9363,11 @@ function LikesScreen({
 }) {
   const [view, setView] = useState<'incoming' | 'sent' | 'matches'>('incoming');
   const [incomingFilter, setIncomingFilter] = useState<
-    'all' | 'new' | 'super' | 'notes'
+    'all' | 'super' | 'notes'
   >('all');
+  const [query, setQuery] = useState('');
+  const matchesQuery = (profile: Profile) =>
+    profile.name.toLowerCase().includes(query.trim().toLowerCase());
   const demoRows: IncomingRow[] = [
     {
       profile: priyaProfile,
@@ -7795,8 +9397,9 @@ function LikesScreen({
     if (incomingFilter === 'notes') return Boolean(row.note);
     return true;
   });
-  const visibleRows =
-    membership === 'plus' ? filteredRows : filteredRows.slice(0, 2);
+  const visibleRows = (
+    membership === 'plus' ? filteredRows : filteredRows.slice(0, 2)
+  ).filter((row) => matchesQuery(row.profile));
   return (
     <section className="screen scroll-screen likes-screen">
       <header className="page-header likes-page-header">
@@ -7804,6 +9407,16 @@ function LikesScreen({
         <h1>Likes</h1>
         <p>Accept a Like to match. Messages unlock after you both connect.</p>
       </header>
+      <label className="connections-search">
+        <Search size={18} aria-hidden="true" />
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Find a connection"
+          aria-label="Search likes"
+        />
+      </label>
       <div className="likes-tabs" role="tablist">
         <button
           className={view === 'incoming' ? 'active' : ''}
@@ -7811,7 +9424,8 @@ function LikesScreen({
           role="tab"
           aria-selected={view === 'incoming'}
         >
-          Liked you <span>{availableRows.length}</span>
+          <Heart size={15} aria-hidden="true" /> Liked you{' '}
+          <span>{availableRows.length}</span>
         </button>
         <button
           className={view === 'sent' ? 'active' : ''}
@@ -7819,7 +9433,8 @@ function LikesScreen({
           role="tab"
           aria-selected={view === 'sent'}
         >
-          You liked <span>{sentLikes.length}</span>
+          <Send size={15} aria-hidden="true" /> You liked{' '}
+          <span>{sentLikes.length}</span>
         </button>
         <button
           className={view === 'matches' ? 'active' : ''}
@@ -7827,13 +9442,14 @@ function LikesScreen({
           role="tab"
           aria-selected={view === 'matches'}
         >
-          Matches <span>{matchedProfiles.length}</span>
+          <HandHeart size={15} aria-hidden="true" /> Matches{' '}
+          <span>{matchedProfiles.length}</span>
         </button>
       </div>
       {view === 'matches' ? (
         <div className="sent-likes matches-list">
-          {matchedProfiles.length ? (
-            matchedProfiles.map((profile) => (
+          {matchedProfiles.filter(matchesQuery).length ? (
+            matchedProfiles.filter(matchesQuery).map((profile) => (
               <div className="sent-like" key={profile.name}>
                 <button
                   className="avatar incoming-profile-link"
@@ -7863,12 +9479,16 @@ function LikesScreen({
                   onClick={() => onMessage(profile)}
                   aria-label={`Message ${profile.name}`}
                 >
-                  Message
+                  <MessageCircle size={16} aria-hidden="true" /> Message
                 </button>
               </div>
             ))
           ) : (
-            <p className="empty-likes">Your mutual matches will appear here.</p>
+            <p className="empty-likes">
+              {query
+                ? 'No matches found. Try another name.'
+                : 'Your mutual matches will appear here.'}
+            </p>
           )}
           <p className="likes-note">
             <MessageCircle size={16} /> A mutual Like unlocks private chat.
@@ -7880,7 +9500,7 @@ function LikesScreen({
             <BrandHeartMark size={15} /> RECENT LIKES
           </p>
           <div className="incoming-filters" aria-label="Filter incoming likes">
-            {(['all', 'new', 'super', 'notes'] as const).map((filter) => (
+            {(['all', 'super', 'notes'] as const).map((filter) => (
               <button
                 type="button"
                 key={filter}
@@ -7888,13 +9508,18 @@ function LikesScreen({
                 aria-pressed={incomingFilter === filter}
                 onClick={() => setIncomingFilter(filter)}
               >
+                {filter === 'super' ? (
+                  <SpikeIntroIcon size={15} />
+                ) : filter === 'notes' ? (
+                  <MessageCircle size={15} aria-hidden="true" />
+                ) : (
+                  <Heart size={15} aria-hidden="true" />
+                )}
                 {filter === 'all'
                   ? 'All'
-                  : filter === 'new'
-                    ? 'New'
-                    : filter === 'super'
-                      ? 'Spikes'
-                      : 'With notes'}
+                  : filter === 'super'
+                    ? 'Spikes'
+                    : 'With notes'}
               </button>
             ))}
           </div>
@@ -7922,10 +9547,8 @@ function LikesScreen({
                   {row.profile.name}{' '}
                   {row.superPulse ? (
                     <span aria-label="Spike">
-                      <MessageCirclePlus size={16} />
+                      <SpikeIntroIcon size={16} />
                     </span>
-                  ) : index < 2 ? (
-                    <BadgeCheck size={15} fill="#FF4D6D" color="#161618" />
                   ) : null}
                 </button>
                 <small>
@@ -7934,13 +9557,13 @@ function LikesScreen({
                 {row.note && <em className="incoming-note">{row.note}</em>}
                 <span className="decision-actions">
                   <button onClick={() => onPass(row.profile.name, row.id)}>
-                    Not for me
+                    <X size={15} aria-hidden="true" /> Not for me
                   </button>
                   <button
                     className="accept-like"
                     onClick={() => onLikeBack(row.profile, row.id)}
                   >
-                    Accept
+                    <Heart size={15} aria-hidden="true" /> Accept
                   </button>
                 </span>
               </span>
@@ -7961,50 +9584,56 @@ function LikesScreen({
         </div>
       ) : (
         <div className="sent-likes">
-          {sentLikes.length ? (
-            sentLikes.map(({ profile, status }) => (
-              <div className="sent-like" key={profile.name}>
-                <button
-                  className="avatar incoming-profile-link"
-                  onClick={() => onProfile(profile)}
-                  aria-label={`Open ${profile.name}'s full profile`}
-                >
-                  <Image
-                    src={profile.image}
-                    alt={profile.name}
-                    fill
-                    sizes="58px"
-                    className="profile-photo"
-                  />
-                  <ProfileSpikeBadge />
-                </button>
-                <span>
+          {sentLikes.filter(({ profile }) => matchesQuery(profile)).length ? (
+            sentLikes
+              .filter(({ profile }) => matchesQuery(profile))
+              .map(({ profile, status }) => (
+                <div className="sent-like" key={profile.name}>
                   <button
-                    className="incoming-name-link"
+                    className="avatar incoming-profile-link"
                     onClick={() => onProfile(profile)}
+                    aria-label={`Open ${profile.name}'s full profile`}
                   >
-                    {profile.name}
+                    <Image
+                      src={profile.image}
+                      alt={profile.name}
+                      fill
+                      sizes="58px"
+                      className="profile-photo"
+                    />
+                    <ProfileSpikeBadge />
                   </button>
-                  <small>
-                    {status === 'accepted'
-                      ? 'Matched — you can message now'
-                      : 'Waiting for them to like you back'}
-                  </small>
-                </span>
-                {status === 'accepted' ? (
-                  <button
-                    className="sent-message-button"
-                    onClick={() => onMessage(profile)}
-                  >
-                    Message
-                  </button>
-                ) : (
-                  <span className="waiting-pill">Waiting</span>
-                )}
-              </div>
-            ))
+                  <span>
+                    <button
+                      className="incoming-name-link"
+                      onClick={() => onProfile(profile)}
+                    >
+                      {profile.name}
+                    </button>
+                    <small>
+                      {status === 'accepted'
+                        ? 'Matched — you can message now'
+                        : 'Waiting for them to like you back'}
+                    </small>
+                  </span>
+                  {status === 'accepted' ? (
+                    <button
+                      className="sent-message-button"
+                      onClick={() => onMessage(profile)}
+                    >
+                      Message
+                    </button>
+                  ) : (
+                    <span className="waiting-pill">Waiting</span>
+                  )}
+                </div>
+              ))
           ) : (
-            <p className="empty-likes">Profiles you like will appear here.</p>
+            <p className="empty-likes">
+              {query
+                ? 'No sent likes found. Try another name.'
+                : 'Profiles you like will appear here.'}
+            </p>
           )}
           <div className="saved-profiles-section">
             <div className="saved-profiles-heading">
@@ -8013,8 +9642,8 @@ function LikesScreen({
               </span>
               <small>{savedProfiles.length}</small>
             </div>
-            {savedProfiles.length ? (
-              savedProfiles.map((profile) => (
+            {savedProfiles.filter(matchesQuery).length ? (
+              savedProfiles.filter(matchesQuery).map((profile) => (
                 <div className="sent-like" key={`saved-${profile.name}`}>
                   <button
                     className="avatar incoming-profile-link"
@@ -8050,7 +9679,9 @@ function LikesScreen({
               ))
             ) : (
               <p className="empty-likes compact">
-                Save a profile to revisit it here.
+                {query
+                  ? 'No saved profiles found.'
+                  : 'Save a profile to revisit it here.'}
               </p>
             )}
           </div>
@@ -8059,10 +9690,10 @@ function LikesScreen({
       {view === 'incoming' &&
         incomingFilter === 'all' &&
         membership === 'free' &&
-        availableRows.length > visibleRows.length && (
+        availableRows.length > 2 && (
           <button className="plus-link" onClick={onUpgrade}>
-            See {availableRows.length - visibleRows.length} more with SpikeDate+{' '}
-            <ChevronRight size={16} />
+            See {availableRows.length - Math.min(filteredRows.length, 2)} more
+            with SpikeDate+ <ChevronRight size={16} />
           </button>
         )}
     </section>
@@ -8160,20 +9791,31 @@ function ChatList({
   onBrowse: () => void;
 }) {
   const [query, setQuery] = useState('');
-  const visibleContacts = contacts.filter((contact) =>
-    `${contact.name} ${contact.preview}`
-      .toLowerCase()
-      .includes(query.toLowerCase()),
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const unreadCount = contacts.reduce(
+    (total, contact) => total + (contact.unread ?? 0),
+    0,
+  );
+  const visibleContacts = contacts.filter(
+    (contact) =>
+      (!unreadOnly || (contact.unread ?? 0) > 0) &&
+      `${contact.name} ${contact.preview}`
+        .toLowerCase()
+        .includes(query.toLowerCase()),
   );
   return (
-    <section className="screen scroll-screen chat-screen">
+    <section className="screen scroll-screen chat-screen midnight-chat">
       <header className="page-header chat-page-header">
-        <p className="eyebrow">YOUR SPIKES</p>
-        <h1>Chats</h1>
-        <p>
-          Mutual matches only. Tap a photo for their profile or a message to
-          continue the conversation.
-        </p>
+        <p className="eyebrow">YOUR CONNECTIONS</p>
+        <h1>
+          Chats{' '}
+          <span
+            className="chat-total"
+            aria-label={`${unreadCount} unread messages`}
+          >
+            {unreadCount || ''}
+          </span>
+        </h1>
       </header>
       <label className="chat-search">
         <Search size={18} />
@@ -8181,10 +9823,28 @@ function ChatList({
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search matches and messages"
+          placeholder="Search conversations"
           aria-label="Search chats"
         />
       </label>
+      <div className="chat-inbox-filters" aria-label="Conversation filters">
+        <button
+          type="button"
+          aria-pressed={!unreadOnly}
+          onClick={() => setUnreadOnly(false)}
+        >
+          <MessageCircle size={15} aria-hidden="true" /> All{' '}
+          <span className="conversation-count">{contacts.length}</span>
+        </button>
+        <button
+          type="button"
+          aria-pressed={unreadOnly}
+          onClick={() => setUnreadOnly(true)}
+        >
+          <Mail size={15} aria-hidden="true" /> Unread{' '}
+          <span>{unreadCount || ''}</span>
+        </button>
+      </div>
       <div className="chat-list">
         {visibleContacts.map((contact) => (
           <div className="chat-row" key={contact.name}>
@@ -8202,14 +9862,20 @@ function ChatList({
                   className="profile-photo"
                 />
                 <ProfileSpikeBadge />
-                {contact.active && <i />}
+                <PresenceStatus
+                  name={contact.name}
+                  userId={contact.userId}
+                  lastActiveAt={contact.lastActiveAt}
+                  demoActive={!serverDataEnabled && contact.active}
+                  variant="dot"
+                />
               </span>
             </button>
             <span className="chat-copy">
               <button
                 className="chat-name-link"
-                onClick={() => onProfile(contact)}
-                aria-label={`Open ${contact.name}'s full profile`}
+                onClick={() => onOpen(contact)}
+                aria-label={`Chat with ${contact.name}`}
               >
                 <strong>{contact.name}</strong>
               </button>
@@ -8236,14 +9902,22 @@ function ChatList({
           <div className="chat-empty-state">
             <MessageCircle size={24} />
             <strong>
-              {query ? 'No conversations found' : 'No matches yet'}
+              {query
+                ? 'No conversations found'
+                : unreadOnly
+                  ? 'You’re all caught up'
+                  : 'No matches yet'}
             </strong>
             <p>
-              {query
-                ? 'Try a different name or message.'
-                : 'A mutual Like unlocks chat.'}
+              {unreadOnly && !query
+                ? 'No unread conversations right now.'
+                : query
+                  ? 'Try a different name or message.'
+                  : 'A mutual Like unlocks chat.'}
             </p>
-            {!query && <button onClick={onBrowse}>Browse profiles</button>}
+            {!query && !unreadOnly && (
+              <button onClick={onBrowse}>Browse profiles</button>
+            )}
           </div>
         )}
       </div>
@@ -8253,12 +9927,14 @@ function ChatList({
 
 function ChatThread({
   contact,
+  loading,
   messages,
+  onReadVisible,
   plan,
   composer,
   onComposer,
   onSend,
-  onSendPreset,
+  onSendMedia,
   onPlan,
   onBack,
   onProfile,
@@ -8272,12 +9948,19 @@ function ChatThread({
   viewerEmail,
 }: {
   contact: ChatContact;
+  loading: boolean;
   messages: ChatMessage[];
+  onReadVisible: (ids: string[]) => Promise<void>;
   plan?: DatingPlan;
   composer: string;
   onComposer: (text: string) => void;
   onSend: () => void;
-  onSendPreset: (text: string) => void;
+  onSendMedia: (
+    file: Blob,
+    kind: 'photo' | 'voice',
+    durationMs?: number,
+    clientId?: string,
+  ) => Promise<void>;
   onPlan: () => void;
   onBack: () => void;
   onProfile: () => void;
@@ -8290,139 +9973,367 @@ function ChatThread({
   onPlanSuggest: (plan: DatingPlan) => void;
   viewerEmail: string;
 }) {
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(
+    null,
+  );
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const toolsId = useId();
+  const messageBody = useRef<HTMLDivElement>(null);
+  const pinnedToBottom = useRef(true);
+  const observedMessageCount = useRef(0);
+  const threadBody = useRef<HTMLElement>(null);
+  const [scrollIndicator, setScrollIndicator] = useState({
+    height: 0,
+    top: 0,
+    visible: false,
+  });
+  const readHandler = useRef(onReadVisible);
+  readHandler.current = onReadVisible;
+  useEffect(() => {
+    const body = messageBody.current;
+    if (!body) return;
+    let timer: ReturnType<typeof setTimeout>;
+    let disposed = false;
+    let busy = false;
+    const update = () => {
+      const height = Math.max(
+        28,
+        (body.clientHeight * body.clientHeight) /
+          Math.max(1, body.scrollHeight),
+      );
+      setScrollIndicator({
+        height,
+        top:
+          ((body.clientHeight - height) * body.scrollTop) /
+          Math.max(1, body.scrollHeight - body.clientHeight),
+        visible: body.scrollHeight > body.clientHeight + 1,
+      });
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        if (
+          disposed ||
+          busy ||
+          loading ||
+          threadBody.current?.querySelector('[role="dialog"]') ||
+          document.visibilityState !== 'visible'
+        )
+          return;
+        const bounds = body.getBoundingClientRect();
+        const ids = messages
+          .filter(
+            (message) =>
+              !message.mine &&
+              !message.readAt &&
+              typeof message.id === 'string',
+          )
+          .filter((message) => {
+            const element = Array.from(
+              body.querySelectorAll<HTMLElement>('[data-message-id]'),
+            ).find((el) => el.dataset.messageId === String(message.id));
+            if (!element) return false;
+            const rect = element.getBoundingClientRect();
+            const overlap = Math.min(rect.bottom, bounds.bottom) -
+              Math.max(rect.top, bounds.top);
+            return rect.left < bounds.right && rect.right > bounds.left &&
+              overlap >= Math.min(rect.height * 0.5, 80);
+          })
+          .map((message) => String(message.id))
+          .slice(0, 80);
+        if (!ids.length) return;
+        busy = true;
+        try {
+          await readHandler.current(ids);
+        } catch {
+          /* Retry visible messages on the next tick. */
+        } finally {
+          busy = false;
+        }
+      }, 600);
+    };
+    body.addEventListener('scroll', update);
+    document.addEventListener('visibilitychange', update);
+    const observer = new ResizeObserver(update);
+    observer.observe(body);
+    update();
+    const retry = window.setInterval(update, 2000);
+    return () => {
+      disposed = true;
+      clearTimeout(timer);
+      window.clearInterval(retry);
+      observer.disconnect();
+      body.removeEventListener('scroll', update);
+      document.removeEventListener('visibilitychange', update);
+    };
+  }, [messages, loading, contact.name]);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const fitViewport = () => {
+      const thread = threadBody.current;
+      if (!thread) return;
+      const top = thread.getBoundingClientRect().top;
+      const frameHeight =
+        thread.parentElement?.clientHeight ?? window.innerHeight;
+      const viewportBottom =
+        (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight);
+      thread.style.setProperty(
+        '--chat-visible-height',
+        `${Math.max(0, Math.min(frameHeight, viewportBottom - top))}px`,
+      );
+    };
+    fitViewport();
+    window.addEventListener('resize', fitViewport);
+    viewport?.addEventListener('resize', fitViewport);
+    viewport?.addEventListener('scroll', fitViewport);
+    return () => {
+      window.removeEventListener('resize', fitViewport);
+      viewport?.removeEventListener('resize', fitViewport);
+      viewport?.removeEventListener('scroll', fitViewport);
+    };
+  }, []);
+  useEffect(() => {
+    setToolsOpen(false);
+    pinnedToBottom.current = true;
+  }, [contact.name]);
+  useEffect(() => {
+    const body = messageBody.current;
+    const ownNewMessage =
+      messages.length > observedMessageCount.current && messages.at(-1)?.mine;
+    observedMessageCount.current = messages.length;
+    if (body && (pinnedToBottom.current || ownNewMessage))
+      body.scrollTop = body.scrollHeight;
+  }, [contact.name, messages.length, toolsOpen]);
   return (
-    <section className="thread">
+    <section
+      ref={threadBody}
+      className="thread midnight-chat spike-midnight-chat"
+      aria-busy={loading}
+    >
       <header className="thread-header">
         <button onClick={onBack} aria-label="Back to chats">
-          <ArrowLeft size={22} />
+          <ChevronLeft size={22} />
         </button>
         <button
-          className="avatar small thread-profile-link"
+          className="thread-profile-link"
           onClick={onProfile}
           aria-label={`Open ${contact.name}'s full profile`}
         >
-          <Image
-            src={contact.image}
-            alt={contact.name}
-            fill
-            sizes="42px"
-            className="profile-photo"
-          />
-          <ProfileSpikeBadge compact />
+          <span className="avatar small thread-photo">
+            <Image
+              src={contact.image}
+              alt={contact.name}
+              fill
+              sizes="42px"
+              className="profile-photo"
+            />
+            <ProfileSpikeBadge compact />
+          </span>
         </button>
         <button className="thread-name-link" onClick={onProfile}>
           <strong>{contact.name}</strong>
           <small>
-            {contact.active ? (
-              <>
-                <i /> Active now
-              </>
-            ) : (
-              'Matched on SpikeDate'
-            )}
+            <PresenceStatus
+              name={contact.name}
+              userId={contact.userId}
+              lastActiveAt={contact.lastActiveAt}
+              demoActive={!serverDataEnabled && contact.active}
+              variant="chat"
+            />
           </small>
+        </button>
+        <button
+          className="shield chat-game-toggle"
+          type="button"
+          aria-label="Games and date plans"
+          aria-expanded={toolsOpen}
+          aria-controls={toolsId}
+          onClick={() => setToolsOpen((open) => !open)}
+        >
+          <Gamepad2 size={20} />
         </button>
         <button
           className="shield"
           onClick={onSafety}
           aria-label="Safety options"
         >
-          <ShieldCheck size={22} />
+          <MoreHorizontal size={22} />
         </button>
       </header>
-      <div className="message-body">
-        <div className="day-label">Your Spike · Today</div>
-        {plan && (
-          <article className="chat-plan-card">
-            <div className="chat-plan-card-heading">
-              <span>
-                <MapPin size={19} />
-              </span>
-              <div>
-                <small>
-                  {plan.status === 'accepted'
-                    ? 'CONFIRMED PLAN'
-                    : 'PLAN INVITE'}
-                </small>
-                <strong>{plan.planName}</strong>
+      <div className="chat-history-shell">
+        <div
+          className="message-body"
+          ref={messageBody}
+          onScroll={() => {
+            const body = messageBody.current;
+            if (body)
+              pinnedToBottom.current =
+                body.scrollHeight - body.scrollTop - body.clientHeight < 70;
+          }}
+        >
+          <div className="day-label">Your conversation</div>
+          {plan && (
+            <article className="chat-plan-card">
+              <div className="chat-plan-card-heading">
+                <span>
+                  <MapPin size={19} />
+                </span>
+                <div>
+                  <small>
+                    {plan.status === 'accepted'
+                      ? 'CONFIRMED PLAN'
+                      : 'PLAN INVITE'}
+                  </small>
+                  <strong>{plan.planName}</strong>
+                </div>
+                <em>{plan.status}</em>
               </div>
-              <em>{plan.status}</em>
-            </div>
-            <p>
-              <CalendarDays size={15} />
-              {new Date(`${plan.day}T${plan.time}`).toLocaleString(undefined, {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-              })}{' '}
-              · {plan.durationMinutes} min
-            </p>
-            <p>
-              <MapPin size={15} /> {plan.venue.name} · {plan.venue.address}
-            </p>
-            {plan.status === 'sent' &&
-            plan.creatorEmail &&
-            plan.creatorEmail !== viewerEmail ? (
-              <div className="chat-plan-response-actions">
-                <button onClick={() => onPlanRespond(plan, 'accepted')}>
-                  Accept
-                </button>
-                <button onClick={() => onPlanSuggest(plan)}>
-                  Suggest change
-                </button>
-                <button onClick={() => onPlanRespond(plan, 'declined')}>
-                  Decline
-                </button>
-              </div>
-            ) : (
-              <div className="chat-plan-actions">
-                <button onClick={() => onPlanDirections(plan)}>
-                  Directions
-                </button>
-                <button onClick={() => onPlanCalendar(plan)}>Calendar</button>
-                <button onClick={() => onPlanShare(plan)}>Share</button>
-              </div>
-            )}
-          </article>
-        )}
-        {messages.length === 1 && (
-          <div className="icebreakers inline">
-            <button
-              onClick={() => onComposer('What’s the best rooftop in Brooklyn?')}
-            >
-              Best rooftop?
-            </button>
-            <button onClick={() => onComposer('Pick our first song 🎵')}>
-              Pick our first song
-            </button>
-          </div>
-        )}
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`bubble-wrap ${message.mine ? 'mine' : ''}`}
-          >
-            <div className="bubble">{message.text}</div>
-            <span className="message-status">
-              {message.mine ? 'Delivered · now' : 'Today'}
-            </span>
-            {message.mine && (
-              <button onClick={() => onUnsend(message.id)}>
-                Unsend · 2m left
+              <p>
+                <CalendarDays size={15} />
+                {new Date(`${plan.day}T${plan.time}`).toLocaleString(
+                  undefined,
+                  {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  },
+                )}{' '}
+                · {plan.durationMinutes} min
+              </p>
+              <p>
+                <MapPin size={15} /> {plan.venue.name} · {plan.venue.address}
+              </p>
+              {plan.status === 'sent' &&
+              plan.creatorEmail &&
+              plan.creatorEmail !== viewerEmail ? (
+                <div className="chat-plan-response-actions">
+                  <button onClick={() => onPlanRespond(plan, 'accepted')}>
+                    Accept
+                  </button>
+                  <button onClick={() => onPlanSuggest(plan)}>
+                    Suggest change
+                  </button>
+                  <button onClick={() => onPlanRespond(plan, 'declined')}>
+                    Decline
+                  </button>
+                </div>
+              ) : (
+                <div className="chat-plan-actions">
+                  <button onClick={() => onPlanDirections(plan)}>
+                    Directions
+                  </button>
+                  <button onClick={() => onPlanCalendar(plan)}>Calendar</button>
+                  <button onClick={() => onPlanShare(plan)}>Share</button>
+                </div>
+              )}
+            </article>
+          )}
+          {messages.length === 1 && (
+            <div className="icebreakers inline">
+              <button
+                onClick={() =>
+                  onComposer('What’s the best rooftop in Brooklyn?')
+                }
+              >
+                Best rooftop?
               </button>
-            )}
+              <button onClick={() => onComposer('Pick our first song 🎵')}>
+                Pick our first song
+              </button>
+            </div>
+          )}
+          {messages.map((message, index) => (
+            <div
+              key={message.id}
+              data-message-id={message.id}
+              className={`bubble-wrap ${message.mine ? 'mine' : ''} ${index > 0 && messages[index - 1].mine === message.mine ? 'message-grouped' : ''}`}
+            >
+              {message.mediaKind === 'photo' ? (
+                <button
+                  type="button"
+                  className="bubble chat-photo-bubble"
+                  aria-label={`View ${message.mine ? 'your' : contact.name + '’s'} photo`}
+                  onClick={() => setSelectedPhoto(`/api/chat-media/${message.id}`)}
+                >
+                  <Image
+                    src={`/api/chat-media/${message.id}`}
+                    alt={message.mine ? 'Shared by you' : `Shared by ${contact.name}`}
+                    width={320}
+                    height={240}
+                    unoptimized
+                  />
+                </button>
+              ) : message.mediaKind === 'voice' ? (
+                <div className="bubble chat-voice-bubble">
+                  <AudioLines size={17} aria-hidden="true" />
+                  {/* Private voice notes have no generated transcript or caption track. */}
+                  {/* oxlint-disable-next-line jsx-a11y/media-has-caption */}
+                  <audio
+                    controls
+                    preload="none"
+                    src={`/api/chat-media/${message.id}`}
+                    aria-label={`Voice message ${message.mine ? 'sent by you' : `from ${contact.name}`}`}
+                  />
+                </div>
+              ) : message.mine ? (
+                <button
+                  type="button"
+                  className="bubble"
+                  aria-label={`Message options: ${message.text}`}
+                  aria-haspopup="dialog"
+                  onClick={() => setSelectedMessage(message)}
+                >
+                  {message.text}
+                </button>
+              ) : (
+                <div className="bubble">{message.text}</div>
+              )}
+              {message.mine &&
+                index === messages.findLastIndex((item) => item.mine) && (
+                <span
+                  className={`message-status compact-marks ${message.readAt ? 'is-read' : ''}`}
+                  aria-label={message.readAt ? `Read at ${new Date(message.readAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : message.deliveredAt ? 'Delivered' : typeof message.id === 'number' && serverDataEnabled ? 'Sending' : 'Sent'}
+                >
+                  {message.deliveredAt || message.readAt ? <CheckCheck size={15} aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}
+                  {message.readAt
+                    ? `Read · ${new Date(message.readAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+                    : message.deliveredAt
+                      ? 'Delivered'
+                      : typeof message.id === 'number' && serverDataEnabled
+                        ? 'Sending'
+                        : 'Sent'}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+        {scrollIndicator.visible && (
+          <div className="chat-scroll-indicator" aria-hidden="true">
+            <span
+              style={{
+                height: scrollIndicator.height,
+                transform: `translateY(${scrollIndicator.top}px)`,
+              }}
+            />
           </div>
-        ))}
+        )}
       </div>
-      <div className="chat-quick-tools" aria-label="Message tools">
-        <button type="button" onClick={() => onComposer('📷 Photo: ')}>
-          <ImagePlus size={16} /> Photo
-        </button>
-        <button type="button" onClick={() => onSendPreset('🎙️ Voice message')}>
-          <AudioLines size={16} /> Voice
-        </button>
+      <div
+        className="chat-quick-tools"
+        id={toolsId}
+        hidden={!toolsOpen}
+        aria-label="Message tools"
+      >
+        <DatingGames
+          key={contact.conversationId ?? contact.name}
+          conversationId={contact.conversationId}
+          viewerId={viewerEmail}
+          partnerId={contact.email ?? contact.name}
+          partnerName={contact.name}
+          serverEnabled={serverDataEnabled}
+          onPlan={datePlansEnabled ? onPlan : undefined}
+        />
         {datePlansEnabled && (
           <button type="button" onClick={onPlan}>
             <CalendarPlus size={16} /> Plan a date
@@ -8433,19 +10344,64 @@ function ChatThread({
         className="composer"
         onSubmit={(e) => {
           e.preventDefault();
-          onSend();
+          if (!loading) onSend();
         }}
       >
-        <input
-          value={composer}
-          onChange={(e) => onComposer(e.target.value)}
-          placeholder={`Message ${contact.name}`}
-          aria-label={`Message ${contact.name}`}
-        />
-        <button type="submit" aria-label="Send message">
-          <Send size={19} />
-        </button>
+        <ChatMediaActions key={contact.conversationId ?? contact.name} disabled={loading} onSend={onSendMedia} />
+        <label className="chat-compose-field">
+          <input
+            value={composer}
+            disabled={loading}
+            onChange={(e) => onComposer(e.target.value)}
+            placeholder={
+              loading ? 'Loading messages…' : `Message ${contact.name}`
+            }
+            aria-label={`Message ${contact.name}`}
+          />
+          <button
+            type="submit"
+            aria-label="Send message"
+            disabled={loading || !composer.trim()}
+          >
+            <ArrowUp size={20} />
+          </button>
+        </label>
       </form>
+      <div className="chat-home-indicator" aria-hidden="true" />
+      <Dialog
+        open={Boolean(selectedMessage)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedMessage(null);
+        }}
+      >
+        <DialogContent className="chat-message-options">
+          <DialogTitle>Message options</DialogTitle>
+          <DialogDescription>
+            Remove this message from your view on this device. This does not
+            recall the recipient’s copy.
+          </DialogDescription>
+          <p className="chat-selected-message">{selectedMessage?.text}</p>
+          <button
+            type="button"
+            onClick={() => {
+              if (selectedMessage) onUnsend(selectedMessage.id);
+              setSelectedMessage(null);
+            }}
+          >
+            Remove from this view
+          </button>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(selectedPhoto)}
+        onOpenChange={(open) => { if (!open) setSelectedPhoto(null); }}
+      >
+        <DialogContent className="chat-photo-viewer">
+          <DialogTitle>Photo message</DialogTitle>
+          <DialogDescription>Shared in this conversation.</DialogDescription>
+          {selectedPhoto && <Image src={selectedPhoto} alt="Shared attachment enlarged" width={800} height={800} unoptimized />}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
@@ -8458,13 +10414,17 @@ function AuthScreen({
   onCreate: (
     email: string,
     password: string,
+    details: SignupDetails,
     phoneVerificationToken?: string,
   ) => Promise<string | null>;
 }) {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [birthDate, setBirthDate] = useState('');
+  const [gender, setGender] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [testEmail, setTestEmail] = useState(testIdentities[0].email);
@@ -8487,7 +10447,8 @@ function AuthScreen({
     setMode(next);
     setError('');
     setPassword('');
-    setConfirm('');
+    setShowPassword(false);
+    setTermsAccepted(false);
     setPhoneChallengeId('');
     setPhoneCode('');
     setPhoneToken('');
@@ -8561,15 +10522,24 @@ function AuthScreen({
       setError('Enter a valid email address.');
       return;
     }
-    if (
-      mode === 'signup' &&
-      !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password)
-    ) {
-      setError('Use 8+ characters with uppercase, lowercase, and a number.');
+    if (mode === 'signup' && !passwordSchema.safeParse(password).success) {
+      setError(
+        'Use 12–128 characters with uppercase, lowercase, and a number.',
+      );
       return;
     }
-    if (mode === 'signup' && password !== confirm) {
-      setError('Passwords do not match.');
+    if (mode === 'signup' && !isAdult(birthDate)) {
+      setError(
+        'Enter your real birthday. You must be at least 18 to use SpikeDate.',
+      );
+      return;
+    }
+    if (mode === 'signup' && !gender) {
+      setError('Choose your gender.');
+      return;
+    }
+    if (mode === 'signup' && !termsAccepted) {
+      setError('Accept the terms and privacy policy to continue.');
       return;
     }
     if (mode === 'signup' && phoneVerificationEnabled && !phoneToken) {
@@ -8580,7 +10550,12 @@ function AuthScreen({
     const message =
       mode === 'signin'
         ? await onSignIn(email, password)
-        : await onCreate(email, password, phoneToken || undefined);
+        : await onCreate(
+            email,
+            password,
+            { birthDate, gender, termsAccepted },
+            phoneToken || undefined,
+          );
     if (message) setError(message);
     setBusy(false);
   };
@@ -8596,7 +10571,11 @@ function AuthScreen({
   };
   return (
     <main className="auth-shell">
-      <section className="auth-card" aria-label="SpikeDate account access">
+      <section
+        className="auth-card"
+        data-auth-mode={mode}
+        aria-label="SpikeDate account access"
+      >
         <div className="auth-brand">
           <SpikeDateWordmark context="auth" />
         </div>
@@ -8606,7 +10585,7 @@ function AuthScreen({
           <p>
             {mode === 'signin'
               ? 'Sign in to continue matching, messaging, and managing your profile.'
-              : 'Your registration starts right after your account is secured.'}
+              : 'Secure your account, then build your profile with a few easy choices.'}
           </p>
         </div>
         <div className="auth-tabs" role="tablist" aria-label="Account action">
@@ -8721,43 +10700,90 @@ function AuthScreen({
               </p>
             </section>
           )}
-          <label>
-            Email
-            <input
-              aria-label="Email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-            />
-          </label>
-          <label>
-            Password
-            <input
-              aria-label="Password"
-              type="password"
-              autoComplete={
-                mode === 'signin' ? 'current-password' : 'new-password'
-              }
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
-            />
-          </label>
-          {mode === 'signup' && (
+          <div
+            className="auth-account-fields"
+            hidden={
+              mode === 'signup' && phoneVerificationEnabled && !phoneToken
+            }
+          >
             <label>
-              Confirm password
+              Email
               <input
-                aria-label="Confirm password"
-                type="password"
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(event) => setConfirm(event.target.value)}
+                aria-label="Email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+              />
+            </label>
+            <label>
+              Password
+              <input
+                aria-label="Password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete={
+                  mode === 'signin' ? 'current-password' : 'new-password'
+                }
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
                 placeholder="••••••••"
               />
             </label>
-          )}
+            {mode === 'signup' && (
+              <label className="auth-consent">
+                <input
+                  type="checkbox"
+                  checked={showPassword}
+                  onChange={(event) => setShowPassword(event.target.checked)}
+                />
+                <span>Show password</span>
+              </label>
+            )}
+            {mode === 'signup' && (
+              <>
+                <p className="auth-phone-privacy">
+                  Use 12–128 characters with uppercase, lowercase, and a number.
+                </p>
+                <label>
+                  Birthday
+                  <input
+                    aria-label="Birthday"
+                    type="date"
+                    autoComplete="bday"
+                    value={birthDate}
+                    onChange={(event) => setBirthDate(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Gender
+                  <select
+                    aria-label="Gender"
+                    value={gender}
+                    onChange={(event) => setGender(event.target.value)}
+                  >
+                    <option value="">Choose your gender</option>
+                    {['Woman', 'Man', 'Nonbinary'].map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="auth-consent">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(event) => setTermsAccepted(event.target.checked)}
+                  />
+                  <span>
+                    I am 18 or older and agree to SpikeDate’s terms and privacy
+                    policy.
+                  </span>
+                </label>
+              </>
+            )}
+          </div>
           {error && (
             <p className="auth-error" role="alert">
               {error}
@@ -8767,6 +10793,9 @@ function AuthScreen({
             className="primary-button auth-submit"
             type="submit"
             disabled={busy}
+            hidden={
+              mode === 'signup' && phoneVerificationEnabled && !phoneToken
+            }
           >
             {busy
               ? 'Please wait…'
@@ -8784,7 +10813,16 @@ function AuthScreen({
                 value={testEmail}
                 onChange={(event) => setTestEmail(event.target.value)}
               >
-                {testIdentities.map((identity) => (
+                {(serverDataEnabled
+                  ? syntheticProfiles.map((fixture) => ({
+                      email: fixture.email,
+                      profile: {
+                        name: fixture.name,
+                        gender: fixture.gender === 'woman' ? 'Woman' : 'Man',
+                      },
+                    }))
+                  : testIdentities
+                ).map((identity) => (
                   <option key={identity.email} value={identity.email}>
                     {identity.profile.name} · {identity.profile.gender}
                   </option>
@@ -8830,6 +10868,7 @@ function YourProfile({
   name,
   email,
   image,
+  media,
   details,
   registered,
   theme,
@@ -8863,6 +10902,7 @@ function YourProfile({
   name: string;
   email: string;
   image: string;
+  media: MediaItem[];
   details: RegistrationData;
   registered: boolean;
   theme: ThemeName;
@@ -8899,6 +10939,29 @@ function YourProfile({
   onCreateToday: () => void;
   onEditToday: (story: DailyStory) => void;
 }) {
+  const [reminderPreview, setReminderPreview] = useState<keyof EngagementPreferences>('today');
+  const reminderGroups = [
+    {
+      title: 'SHOW UP',
+      description: 'Keep your presence fresh',
+      items: [
+        { key: 'today', title: 'Share your Today', description: 'Only when you have not posted', icon: Sun },
+        { key: 'like', title: 'Galaxy', description: 'When fresh profiles appear', icon: Compass },
+      ],
+    },
+    {
+      title: 'MAKE A MOVE',
+      description: 'Always optional',
+      items: [
+        { key: 'super', title: 'Send a Spike', description: 'A thoughtful introduction idea', icon: SpikeIntroIcon },
+        { key: 'boost', title: 'Use Profile Lift', description: 'A suggestion when it may help', icon: ProfileLiftMark },
+      ],
+    },
+  ] as const;
+  const previewNudge =
+    reminderPreview === 'super'
+      ? { kind: 'super' as const, profile: { name: 'Maya' } }
+      : { kind: reminderPreview };
   const birthday = new Date(`${details.birthday}T00:00:00`).toLocaleDateString(
     undefined,
     { month: 'long', day: 'numeric', year: 'numeric' },
@@ -8958,9 +11021,7 @@ function YourProfile({
           priority
           sizes="(max-width: 560px) 100vw, 460px"
           quality={90}
-          unoptimized={
-            image.startsWith('/api/media/') || image.startsWith('data:')
-          }
+          unoptimized={image.startsWith('/') || image.startsWith('data:')}
           className="profile-passport-photo"
         />
         <div className="profile-passport-topbar">
@@ -9012,7 +11073,7 @@ function YourProfile({
               ?.scrollIntoView({ behavior: 'smooth' })
           }
         >
-          My profile
+          <UserRound size={15} aria-hidden="true" /> My profile
         </button>
         <button
           type="button"
@@ -9022,7 +11083,7 @@ function YourProfile({
               ?.scrollIntoView({ behavior: 'smooth' })
           }
         >
-          Settings
+          <SlidersHorizontal size={15} aria-hidden="true" /> Settings
         </button>
         <button
           type="button"
@@ -9032,7 +11093,7 @@ function YourProfile({
               ?.scrollIntoView({ behavior: 'smooth' })
           }
         >
-          Subscription
+          <Star size={15} aria-hidden="true" /> Subscription
         </button>
       </nav>
       <button className="profile-intent-card" onClick={() => onEditSection(4)}>
@@ -9089,8 +11150,64 @@ function YourProfile({
         )}
         <Edit3 size={15} />
       </button>
+      <section className="own-photo-section" aria-label="Your profile photos">
+        <div className="own-photo-heading">
+          <span>
+            <strong>
+              <Camera size={18} aria-hidden="true" /> Your photos
+            </strong>
+            <small>
+              {media.filter((item) => item.type === 'photo').length} of 6 photos
+            </small>
+          </span>
+          <button
+            type="button"
+            className="section-edit"
+            onClick={() => onEditSection(7)}
+          >
+            <Edit3 size={15} /> Edit photos
+          </button>
+        </div>
+        <div
+          className="own-photo-grid"
+          role="region"
+          aria-label="Your photos — swipe left or right"
+        >
+          {media
+            .filter((item) => item.type === 'photo')
+            .slice(0, 6)
+            .map((photo, index) => (
+              <button
+                key={photo.id ?? photo.src}
+                type="button"
+                onClick={() => onEditSection(7)}
+                aria-label={`Edit profile photo ${index + 1}`}
+              >
+                <Image
+                  src={photo.src}
+                  alt={`Your photo ${index + 1}`}
+                  fill
+                  sizes="64px"
+                  unoptimized
+                />
+                <span>{index === 0 ? 'Main' : index + 1}</span>
+              </button>
+            ))}
+          {!media.some((item) => item.type === 'photo') && (
+            <button
+              type="button"
+              onClick={() => onEditSection(7)}
+              aria-label="Add your first profile photo"
+            >
+              <ImagePlus size={24} /> Add photo
+            </button>
+          )}
+        </div>
+      </section>
       <p className="passport-details-title" id="profile-details">
-        <span>PROFILE DETAILS</span>
+        <span>
+          <UserRound size={17} aria-hidden="true" /> My profile
+        </span>
         <small>
           {registered
             ? missingProfileDetails.length
@@ -9099,189 +11216,108 @@ function YourProfile({
             : `${profileDepth}% · finish required details`}
         </small>
       </p>
-      <div className="settings-list passport-details-list">
-        <section>
-          <div className="setting-heading">
-            <span>
-              <small>1 · THE BASICS</small>
-              <strong>
-                {name} · {birthday} · {details.city}
-              </strong>
+      <div
+        className="settings-list passport-details-list atelier-categories"
+        aria-label="Editable profile categories"
+      >
+        {[
+          {
+            title: 'The basics',
+            description: `${name} · ${birthday} · ${details.city}`,
+            Icon: UserRound,
+            edit: 'Edit basics',
+          },
+          {
+            title: 'About you',
+            description:
+              [details.gender, details.pronouns, details.height]
+                .filter(Boolean)
+                .join(' · ') || 'Identity, height & languages',
+            Icon: UserRound,
+            edit: 'Edit about you',
+          },
+          {
+            title: 'Family & future',
+            description:
+              [details.kids, details.wantsKids, details.pets]
+                .filter(Boolean)
+                .join(' · ') || 'Kids, family plans & pets',
+            Icon: Baby,
+            edit: 'Edit family & pets',
+          },
+          {
+            title: 'Everyday life',
+            description:
+              [
+                details.drinking && `${details.drinking} drinking`,
+                details.smoking === 'No' ? 'Doesn’t smoke' : details.smoking,
+                details.exercise,
+                ...(details.rhythm || []),
+              ]
+                .filter(Boolean)
+                .join(' · ') || 'Drinking, smoking & fitness',
+            Icon: Wine,
+            edit: 'Edit lifestyle',
+          },
+          {
+            title: 'Connection',
+            description:
+              [
+                ...details.intents,
+                details.relationshipStyle,
+                details.datingPace,
+                details.communicationPreference,
+              ]
+                .filter(Boolean)
+                .join(' · ') || 'Intentions, style & communication',
+            Icon: Heart,
+            edit: 'Edit relationship goals',
+          },
+          {
+            title: 'Interests & values',
+            description:
+              [...details.interests, ...details.values].join(' · ') ||
+              'What makes you, you',
+            Icon: WandSparkles,
+            edit: 'Edit interests',
+          },
+          {
+            title: 'My story',
+            description:
+              details.bio || details.promptOne || 'Bio & conversation starters',
+            Icon: NotebookPen,
+            edit: 'Edit prompts',
+          },
+          {
+            title: 'Discovery preferences',
+            description: `${details.preferredGenders.join(', ')} · Ages ${details.minAge}–${details.maxAge} · ${details.maxDistance} mi · Private`,
+            Icon: SlidersHorizontal,
+            edit: 'Edit preferences & media',
+          },
+        ].map(({ title, description, Icon, edit }, index) => (
+          <button
+            key={title}
+            type="button"
+            className="atelier-category setting-heading"
+            aria-label={edit}
+            onClick={() => onEditSection(index)}
+          >
+            <span className="atelier-category-icon">
+              <Icon size={19} strokeWidth={1.5} aria-hidden="true" />
             </span>
-          </div>
-          <p>{details.city}</p>
-          <button className="section-edit" onClick={() => onEditSection(0)}>
-            <Edit3 size={15} /> Edit basics
-          </button>
-        </section>
-        <section>
-          <div className="setting-heading">
-            <span>
-              <small>2 · ABOUT YOU</small>
-              <strong>
-                {[
-                  details.gender,
-                  details.pronouns,
-                  details.height,
-                  details.ethnicity,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </strong>
+            <span className="atelier-category-copy">
+              <small>{title}</small>
+              <strong>{description}</strong>
             </span>
-          </div>
-          <p>
-            {[details.orientation, details.height, details.ethnicity]
-              .filter(Boolean)
-              .join(' · ')}
-          </p>
-          <div className="profile-detail-lines">
-            {details.occupation && <span>{details.occupation}</span>}
-            {details.education && <span>{details.education}</span>}
-            {details.languages.length > 0 && (
-              <span>{details.languages.join(', ')}</span>
-            )}
-          </div>
-          <div className="detail-chips">
-            {details.religion && <span>{details.religion}</span>}
-            {details.politics && <span>{details.politics}</span>}
-            {details.zodiac && <span>{details.zodiac}</span>}
-          </div>
-          <button className="section-edit" onClick={() => onEditSection(1)}>
-            <Edit3 size={15} /> Edit about you
+            <ChevronRight size={16} aria-hidden="true" />
           </button>
-        </section>
-        <section>
-          <div className="setting-heading">
-            <span>
-              <small>3 · FAMILY & PETS</small>
-              <strong>
-                {details.pets} · {details.kids} · Wants kids:{' '}
-                {details.wantsKids}
-              </strong>
-            </span>
-          </div>
-          <p>Wants children: {details.wantsKids}</p>
-          <button className="section-edit" onClick={() => onEditSection(2)}>
-            <Edit3 size={15} /> Edit family & pets
-          </button>
-        </section>
-        <section>
-          <div className="setting-heading">
-            <span>
-              <small>4 · LIFESTYLE</small>
-              <strong>
-                {details.drinking} drinking ·{' '}
-                {details.smoking === 'No'
-                  ? 'Doesn’t smoke'
-                  : `${details.smoking} smoking`}
-              </strong>
-            </span>
-          </div>
-          <div className="detail-chips">
-            {details.exercise && <span>Exercise: {details.exercise}</span>}
-            {details.diet && <span>{details.diet}</span>}
-            {details.socialStyle && <span>{details.socialStyle}</span>}
-          </div>
-          <button className="section-edit" onClick={() => onEditSection(3)}>
-            <Edit3 size={15} /> Edit lifestyle
-          </button>
-        </section>
-        <section>
-          <div className="setting-heading">
-            <span>
-              <small>5 · RELATIONSHIP GOALS</small>
-              <strong>{details.intents.join(' · ')}</strong>
-            </span>
-          </div>
-          <div className="detail-chips coral">
-            {details.intents.map((intent) => (
-              <span key={intent}>{intent}</span>
-            ))}
-          </div>
-          <div className="profile-detail-lines">
-            {details.relationshipStyle && (
-              <span>{details.relationshipStyle}</span>
-            )}
-            {details.loveLanguage && (
-              <span>Love language: {details.loveLanguage}</span>
-            )}
-          </div>
-          <button className="section-edit" onClick={() => onEditSection(4)}>
-            <Edit3 size={15} /> Edit relationship goals
-          </button>
-        </section>
-        <section>
-          <div className="setting-heading">
-            <span>
-              <small>6 · INTERESTS · {details.interests.length} OF 5</small>
-              <strong>
-                {details.interests.join(' · ') || 'Add interests'}
-              </strong>
-            </span>
-          </div>
-          <div className="detail-chips">
-            {details.interests.map((interest) => (
-              <span key={interest}>{interest}</span>
-            ))}
-          </div>
-          {details.values.length > 0 && (
-            <div className="detail-chips coral">
-              {details.values.map((value) => (
-                <span key={value}>{value}</span>
-              ))}
-            </div>
-          )}
-          <button className="section-edit" onClick={() => onEditSection(5)}>
-            <Edit3 size={15} /> Edit interests
-          </button>
-        </section>
-        <section>
-          <div className="setting-heading">
-            <span>
-              <small>7 · STORY & PROMPTS</small>
-              <strong>
-                {details.bio || details.promptOne || 'Add your story'}
-              </strong>
-            </span>
-          </div>
-          {details.bio && <p className="profile-bio">{details.bio}</p>}
-          <strong className="second-prompt">“My ideal Sunday…”</strong>
-          <p>{details.promptOne}</p>
-          <strong className="second-prompt">
-            “The quickest way to my heart…”
-          </strong>
-          <p>{details.promptTwo}</p>
-          <button className="section-edit" onClick={() => onEditSection(6)}>
-            <Edit3 size={15} /> Edit prompts
-          </button>
-        </section>
-        <section>
-          <div className="setting-heading">
-            <span>
-              <small>8 · PREFERENCES & MEDIA</small>
-              <strong>
-                {details.preferredGenders.join(', ')} · Ages {details.minAge}–
-                {details.maxAge} · {details.maxDistance} mi
-              </strong>
-            </span>
-          </div>
-          <p>
-            Ages {details.minAge}–{details.maxAge} · within{' '}
-            {details.maxDistance} miles
-          </p>
-          <div className="detail-chips">
-            <span>1 main photo</span>
-            <span>Up to 6 photos</span>
-            <span>1 video</span>
-          </div>
-          <button className="section-edit" onClick={() => onEditSection(7)}>
-            <Edit3 size={15} /> Edit preferences & media
-          </button>
-        </section>
+        ))}
       </div>
       <div className="profile-account-tools" id="profile-settings">
-        <p className="profile-tools-label">APP &amp; ACCOUNT</p>
+        <p className="profile-tools-label">
+          <SlidersHorizontal size={17} aria-hidden="true" /> APP &amp; ACCOUNT
+        </p>
+        <PresencePreferences />
         <div className="profile-quick-actions lower-profile-tools">
           <button className="verification-entry" onClick={onVerification}>
             <ShieldCheck size={20} />
@@ -9290,16 +11326,20 @@ function YourProfile({
                 {verificationStatus === 'photo_verified' ||
                 verificationStatus === 'identity_verified'
                   ? 'Photo Verified'
-                  : verificationStatus === 'needs_review' ||
-                      verificationStatus === 'pending'
-                    ? 'Camera check pending'
-                    : 'Verify your photos'}
+                  : verificationStatus === 'capture_ready'
+                    ? 'Camera check complete'
+                    : verificationStatus === 'needs_review' ||
+                        verificationStatus === 'pending'
+                      ? 'Camera check pending'
+                      : 'Verify your photos'}
               </strong>
               <small>
                 {verificationStatus === 'photo_verified' ||
                 verificationStatus === 'identity_verified'
                   ? 'A live camera check matches this profile'
-                  : 'Private camera check · no selfie on your profile'}
+                  : verificationStatus === 'capture_ready'
+                    ? 'Photo matching and liveness are not connected yet'
+                    : 'Private camera check · no selfie on your profile'}
               </small>
             </span>
             {verificationStatus === 'photo_verified' ||
@@ -9325,7 +11365,9 @@ function YourProfile({
             <Palette size={19} />
             <span>
               <strong>App theme</strong>
-              <small>{themeLabels[theme]} · 6 choices</small>
+              <small>
+                {themeLabels[theme]} · {themeChoices.length} choices
+              </small>
             </span>
             <ChevronRight size={17} />
           </button>
@@ -9340,117 +11382,160 @@ function YourProfile({
             </button>
           )}
         </div>
-        <section className="engagement-settings-card">
-          <div className="setting-heading">
-            <span>
-              <small>CONNECTION REMINDERS</small>
-              <strong>Thoughtful nudges</strong>
-            </span>
-            <Bell size={19} />
+        <div
+          className="communication-settings"
+          aria-label="Notifications and reminders"
+        >
+          <div className="communication-settings-heading">
+            <h2>Notifications &amp; reminders</h2>
+            <p>Choose your updates, then set the nudges you find useful.</p>
           </div>
-          {(
-            [
-              [
-                'today',
-                'Daily Today idea',
-                'One gentle reminder only when you have no active post.',
-              ],
-              [
-                'like',
-                'Profile review',
-                'Remind me when fresh profiles are ready.',
-              ],
-              [
-                'boost',
-                'Profile Lift opportunities',
-                'Only when your profile and nearby activity make it useful.',
-              ],
-              [
-                'super',
-                'Spike suggestions',
-                'A gentle suggestion after you spend time on a full profile.',
-              ],
-            ] as const
-          ).map(([key, title, description]) => (
-            <div className="engagement-setting-toggle" key={key}>
+          <details className="push-settings-card communication-disclosure">
+            <summary className="setting-heading">
               <span>
-                <strong>{title}</strong>
-                <p>{description}</p>
+                <strong>
+                  <Bell size={19} aria-hidden="true" /> Notifications
+                </strong>
+                <small>Choose what reaches you</small>
+              </span>
+              <ChevronRight size={19} aria-hidden="true" />
+            </summary>
+            <p className="push-settings-intro">
+              Connection updates appear in-app. Push requires an enabled,
+              registered device.
+            </p>
+            {(
+              [
+                ['newMatches', 'New matches', 'Mutual connections'],
+                ['messages', 'New messages', 'Unread conversations'],
+                ['newLikes', 'New likes', 'People interested in you'],
+                ['planUpdates', 'Date-plan updates', 'Invites and replies'],
+                [
+                  'activityBriefing',
+                  'Daily activity briefing',
+                  'One scheduled summary',
+                ],
+              ] as const
+            ).map(([key, title, description]) => (
+              <div className="push-setting-toggle" key={key}>
+                <span>
+                  <strong>{title}</strong>
+                  <p>{description}</p>
+                </span>
+                <Switch
+                  checked={pushPreferences[key]}
+                  onCheckedChange={(checked) => onPushPreference(key, checked)}
+                  aria-label={`Enable ${title} notifications`}
+                />
+              </div>
+            ))}
+            <div className="push-setting-toggle">
+              <span>
+                <strong>Quiet hours · 10 PM–8 AM</strong>
+                <p>Pause non-urgent push. In-app updates remain available.</p>
               </span>
               <Switch
-                checked={engagementPreferences[key]}
-                onCheckedChange={(checked) =>
-                  onEngagementPreference(key, checked)
-                }
-                aria-label={`Enable ${title}`}
+                checked={Boolean(pushPreferences.quietHours)}
+                onCheckedChange={onQuietHours}
+                aria-label="Enable notification quiet hours"
               />
             </div>
-          ))}
-          {engagementPreferences.today && (
-            <label className="today-reminder-time">
+          </details>
+          <details className="engagement-settings-card communication-disclosure">
+            <summary className="setting-heading">
               <span>
-                <strong>Preferred reminder time</strong>
-                <p>Shown only when you open SpikeDate after this time.</p>
+                <strong>
+                  <WandSparkles size={19} aria-hidden="true" /> Connection
+                  reminders
+                </strong>
+                <small>Small prompts for real connections</small>
               </span>
-              <select
-                aria-label="Today reminder time"
-                value={todayReminderTime}
-                onChange={(event) =>
-                  onTodayReminderTime(event.target.value as TodayReminderTime)
-                }
-              >
-                <option value="morning">Morning</option>
-                <option value="afternoon">Afternoon</option>
-                <option value="evening">Evening</option>
-              </select>
-            </label>
-          )}
-        </section>
-        <section className="push-settings-card">
-          <div className="setting-heading">
-            <span>
-              <small>NOTIFICATIONS</small>
-              <strong>Only the updates that matter</strong>
-            </span>
-            <Bell size={19} />
-          </div>
-          {(
-            [
-              ['newMatches', 'New matches'],
-              ['messages', 'New messages'],
-              ['newLikes', 'New likes'],
-              ['planUpdates', 'Date-plan updates'],
-              ['activityBriefing', 'Daily activity briefing'],
-            ] as const
-          ).map(([key, title]) => (
-            <div className="push-setting-toggle" key={key}>
-              <span>
-                <strong>{title}</strong>
-                <p>
-                  {key === 'activityBriefing'
-                    ? 'One scheduled summary instead of repeated prompts.'
-                    : 'Delivered in-app; push is used only on registered devices.'}
-                </p>
-              </span>
-              <Switch
-                checked={pushPreferences[key]}
-                onCheckedChange={(checked) => onPushPreference(key, checked)}
-                aria-label={`Enable ${title} notifications`}
+              <ChevronRight size={19} aria-hidden="true" />
+            </summary>
+            {reminderGroups.map((group) => (
+              <div className="reminder-settings-group" key={group.title}>
+                <div className="reminder-settings-group-heading">
+                  <strong>{group.title}</strong>
+                  <small>{group.description}</small>
+                </div>
+                {group.items.map(({ key, title, description, icon: Icon }) => (
+                  <div className="engagement-setting-toggle" key={key}>
+                    <span className="reminder-setting-icon" aria-hidden="true">
+                      <Icon size={18} />
+                    </span>
+                    <span className="reminder-setting-copy">
+                      <strong>{title}</strong>
+                      <p>{description}</p>
+                    </span>
+                    <Switch
+                      checked={engagementPreferences[key]}
+                      onCheckedChange={(checked) =>
+                        onEngagementPreference(key, checked)
+                      }
+                      aria-label={`Enable ${title}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            ))}
+            {engagementPreferences.today && (
+              <label className="today-reminder-time">
+                <span>
+                  <strong>Today reminder time</strong>
+                  <p>
+                    Shown in-app when you return after this time—not an alarm.
+                  </p>
+                </span>
+                <select
+                  aria-label="Today reminder time"
+                  value={todayReminderTime}
+                  onChange={(event) =>
+                    onTodayReminderTime(event.target.value as TodayReminderTime)
+                  }
+                >
+                  <option value="morning">Morning</option>
+                  <option value="afternoon">Afternoon</option>
+                  <option value="evening">Evening</option>
+                </select>
+              </label>
+            )}
+            <details className="reminder-preview-disclosure">
+              <summary>
+                <Eye size={16} aria-hidden="true" /> Preview reminders
+                <ChevronDown size={16} aria-hidden="true" />
+              </summary>
+              <p>Examples only. These buttons will not send anything.</p>
+              <div className="reminder-preview-switcher" role="group" aria-label="Choose reminder preview">
+                {([
+                  ['today', 'Today'],
+                  ['like', 'Galaxy'],
+                  ['super', 'Spike'],
+                  ['boost', 'Lift'],
+                ] as const).map(([key, title]) => (
+                  <button
+                    type="button"
+                    key={key}
+                    aria-pressed={reminderPreview === key}
+                    onClick={() => setReminderPreview(key)}
+                  >
+                    {title}
+                  </button>
+                ))}
+              </div>
+              <EngagementPrompt
+                nudge={previewNudge}
+                membership={membership}
+                boostsRemaining={1}
+                dailyLikesRemaining={6}
+                superPulsesRemaining={2}
+                profileCount={3}
+                onDismiss={() => {}}
+                onAction={() => {}}
+                preview
               />
-            </div>
-          ))}
-          <div className="push-setting-toggle">
-            <span>
-              <strong>Quiet hours</strong>
-              <p>Silence non-urgent push alerts from 10 PM to 8 AM.</p>
-            </span>
-            <Switch
-              checked={Boolean(pushPreferences.quietHours)}
-              onCheckedChange={onQuietHours}
-              aria-label="Enable notification quiet hours"
-            />
-          </div>
-        </section>
+            </details>
+          </details>
+        </div>
         {voiceDeploymentEnabled && (
           <section className="voice-settings-card">
             <div className="setting-heading">
@@ -9491,14 +11576,31 @@ function ProfilePreview({
   sourceProfile,
   media,
   details,
+  story,
+  availability,
   onBack,
+  onEdit,
+  userId,
+  todayCount,
 }: {
   name: string;
   sourceProfile?: Profile;
   media: MediaItem[];
   details: RegistrationData;
+  story?: DailyStory;
+  availability?: DailyAvailability;
   onBack: () => void;
+  onEdit: () => void;
+  userId?: string;
+  todayCount: number;
 }) {
+  const [fullPreviewOpen, setFullPreviewOpen] = useState(false);
+  const [previewAction, setPreviewAction] = useState('');
+  useEffect(() => {
+    if (!previewAction) return;
+    const timer = window.setTimeout(() => setPreviewAction(''), 3500);
+    return () => window.clearTimeout(timer);
+  }, [previewAction]);
   const base: Profile = sourceProfile ?? {
     name,
     age: 28,
@@ -9519,13 +11621,39 @@ function ProfilePreview({
     drinking: details.drinking,
     smoking: details.smoking,
   };
-  const self: Profile = media.length
+  const portrait: Profile = media.length
     ? {
         ...base,
         image: media.find((item) => item.type === 'photo')?.src ?? base.image,
         media,
       }
     : base;
+  const self: Profile = {
+    ...portrait,
+    id: userId ?? portrait.id,
+    name,
+    place: details.city || portrait.place,
+    intent: details.intents[0] || portrait.intent,
+    tags: details.interests,
+    prompt: serverDataEnabled
+      ? details.promptOne || details.bio
+      : details.promptOne || portrait.prompt,
+    height: details.height,
+    ethnicity: details.ethnicity,
+    pets: details.pets,
+    kids: details.kids,
+    wantsKids: details.wantsKids,
+    drinking: details.drinking,
+    smoking: details.smoking,
+    tonight:
+      availability?.localDate === dateInputValue() &&
+      new Date(availability.endAt).getTime() > Date.now()
+        ? {
+            plan: story?.caption || 'Open to making a plan',
+            expiresAt: availability.endAt,
+          }
+        : undefined,
+  };
   return (
     <section className="preview-screen">
       <header className="preview-banner">
@@ -9538,11 +11666,76 @@ function ProfilePreview({
         </span>
       </header>
       <div className="preview-wrap">
-        <ProfileCard profile={self} preview />
-        <button className="edit-card">
+        <DiscoverScreen
+          profile={self}
+          story={story}
+          preview
+          busy={false}
+          matched={false}
+          saved={false}
+          todayCount={todayCount}
+          todayActive={Boolean(story || availability)}
+          onOpen={() => setFullPreviewOpen(true)}
+          onOpenStory={() => setFullPreviewOpen(true)}
+          onTonight={() => setFullPreviewOpen(true)}
+          onPass={() =>
+            setPreviewAction('Preview only — Pass moves to the next profile.')
+          }
+          onLike={() =>
+            setPreviewAction(
+              'Preview only — Like sends interest. Nothing was sent.',
+            )
+          }
+          onSpark={() =>
+            setPreviewAction(
+              'Preview only — Spike sends an introduction. Nothing was sent.',
+            )
+          }
+          onToggleSaved={() =>
+            setPreviewAction(
+              'Preview only — Save privately bookmarks a profile.',
+            )
+          }
+          onPostToday={() =>
+            setPreviewAction(
+              'Preview only — Today lets you write an update and set tonight’s availability.',
+            )
+          }
+          onSeeAllToday={() =>
+            setPreviewAction(
+              'Preview only — Fresh opens the latest Today updates.',
+            )
+          }
+        />
+        {previewAction && (
+          <p className="preview-action-feedback" role="status">
+            {previewAction}
+          </p>
+        )}
+        <button className="edit-card" onClick={onEdit}>
           <Edit3 size={18} /> Edit card
         </button>
       </div>
+      <FullProfile
+        profile={self}
+        open={fullPreviewOpen}
+        onOpenChange={setFullPreviewOpen}
+        readOnly
+        detailsOverride={details}
+        story={story}
+        onPass={() => setFullPreviewOpen(false)}
+        onLike={() => setFullPreviewOpen(false)}
+        onSpark={() => setFullPreviewOpen(false)}
+        onBoost={() => setFullPreviewOpen(false)}
+        matched={false}
+        saved={false}
+        onShare={() => setFullPreviewOpen(false)}
+        onReport={() => setFullPreviewOpen(false)}
+        onBlock={() => setFullPreviewOpen(false)}
+        onToggleSaved={() => setFullPreviewOpen(false)}
+        todayActive={Boolean(story || availability)}
+        onPostToday={() => setFullPreviewOpen(false)}
+      />
     </section>
   );
 }
@@ -9619,6 +11812,17 @@ const initialRegistration: RegistrationData = {
   maxDistance: 15,
 };
 
+function connectionForRegistration(data: RegistrationData): ProfileConnection {
+  return {
+    relationshipStyle: data.relationshipStyle || '',
+    datingPace: data.datingPace || '',
+    communicationPreference: data.communicationPreference || '',
+    values: data.values.slice(0, 3),
+    rhythm: data.rhythm || [],
+    languages: data.languages || [],
+  } as ProfileConnection;
+}
+
 function normalizeRegistration(
   value: Partial<RegistrationData>,
 ): RegistrationData {
@@ -9639,6 +11843,7 @@ function RegistrationDialog({
   onOpenChange,
   onComplete,
   initialData,
+  draftKey,
   initialStep,
   editing,
   singleSection,
@@ -9650,8 +11855,9 @@ function RegistrationDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onComplete: (data: RegistrationData) => void;
+  onComplete: (data: RegistrationData) => Promise<void>;
   initialData: RegistrationData;
+  draftKey: string;
   initialStep: number;
   editing: boolean;
   singleSection: boolean;
@@ -9664,20 +11870,93 @@ function RegistrationDialog({
   const [step, setStep] = useState(0);
   const [data, setData] = useState<RegistrationData>(initialData);
   const [validationError, setValidationError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [showOptionalAbout, setShowOptionalAbout] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
+  const [profileCameraOpen, setProfileCameraOpen] = useState(false);
+  const registrationBody = useRef<HTMLDivElement>(null);
+  const initializedForOpen = useRef(false);
   useEffect(() => {
+    if (registrationBody.current) registrationBody.current.scrollTop = 0;
+  }, [step]);
+  const onboarding = !editing && !singleSection;
+  const flowSteps: readonly number[] = onboarding
+    ? vibeSetupSteps
+    : registrationSteps.map((_, index) => index);
+  const position = Math.max(0, flowSteps.indexOf(step));
+  useEffect(() => {
+    if (!open) {
+      initializedForOpen.current = false;
+      return;
+    }
+    // Background profile hydration must not discard edits or close a camera/crop.
+    if (initializedForOpen.current) return;
+    initializedForOpen.current = true;
     if (open) {
       setStep(Math.max(0, Math.min(registrationSteps.length - 1, initialStep)));
       setData(initialData);
+      if (onboarding && draftKey) {
+        try {
+          const draft = JSON.parse(
+            localStorage.getItem(`spikedate-setup-draft:${draftKey}`) || 'null',
+          );
+          if (draft && Date.now() - draft.savedAt < 7 * 86400000) {
+            setData({
+              ...initialData,
+              ...draft.data,
+              birthday: initialData.birthday,
+              gender: initialData.gender,
+            });
+            if (vibeSetupSteps.includes(draft.step)) setStep(draft.step);
+          }
+        } catch {
+          /* A damaged or unavailable draft never blocks registration. */
+        }
+      }
       setValidationError('');
       setShowOptionalAbout(editing && initialStep === 1);
       setCropFile(null);
       setCropOpen(false);
+      setProfileCameraOpen(false);
     }
   }, [open, initialData, initialStep]);
-  const item = registrationSteps[step];
+  useEffect(() => {
+    if (!open || !onboarding || !draftKey || saving) return;
+    try {
+      localStorage.setItem(
+        `spikedate-setup-draft:${draftKey}`,
+        JSON.stringify({ data, step, savedAt: Date.now() }),
+      );
+    } catch {
+      /* Setup still works without local storage. */
+    }
+  }, [open, onboarding, draftKey, saving, data, step]);
+  const vibeStepCopy: Record<number, { title: string; detail: string }> = {
+    0: {
+      title: 'First, just the basics.',
+      detail:
+        'Just your name and city. Your birthday and gender are already supplied.',
+    },
+    4: {
+      title: 'Your kind of connection.',
+      detail: 'Choose what feels honest right now, and who you’d like to meet.',
+    },
+    7: {
+      title: 'Let them see you.',
+      detail:
+        'One clear photo to begin. More photos and a video can come later.',
+    },
+    5: {
+      title: 'A little of your vibe.',
+      detail: 'Tap a starter. Add optional details now, or come back later.',
+    },
+    8: {
+      title: 'Here’s how they’ll see you.',
+      detail: 'Review before sharing. Your camera safety check comes next.',
+    },
+  };
+  const item = onboarding ? vibeStepCopy[step] : registrationSteps[step];
   const photos = media.filter((item) => item.type === 'photo').slice(0, 6);
   const profileVideo = media.find((item) => item.type === 'video');
   const chooseProfilePhoto = (file?: File) => {
@@ -9721,37 +12000,82 @@ function RegistrationDialog({
     if (step === 0) {
       if (!data.name.trim() || !data.birthday || !data.city.trim())
         return 'First name, birthday, and city are required.';
-      const birthday = new Date(`${data.birthday}T00:00:00`);
-      const adultDate = new Date();
-      adultDate.setFullYear(adultDate.getFullYear() - 18);
-      if (Number.isNaN(birthday.valueOf()) || birthday > adultDate)
+      if (!isAdult(data.birthday))
         return 'You must be at least 18 to use SpikeDate.';
     }
+    if (step === 1 && !data.gender.trim()) return 'Choose your gender.';
     if (step === 4 && data.intents.length === 0)
       return 'Choose at least one relationship goal.';
-    if (step === 7) {
+    if (
+      onboarding &&
+      (step === 4 || step === 8) &&
+      data.preferredGenders.length === 0
+    )
+      return 'Choose at least one gender preference.';
+    if (onboarding && (step === 7 || step === 8) && photos.length === 0)
+      return 'Add one clear profile photo to continue.';
+    if (
+      onboarding &&
+      step === 8 &&
+      (!data.name.trim() ||
+        !data.city.trim() ||
+        !isAdult(data.birthday) ||
+        !data.gender ||
+        !data.intents.length)
+    )
+      return 'Check your name, city, adult birthday, gender and relationship goal.';
+    if (step === 7 || (onboarding && (step === 4 || step === 8))) {
       if (data.preferredGenders.length === 0)
         return 'Choose at least one gender preference.';
       if (data.minAge > data.maxAge)
         return 'Minimum age cannot be higher than maximum age.';
+      if (
+        ![data.minAge, data.maxAge].every(
+          (age) => Number.isInteger(age) && age >= 18 && age <= 60,
+        )
+      )
+        return 'Choose an age range between 18 and 60.';
+      if (
+        !Number.isFinite(data.maxDistance) ||
+        data.maxDistance < 1 ||
+        data.maxDistance > 50
+      )
+        return 'Choose a distance between 1 and 50 km.';
     }
     return '';
   };
-  const saveOrContinue = () => {
+  const saveOrContinue = async () => {
+    if (saving) return;
     const error = validateCurrentStep();
     if (error) {
       setValidationError(error);
       return;
     }
-    if (singleSection || step === registrationSteps.length - 1)
-      onComplete(data);
-    else setStep((value) => value + 1);
+    if (singleSection || position === flowSteps.length - 1) {
+      setSaving(true);
+      try {
+        await onComplete(data);
+        if (onboarding && draftKey) {
+          try {
+            localStorage.removeItem(`spikedate-setup-draft:${draftKey}`);
+          } catch {
+            /* Saving to the server succeeded even if local storage is unavailable. */
+          }
+        }
+      } catch {
+        setValidationError(
+          'Could not save your profile. Check your connection and try again.',
+        );
+      } finally {
+        setSaving(false);
+      }
+    } else setStep(flowSteps[position + 1]);
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="flow-dialog registration-dialog"
+        className={`flow-dialog registration-dialog ${onboarding ? 'vibe-registration' : ''}`}
       >
         <button
           className="match-close"
@@ -9761,23 +12085,24 @@ function RegistrationDialog({
           <X size={19} />
         </button>
         <div className="flow-kicker">
-          REGISTRATION · {step + 1} OF {registrationSteps.length}
+          {onboarding ? 'YOUR PROFILE' : 'REGISTRATION'} · {position + 1} OF{' '}
+          {flowSteps.length}
         </div>
         <div className="flow-progress">
-          {registrationSteps.map((_, index) => (
-            <span key={index} className={index <= step ? 'active' : ''} />
+          {flowSteps.map((_, index) => (
+            <span key={index} className={index <= position ? 'active' : ''} />
           ))}
         </div>
         <DialogTitle>{item.title}</DialogTitle>
         <DialogDescription>{item.detail}</DialogDescription>
-        <div className="field-policy">
+        <div className="field-policy" hidden={onboarding}>
           <ShieldCheck size={15} />
           <span>
             Only fields marked Required block setup. Skip anything else and add
             it later.
           </span>
         </div>
-        <div className="registration-body">
+        <div className="registration-body" ref={registrationBody}>
           {step === 0 && (
             <div className="field-grid">
               <label>
@@ -9790,7 +12115,7 @@ function RegistrationDialog({
                   onChange={(event) => update('name', event.target.value)}
                 />
               </label>
-              <label>
+              <label className={onboarding ? 'vibe-birthday' : ''}>
                 <span className="field-label">
                   Birthday <b>Required</b>
                 </span>
@@ -9801,6 +12126,13 @@ function RegistrationDialog({
                   onChange={(event) => update('birthday', event.target.value)}
                 />
               </label>
+              {onboarding && (
+                <p className="vibe-identity">
+                  <ShieldCheck size={16} aria-hidden="true" /> Birthday and
+                  gender carried forward · {data.gender}. Change account
+                  identity in your profile after setup.
+                </p>
+              )}
               <label className="wide-field">
                 <span className="field-label">
                   City <b>Required</b>
@@ -9968,11 +12300,11 @@ function RegistrationDialog({
                 </select>
               </label>
               <label className="wide-field">
-                Zodiac · Optional
+                Zodiac · Derived from your birthday
                 <select
                   aria-label="Zodiac"
-                  value={data.zodiac}
-                  onChange={(event) => update('zodiac', event.target.value)}
+                  value={zodiacFromBirthDate(data.birthday) ?? ''}
+                  disabled
                 >
                   <option value="">Skip</option>
                   <option>Aries</option>
@@ -10015,8 +12347,10 @@ function RegistrationDialog({
                   value={data.kids}
                   onChange={(event) => update('kids', event.target.value)}
                 >
+                  <option value="">Not shared</option>
                   <option>No kids</option>
                   <option>Has kids</option>
+                  <option>Prefer not to say</option>
                 </select>
               </label>
               <label className="wide-field">
@@ -10026,10 +12360,13 @@ function RegistrationDialog({
                   value={data.wantsKids}
                   onChange={(event) => update('wantsKids', event.target.value)}
                 >
+                  <option value="">Not shared</option>
                   <option>Yes</option>
                   <option>No</option>
                   <option>Maybe</option>
+                  <option>Open to children</option>
                   <option>Not sure</option>
+                  <option>Prefer not to say</option>
                 </select>
               </label>
             </div>
@@ -10043,10 +12380,13 @@ function RegistrationDialog({
                   value={data.drinking}
                   onChange={(event) => update('drinking', event.target.value)}
                 >
+                  <option value="">Not shared</option>
                   <option>Never</option>
                   <option>Rarely</option>
                   <option>Socially</option>
                   <option>Often</option>
+                  <option>Regularly</option>
+                  <option>Prefer not to say</option>
                 </select>
               </label>
               <label>
@@ -10056,9 +12396,14 @@ function RegistrationDialog({
                   value={data.smoking}
                   onChange={(event) => update('smoking', event.target.value)}
                 >
+                  <option value="">Not shared</option>
                   <option>No</option>
                   <option>Sometimes</option>
                   <option>Yes</option>
+                  <option>Occasionally</option>
+                  <option>Regularly</option>
+                  <option>Quitting</option>
+                  <option>Prefer not to say</option>
                 </select>
               </label>
               <label>
@@ -10110,50 +12455,88 @@ function RegistrationDialog({
           )}
           {step === 4 && (
             <div className="stacked-choices">
+              <details
+                className="vibe-optional"
+                open={onboarding ? undefined : true}
+              >
+                <summary>
+                  <HandHeart size={16} aria-hidden="true" />
+                  How we connect · Optional
+                </summary>
+                <ProfileConnectionFields
+                  value={connectionForRegistration(data)}
+                  onChange={(value) =>
+                    setData((current) => ({ ...current, ...value }))
+                  }
+                  quick={onboarding}
+                />
+              </details>
               <ChoiceGroup
                 label="Relationship goals · Required"
                 options={relationshipOptions}
                 selected={data.intents}
                 onToggle={(value) => toggle('intents', value)}
+                showIcons={onboarding}
               />
-              <div className="field-grid">
-                <label>
-                  Relationship style · Optional
-                  <select
-                    aria-label="Relationship style"
-                    value={data.relationshipStyle}
-                    onChange={(event) =>
-                      update('relationshipStyle', event.target.value)
-                    }
-                  >
-                    <option value="">Skip</option>
-                    <option>Monogamy</option>
-                    <option>Ethical non-monogamy</option>
-                    <option>Open relationship</option>
-                    <option>Figuring it out</option>
-                  </select>
-                </label>
-                <label>
-                  Love language · Optional
-                  <select
-                    aria-label="Love language"
-                    value={data.loveLanguage}
-                    onChange={(event) =>
-                      update('loveLanguage', event.target.value)
-                    }
-                  >
-                    <option value="">Skip</option>
-                    <option>Quality time</option>
-                    <option>Words of affirmation</option>
-                    <option>Acts of service</option>
-                    <option>Physical touch</option>
-                    <option>Gifts</option>
-                  </select>
-                </label>
-              </div>
+              {onboarding && (
+                <>
+                  <ChoiceGroup
+                    label="I’d like to meet · Required"
+                    options={['Woman', 'Man', 'Nonbinary']}
+                    selected={data.preferredGenders}
+                    onToggle={(value) => toggle('preferredGenders', value)}
+                    showIcons
+                  />
+                  <details className="vibe-optional">
+                    <summary>
+                      <SlidersHorizontal size={16} aria-hidden="true" />
+                      Adjust discovery preferences
+                    </summary>
+                    <label>
+                      Minimum age
+                      <input
+                        aria-label="Minimum age"
+                        type="number"
+                        min={18}
+                        max={60}
+                        value={data.minAge}
+                        onChange={(e) =>
+                          update('minAge', Number(e.target.value))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Maximum age
+                      <input
+                        aria-label="Maximum age"
+                        type="number"
+                        min={18}
+                        max={60}
+                        value={data.maxAge}
+                        onChange={(e) =>
+                          update('maxAge', Number(e.target.value))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Maximum distance (miles)
+                      <input
+                        aria-label="Maximum distance"
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={data.maxDistance}
+                        onChange={(e) =>
+                          update('maxDistance', Number(e.target.value))
+                        }
+                      />
+                    </label>
+                  </details>
+                </>
+              )}
             </div>
           )}
-          {step === 5 && (
+          {step === 5 && !onboarding && (
             <div className="stacked-choices">
               <ChoiceGroup
                 label={`${data.interests.length} of 5 interests selected · Optional`}
@@ -10162,11 +12545,318 @@ function RegistrationDialog({
                 onToggle={(value) => toggle('interests', value, 5)}
               />
               <ChoiceGroup
-                label={`${data.values.length} of 5 values selected · Optional`}
+                label={`${data.values.length} of 3 values selected · Optional`}
                 options={valueOptions}
                 selected={data.values}
-                onToggle={(value) => toggle('values', value, 5)}
+                onToggle={(value) => toggle('values', value, 3)}
               />
+            </div>
+          )}
+          {step === 5 && onboarding && (
+            <div className="vibe-prompt-stage">
+              <details className="vibe-optional">
+                <summary>
+                  <Music2 size={16} aria-hidden="true" />
+                  Choose interests · Optional
+                </summary>
+                <ChoiceGroup
+                  label={`${data.interests.length} of 5 interests selected`}
+                  options={interestOptions}
+                  selected={data.interests}
+                  onToggle={(value) => toggle('interests', value, 5)}
+                  showIcons
+                />
+              </details>
+              <label>
+                Conversation starter · Optional
+                <select
+                  aria-label="Conversation starter"
+                  value={data.promptOneQuestion || vibePrompts[0].question}
+                  onChange={(event) =>
+                    setData((current) => ({
+                      ...current,
+                      promptOneQuestion: event.target.value,
+                      promptOne: '',
+                    }))
+                  }
+                >
+                  {vibePrompts.map((prompt) => (
+                    <option key={prompt.question}>{prompt.question}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="vibe-idea-cards">
+                {(
+                  vibePrompts.find(
+                    (prompt) =>
+                      prompt.question ===
+                      (data.promptOneQuestion || vibePrompts[0].question),
+                  )?.ideas || []
+                ).map((idea, index) => {
+                  const IdeaIcon = [Coffee, Footprints, Utensils, WandSparkles][
+                    index
+                  ];
+                  return (
+                    <button
+                      type="button"
+                      key={idea}
+                      aria-label={idea}
+                      aria-pressed={data.promptOne === idea}
+                      onClick={() =>
+                        setData((current) => ({
+                          ...current,
+                          promptOne: idea,
+                          promptOneQuestion:
+                            current.promptOneQuestion ||
+                            vibePrompts[0].question,
+                        }))
+                      }
+                    >
+                      <IdeaIcon size={16} aria-hidden="true" />
+                      <span>
+                        {(
+                          {
+                            'Coffee and an easy conversation.':
+                              'Coffee & easy conversation',
+                            'A walk somewhere new.': 'A walk somewhere new',
+                            'Dinner at a cozy little place.': 'A cozy dinner',
+                            'A little adventure together.':
+                              'A little adventure',
+                          } as Record<string, string>
+                        )[idea] || idea}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <label>
+                Make it yours
+                <input
+                  aria-label="First prompt"
+                  maxLength={180}
+                  placeholder="Choose an idea or write a short answer"
+                  value={data.promptOne}
+                  onChange={(event) =>
+                    setData((current) => ({
+                      ...current,
+                      promptOne: event.target.value,
+                      promptOneQuestion:
+                        current.promptOneQuestion || vibePrompts[0].question,
+                    }))
+                  }
+                />
+              </label>
+              <div className="vibe-answer-preview" aria-live="polite">
+                <small>
+                  {data.promptOneQuestion || vibePrompts[0].question}
+                </small>
+                <p>
+                  {data.promptOne ||
+                    'Your selected answer appears here. Nothing is published yet.'}
+                </p>
+              </div>
+              <details className="vibe-optional vibe-depth-card">
+                <summary>
+                  <GraduationCap size={16} aria-hidden="true" />
+                  Life &amp; lifestyle · Optional
+                </summary>
+                <div className="vibe-depth-fields">
+                  {(
+                    [
+                      [
+                        'education',
+                        'Education',
+                        [
+                          'High school',
+                          'College',
+                          'Bachelor’s degree',
+                          'Master’s degree',
+                          'Doctorate',
+                          'Trade school',
+                          'Other',
+                        ],
+                      ],
+                      [
+                        'kids',
+                        'Have children?',
+                        ['No kids', 'Has kids', 'Prefer not to say'],
+                      ],
+                      [
+                        'wantsKids',
+                        'Want children?',
+                        [
+                          'Yes',
+                          'No',
+                          'Open to children',
+                          'Not sure',
+                          'Prefer not to say',
+                        ],
+                      ],
+                      [
+                        'drinking',
+                        'Drinking',
+                        [
+                          'Never',
+                          'Rarely',
+                          'Socially',
+                          'Regularly',
+                          'Prefer not to say',
+                        ],
+                      ],
+                      [
+                        'smoking',
+                        'Smoking',
+                        [
+                          'No',
+                          'Occasionally',
+                          'Regularly',
+                          'Quitting',
+                          'Prefer not to say',
+                        ],
+                      ],
+                    ] as const
+                  ).map(([key, label, options]) => (
+                    <label key={key}>
+                      {label}
+                      <select
+                        aria-label={label}
+                        value={data[key]}
+                        onChange={(event) => update(key, event.target.value)}
+                      >
+                        <option value="">Not shared</option>
+                        {data[key] &&
+                          !(options as readonly string[]).includes(
+                            data[key],
+                          ) && <option>{data[key]}</option>}
+                        {options.map((option) => (
+                          <option key={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                  <p className="vibe-identity">
+                    Share only what feels comfortable. Unanswered details stay
+                    unshared.
+                  </p>
+                </div>
+              </details>
+              <details className="vibe-optional vibe-depth-card">
+                <summary>
+                  <NotebookPen size={16} aria-hidden="true" />
+                  Your personality · Optional
+                </summary>
+                <div className="vibe-depth-fields">
+                  <label>
+                    About me
+                    <textarea
+                      aria-label="About me"
+                      value={data.bio}
+                      maxLength={300}
+                      onChange={(event) => update('bio', event.target.value)}
+                      placeholder="One small thing that feels like you…"
+                    />
+                    <small>{data.bio.length}/300</small>
+                  </label>
+                  <ChoiceGroup
+                    label="Music & travel · up to 5 interests overall"
+                    options={[
+                      'Indie music',
+                      'Pop music',
+                      'Jazz',
+                      'R&B',
+                      'Live music',
+                      'Road trips',
+                      'City breaks',
+                      'Nature trips',
+                      'Beach trips',
+                    ]}
+                    selected={data.interests}
+                    onToggle={(value) => toggle('interests', value, 5)}
+                    showIcons
+                  />
+                  <label>
+                    Second conversation starter
+                    <select
+                      aria-label="Second conversation starter"
+                      value={data.promptTwoQuestion || 'My Sunday vibe is…'}
+                      onChange={(event) =>
+                        setData((current) => ({
+                          ...current,
+                          promptTwoQuestion: event.target.value,
+                          promptTwo: '',
+                        }))
+                      }
+                    >
+                      {vibePrompts
+                        .filter(
+                          (prompt) =>
+                            prompt.question !==
+                            (data.promptOneQuestion || vibePrompts[0].question),
+                        )
+                        .map((prompt) => (
+                          <option key={prompt.question}>
+                            {prompt.question}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <div className="vibe-second-ideas">
+                    {(
+                      vibePrompts.find(
+                        (prompt) =>
+                          prompt.question ===
+                          (data.promptTwoQuestion || 'My Sunday vibe is…'),
+                      )?.ideas || []
+                    ).map((idea) => (
+                      <button
+                        key={idea}
+                        type="button"
+                        aria-pressed={data.promptTwo === idea}
+                        onClick={() =>
+                          setData((current) => ({
+                            ...current,
+                            promptTwo: idea,
+                            promptTwoQuestion:
+                              current.promptTwoQuestion || 'My Sunday vibe is…',
+                          }))
+                        }
+                      >
+                        {idea}
+                      </button>
+                    ))}
+                  </div>
+                  <label>
+                    Your answer
+                    <input
+                      aria-label="Second prompt"
+                      maxLength={180}
+                      value={data.promptTwo}
+                      onChange={(event) =>
+                        setData((current) => ({
+                          ...current,
+                          promptTwo: event.target.value,
+                          promptTwoQuestion:
+                            current.promptTwoQuestion || 'My Sunday vibe is…',
+                        }))
+                      }
+                      placeholder="Choose an idea or make it yours"
+                    />
+                  </label>
+                </div>
+              </details>
+              <button
+                type="button"
+                className="vibe-later"
+                onClick={() => {
+                  setData((current) => ({
+                    ...current,
+                    promptOne: '',
+                  }));
+                  setStep(8);
+                }}
+              >
+                Do this later
+              </button>
             </div>
           )}
           {step === 6 && (
@@ -10183,7 +12873,27 @@ function RegistrationDialog({
                 <small>{data.bio.length}/300</small>
               </label>
               <label>
-                My ideal Sunday… · Optional
+                {data.promptOneQuestion || 'My ideal Sunday…'} · Optional
+                <select
+                  aria-label="First conversation starter"
+                  value={data.promptOneQuestion || 'My ideal Sunday…'}
+                  onChange={(event) =>
+                    update('promptOneQuestion', event.target.value)
+                  }
+                >
+                  {!vibePrompts.some(
+                    (prompt) =>
+                      prompt.question ===
+                      (data.promptOneQuestion || 'My ideal Sunday…'),
+                  ) && (
+                    <option>
+                      {data.promptOneQuestion || 'My ideal Sunday…'}
+                    </option>
+                  )}
+                  {vibePrompts.map((prompt) => (
+                    <option key={prompt.question}>{prompt.question}</option>
+                  ))}
+                </select>
                 <textarea
                   aria-label="First prompt"
                   value={data.promptOne}
@@ -10191,7 +12901,32 @@ function RegistrationDialog({
                 />
               </label>
               <label>
-                The quickest way to my heart… · Optional
+                {data.promptTwoQuestion || 'The quickest way to my heart…'} ·
+                Optional
+                <select
+                  aria-label="Second conversation starter"
+                  value={
+                    data.promptTwoQuestion || 'The quickest way to my heart…'
+                  }
+                  onChange={(event) =>
+                    update('promptTwoQuestion', event.target.value)
+                  }
+                >
+                  {!vibePrompts.some(
+                    (prompt) =>
+                      prompt.question ===
+                      (data.promptTwoQuestion ||
+                        'The quickest way to my heart…'),
+                  ) && (
+                    <option>
+                      {data.promptTwoQuestion ||
+                        'The quickest way to my heart…'}
+                    </option>
+                  )}
+                  {vibePrompts.map((prompt) => (
+                    <option key={prompt.question}>{prompt.question}</option>
+                  ))}
+                </select>
                 <textarea
                   aria-label="Second prompt"
                   value={data.promptTwo}
@@ -10202,52 +12937,54 @@ function RegistrationDialog({
           )}
           {step === 7 && (
             <>
-              <ChoiceGroup
-                label="Show me · Required"
-                options={['Woman', 'Man', 'Nonbinary']}
-                selected={data.preferredGenders}
-                onToggle={(value) => toggle('preferredGenders', value)}
-              />
-              <div className="range-fields">
-                <label>
-                  Age range{' '}
-                  <strong>
-                    {data.minAge}–{data.maxAge}
-                  </strong>
-                  <input
-                    aria-label="Minimum age"
-                    type="range"
-                    min="18"
-                    max="60"
-                    value={data.minAge}
-                    onChange={(event) =>
-                      update('minAge', Number(event.target.value))
-                    }
-                  />
-                  <input
-                    aria-label="Maximum age"
-                    type="range"
-                    min="18"
-                    max="60"
-                    value={data.maxAge}
-                    onChange={(event) =>
-                      update('maxAge', Number(event.target.value))
-                    }
-                  />
-                </label>
-                <label>
-                  Maximum distance <strong>{data.maxDistance} miles</strong>
-                  <input
-                    aria-label="Maximum distance"
-                    type="range"
-                    min="1"
-                    max="50"
-                    value={data.maxDistance}
-                    onChange={(event) =>
-                      update('maxDistance', Number(event.target.value))
-                    }
-                  />
-                </label>
+              <div hidden={onboarding}>
+                <ChoiceGroup
+                  label="Show me · Required"
+                  options={['Woman', 'Man', 'Nonbinary']}
+                  selected={data.preferredGenders}
+                  onToggle={(value) => toggle('preferredGenders', value)}
+                />
+                <div className="range-fields">
+                  <label>
+                    Age range{' '}
+                    <strong>
+                      {data.minAge}–{data.maxAge}
+                    </strong>
+                    <input
+                      aria-label="Minimum age"
+                      type="range"
+                      min="18"
+                      max="60"
+                      value={data.minAge}
+                      onChange={(event) =>
+                        update('minAge', Number(event.target.value))
+                      }
+                    />
+                    <input
+                      aria-label="Maximum age"
+                      type="range"
+                      min="18"
+                      max="60"
+                      value={data.maxAge}
+                      onChange={(event) =>
+                        update('maxAge', Number(event.target.value))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Maximum distance <strong>{data.maxDistance} miles</strong>
+                    <input
+                      aria-label="Maximum distance"
+                      type="range"
+                      min="1"
+                      max="50"
+                      value={data.maxDistance}
+                      onChange={(event) =>
+                        update('maxDistance', Number(event.target.value))
+                      }
+                    />
+                  </label>
+                </div>
               </div>
               <section
                 className="profile-media-editor"
@@ -10262,6 +12999,16 @@ function RegistrationDialog({
                   </span>
                   <Check size={17} />
                 </div>
+                {photos.length < 6 && (
+                  <button
+                    type="button"
+                    className="profile-take-photo"
+                    onClick={() => setProfileCameraOpen(true)}
+                  >
+                    <Camera size={17} aria-hidden="true" />
+                    Take a profile photo
+                  </button>
+                )}
                 <div className="profile-media-grid">
                   {photos.map((photo, index) => (
                     <div
@@ -10275,7 +13022,7 @@ function RegistrationDialog({
                         sizes="112px"
                         quality={90}
                         unoptimized={
-                          photo.src.startsWith('/api/media/') ||
+                          photo.src.startsWith('/') ||
                           photo.src.startsWith('data:')
                         }
                       />
@@ -10307,7 +13054,7 @@ function RegistrationDialog({
                     <label className="profile-media-add">
                       <ImagePlus size={25} />
                       <strong>Add photo</strong>
-                      <small>Crop &amp; enhance</small>
+                      <small>Choose &amp; frame</small>
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
@@ -10372,7 +13119,7 @@ function RegistrationDialog({
                   )}
                 </div>
               </section>
-              <div className="media-rules">
+              <div className="media-rules" hidden={onboarding}>
                 <div>
                   <Camera size={20} />
                   <span>
@@ -10404,7 +13151,100 @@ function RegistrationDialog({
                 onOpenChange={setCropOpen}
                 onConfirm={onAddPhoto}
               />
+              <ProfileCamera
+                open={profileCameraOpen}
+                onOpenChange={setProfileCameraOpen}
+                onPhoto={chooseProfilePhoto}
+              />
             </>
+          )}
+          {step === 8 && onboarding && (
+            <div className="vibe-profile-review">
+              <ProfileConnectionSummary
+                value={connectionForRegistration(data)}
+              />
+              {photos[0] && (
+                <Image
+                  src={photos[0].src}
+                  alt="Your profile preview"
+                  width={480}
+                  height={600}
+                  unoptimized
+                  className="vibe-review-photo"
+                />
+              )}
+              <h3>{data.name}</h3>
+              <p>
+                <MapPin size={14} aria-hidden="true" />
+                {data.city}
+              </p>
+              <p>
+                <Heart size={14} aria-hidden="true" />
+                {data.intents.join(' · ')}
+              </p>
+              {data.interests.length > 0 && (
+                <p>
+                  <Music2 size={14} aria-hidden="true" />
+                  {data.interests.join(' · ')}
+                </p>
+              )}
+              {data.promptOne && (
+                <div className="vibe-answer-preview">
+                  <small>
+                    {data.promptOneQuestion || vibePrompts[0].question}
+                  </small>
+                  <p>{data.promptOne}</p>
+                </div>
+              )}
+              {data.bio && <p className="vibe-review-bio">{data.bio}</p>}
+              {[
+                data.education,
+                data.kids,
+                data.wantsKids && `Family plans: ${data.wantsKids}`,
+                data.drinking && `Drinking: ${data.drinking}`,
+                data.smoking && `Smoking: ${data.smoking}`,
+              ].filter(Boolean).length > 0 && (
+                <p className="vibe-review-facts">
+                  {[
+                    data.education,
+                    data.kids,
+                    data.wantsKids && `Family plans: ${data.wantsKids}`,
+                    data.drinking && `Drinking: ${data.drinking}`,
+                    data.smoking && `Smoking: ${data.smoking}`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              )}
+              {data.promptTwo && (
+                <div className="vibe-answer-preview">
+                  <small>
+                    {data.promptTwoQuestion || 'My Sunday vibe is…'}
+                  </small>
+                  <p>{data.promptTwo}</p>
+                </div>
+              )}
+              <div className="vibe-review-edits">
+                <button type="button" onClick={() => setStep(0)}>
+                  Edit basics
+                </button>
+                <button type="button" onClick={() => setStep(4)}>
+                  Edit connection
+                </button>
+                <button type="button" onClick={() => setStep(7)}>
+                  Edit photos
+                </button>
+                <button type="button" onClick={() => setStep(5)}>
+                  Edit vibe
+                </button>
+              </div>
+              <p className="vibe-identity">
+                <ShieldCheck size={16} aria-hidden="true" />
+                Your profile stays private until verified. Optional details
+                remain editable in Profile. Today and tonight availability are
+                not enabled automatically.
+              </p>
+            </div>
           )}
         </div>
         {validationError && (
@@ -10413,23 +13253,30 @@ function RegistrationDialog({
           </p>
         )}
         <div className="flow-actions">
-          {step > 0 && (
+          {position > 0 && (
             <button
               className="secondary-button"
+              disabled={saving}
               onClick={() => {
                 setValidationError('');
-                setStep((value) => value - 1);
+                setStep(flowSteps[position - 1]);
               }}
             >
               Back
             </button>
           )}
-          <button className="primary-button" onClick={saveOrContinue}>
-            {singleSection
-              ? 'Save changes'
-              : step === registrationSteps.length - 1
-                ? 'Save profile'
-                : 'Continue'}{' '}
+          <button
+            className="primary-button"
+            onClick={saveOrContinue}
+            disabled={saving}
+          >
+            {saving
+              ? 'Saving…'
+              : singleSection
+                ? 'Save changes'
+                : position === flowSteps.length - 1
+                  ? 'Save profile'
+                  : 'Continue'}{' '}
             {!singleSection && <ChevronRight size={18} />}
           </button>
         </div>
@@ -10443,11 +13290,13 @@ function ChoiceGroup({
   options,
   selected,
   onToggle,
+  showIcons = false,
 }: {
   label: string;
   options: string[];
   selected: string[];
   onToggle: (value: string) => void;
+  showIcons?: boolean;
 }) {
   return (
     <div className="choice-group">
@@ -10459,8 +13308,13 @@ function ChoiceGroup({
             key={option}
             className={selected.includes(option) ? 'selected' : ''}
             onClick={() => onToggle(option)}
+            aria-pressed={selected.includes(option)}
           >
-            {selected.includes(option) && <Check size={14} />}
+            {showIcons ? (
+              <VibeChoiceIcon value={option} />
+            ) : (
+              selected.includes(option) && <Check size={14} />
+            )}
             {option}
           </button>
         ))}
@@ -10469,10 +13323,36 @@ function ChoiceGroup({
   );
 }
 
+function VibeChoiceIcon({ value }: { value: string }) {
+  const Icon = /coffee/i.test(value)
+    ? Coffee
+    : /music/i.test(value)
+      ? Music2
+      : /cook|food/i.test(value)
+        ? Utensils
+        : /pet/i.test(value)
+          ? PawPrint
+          : /outdoor|hiking/i.test(value)
+            ? Leaf
+            : /travel/i.test(value)
+              ? Orbit
+              : /marriage|long-term/i.test(value)
+                ? Heart
+                : /dating/i.test(value)
+                  ? HandHeart
+                  : /game/i.test(value)
+                    ? Gamepad2
+                    : /woman|man|nonbinary/i.test(value)
+                      ? UserRound
+                      : WandSparkles;
+  return <Icon size={18} strokeWidth={1.5} aria-hidden="true" />;
+}
+
 function FilterDialog({
   open,
   onOpenChange,
   filters,
+  availableProfiles,
   membership,
   onUpgrade,
   onApply,
@@ -10480,6 +13360,7 @@ function FilterDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   filters: Filters;
+  availableProfiles: Profile[];
   membership: Membership;
   onUpgrade: () => void;
   onApply: (filters: Filters) => void;
@@ -10506,15 +13387,8 @@ function FilterDialog({
         ? current.intents.filter((item) => item !== intent)
         : [...current.intents, intent],
     }));
-  const resultCount = profiles.filter(
-    (profile) =>
-      draft.genders.includes(profile.gender) &&
-      profile.age >= draft.minAge &&
-      profile.age <= draft.maxAge &&
-      profile.distanceMiles <= draft.maxDistance &&
-      (draft.intents.length === 0 || draft.intents.includes(profile.intent)) &&
-      (draft.smoking === 'Any' || profile.smoking === 'No') &&
-      (draft.wantsKids === 'Any' || profile.wantsKids === draft.wantsKids),
+  const resultCount = availableProfiles.filter((profile) =>
+    matchesFilters(profile, draft),
   ).length;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -10994,7 +13868,7 @@ function BoostDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="flow-dialog boost-dialog"
+        className="flow-dialog boost-dialog editorial-popup"
       >
         <button
           className="match-close"
@@ -11003,105 +13877,123 @@ function BoostDialog({
         >
           <X size={19} />
         </button>
-        <div className="boost-orbit">
-          <ProfileLiftMark size={42} />
+        <div className="editorial-popup-heading">
+          <span className="editorial-popup-icon boost-orbit" aria-hidden="true">
+            <ProfileLiftMark size={20} />
+          </span>
+          <div>
+            <p className="editorial-popup-kicker">PROFILE LIFT</p>
+            <DialogTitle>
+              {active ? 'Your Profile Lift is active' : 'Be seen sooner'}
+            </DialogTitle>
+          </div>
         </div>
-        <DialogTitle>
-          {active ? 'Your Profile Lift is active' : 'Be seen sooner'}
-        </DialogTitle>
         <DialogDescription>
           Profile Lift moves your completed profile toward the front of Spike
           and Galaxy for compatible people nearby for 30 minutes.
         </DialogDescription>
-        <div className="boost-steps">
-          <div>
-            <span>1</span>
-            <p>
-              <strong>Your preferences still apply</strong>
-              <small>Only compatible people can see you.</small>
-            </p>
-          </div>
-          <div>
-            <span>2</span>
-            <p>
-              <strong>No paid-placement badge</strong>
-              <small>People see your profile naturally, without a label.</small>
-            </p>
-          </div>
-          <div>
-            <span>3</span>
-            <p>
-              <strong>No guaranteed matches</strong>
-              <small>
-                Profile Lift improves visibility, never compatibility.
-              </small>
-            </p>
-          </div>
-        </div>
-        {active ? (
-          <div className="boost-status">
-            <Radio size={17} />
-            <span>
-              <strong>{minutes} minutes remaining</strong>
-              <small>Your ranking returns to normal automatically.</small>
-            </span>
-          </div>
-        ) : (
-          <div className="boost-status">
-            <ProfileLiftMark size={22} />
-            <span>
-              <strong>
-                {boostsRemaining} Profile{' '}
-                {boostsRemaining === 1 ? 'Lift' : 'Lifts'} ready
-              </strong>
-              <small>
-                {membership === 'plus'
-                  ? 'Your plan includes one each week; purchased Lifts do not expire.'
-                  : 'Purchase a Lift anytime without subscribing.'}
-              </small>
-            </span>
-          </div>
-        )}
-        <button
-          className="primary-button plan-button"
-          onClick={onActivate}
-          disabled={active || boostsRemaining <= 0}
-        >
-          {active
-            ? 'Profile Lift is running'
-            : boostsRemaining > 0
-              ? 'Start 30-minute Profile Lift'
-              : 'Choose a Profile Lift pack'}
-        </button>
-        {!active && (
-          <section className="boost-packs" aria-label="Profile Lift packs">
-            <strong>Get more Profile Lifts</strong>
-            <div>
-              {[
-                { quantity: 1, price: '$3.99' },
-                { quantity: 3, price: '$9.99', label: 'Popular' },
-                { quantity: 10, price: '$24.99', label: 'Best value' },
-              ].map((pack) => (
-                <button
-                  type="button"
-                  key={pack.quantity}
-                  onClick={() => onPurchase(pack.quantity)}
-                >
-                  {pack.label && <small>{pack.label}</small>}
-                  <strong>{pack.quantity}</strong>
-                  <span>{pack.quantity === 1 ? 'Lift' : 'Lifts'}</span>
-                  <em>{pack.price}</em>
-                </button>
-              ))}
+        <div className="boost-dialog-scroll">
+          {active ? (
+            <div className="boost-status">
+              <Radio size={17} />
+              <span>
+                <strong>{minutes} minutes remaining</strong>
+                <small>Your ranking returns to normal automatically.</small>
+              </span>
             </div>
-            <p>Prototype purchase · no payment is collected.</p>
-          </section>
-        )}
-        {!active && membership !== 'plus' && (
-          <button className="text-button boost-plan-link" onClick={onUpgrade}>
-            Or see SpikeDate+ plans with one weekly Lift
+          ) : (
+            <div className="boost-status">
+              <ProfileLiftMark size={22} />
+              <span>
+                <strong>
+                  {boostsRemaining} Profile{' '}
+                  {boostsRemaining === 1 ? 'Lift' : 'Lifts'} ready
+                </strong>
+                <small>
+                  {membership === 'plus'
+                    ? 'Your plan includes one each week; purchased Lifts do not expire.'
+                    : 'Purchase a Lift anytime without subscribing.'}
+                </small>
+              </span>
+            </div>
+          )}
+          <details className="boost-details">
+            <summary>How Profile Lift works</summary>
+            <div className="boost-steps">
+              <div>
+                <span>1</span>
+                <p>
+                  <strong>Your preferences still apply</strong>
+                  <small>Only compatible people can see you.</small>
+                </p>
+              </div>
+              <div>
+                <span>2</span>
+                <p>
+                  <strong>No paid-placement badge</strong>
+                  <small>
+                    People see your profile naturally, without a label.
+                  </small>
+                </p>
+              </div>
+              <div>
+                <span>3</span>
+                <p>
+                  <strong>No guaranteed matches</strong>
+                  <small>
+                    Profile Lift improves visibility, never compatibility.
+                  </small>
+                </p>
+              </div>
+            </div>
+          </details>
+          {!active && (
+            <details
+              className="boost-packs"
+              aria-label="Profile Lift packs"
+              open={boostsRemaining <= 0}
+            >
+              <summary>Get more Profile Lifts</summary>
+              <div>
+                {[
+                  { quantity: 1, price: '$3.99' },
+                  { quantity: 3, price: '$9.99', label: 'Popular' },
+                  { quantity: 10, price: '$24.99', label: 'Best value' },
+                ].map((pack) => (
+                  <button
+                    type="button"
+                    key={pack.quantity}
+                    onClick={() => onPurchase(pack.quantity)}
+                  >
+                    {pack.label && <small>{pack.label}</small>}
+                    <strong>{pack.quantity}</strong>
+                    <span>{pack.quantity === 1 ? 'Lift' : 'Lifts'}</span>
+                    <em>{pack.price}</em>
+                  </button>
+                ))}
+              </div>
+              <p>Prototype purchase · no payment is collected.</p>
+            </details>
+          )}
+          {!active && membership !== 'plus' && (
+            <button className="text-button boost-plan-link" onClick={onUpgrade}>
+              Or see SpikeDate+ plans with one weekly Lift
+            </button>
+          )}
+        </div>
+        <div className="editorial-popup-footer">
+          <button
+            className="primary-button plan-button editorial-popup-action"
+            onClick={onActivate}
+            disabled={active || boostsRemaining <= 0}
+          >
+            {active
+              ? 'Profile Lift is running'
+              : boostsRemaining > 0
+                ? 'Start 30-minute Profile Lift'
+                : 'Choose a Profile Lift pack'}
           </button>
-        )}
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -11488,34 +14380,28 @@ const themeChoices: {
     colors: ['#0b0c12', '#e31b36', '#f47a1f'],
   },
   {
-    id: 'aurora',
-    name: 'Aurora',
-    detail: 'Deep ocean, teal and mint',
-    colors: ['#07151c', '#27d9ca', '#8cf59a'],
+    id: 'electric-blue',
+    name: 'Electric Blue',
+    detail: 'Midnight with vivid blue highlights',
+    colors: ['#090b14', '#3978ff', '#7ea7ff'],
   },
   {
-    id: 'velvet',
-    name: 'Velvet Galaxy',
-    detail: 'Plum, orchid and champagne',
-    colors: ['#170b1c', '#ea5ca9', '#f5c451'],
+    id: 'spring-green',
+    name: 'Spring Green',
+    detail: 'Midnight with fresh green highlights',
+    colors: ['#090b14', '#75eb8a', '#b8f6c2'],
   },
   {
-    id: 'solar',
-    name: 'Solar Minimal',
-    detail: 'Clean ivory, vermilion and bronze',
-    colors: ['#f7f3eb', '#e65039', '#8a5d16'],
+    id: 'neon-orchid',
+    name: 'Neon Orchid',
+    detail: 'Midnight with luminous orchid highlights',
+    colors: ['#090b14', '#c05cff', '#dda3ff'],
   },
   {
-    id: 'liquid',
-    name: 'Liquid Mono',
-    detail: 'Obsidian glass, frost and soft graphite',
-    colors: ['#050505', '#ffffff', '#8d8d92'],
-  },
-  {
-    id: 'lime',
-    name: 'Liquid Lime',
-    detail: 'Obsidian glass with fresh electric lime',
-    colors: ['#050505', '#92fa73', '#ffffff'],
+    id: 'vermilion',
+    name: 'Vermilion',
+    detail: 'Midnight with vivid red-orange highlights',
+    colors: ['#090b14', '#f45e3f', '#ff9a75'],
   },
 ];
 
@@ -11548,7 +14434,7 @@ function ThemeDialog({
         </div>
         <DialogTitle>Choose your SpikeDate look</DialogTitle>
         <DialogDescription>
-          Midnight is the starting theme. Your choice is saved on this device.
+          Vermilion is the starting theme. Your choice is saved on this device.
         </DialogDescription>
         <div className="theme-grid">
           {themeChoices.map((choice) => (
@@ -11569,15 +14455,7 @@ function ThemeDialog({
                 <strong>{choice.name}</strong>
                 <small>{choice.detail}</small>
               </span>
-              {selected === choice.id ? (
-                <Check size={18} />
-              ) : choice.id === 'solar' ? (
-                <Sun size={18} />
-              ) : choice.id === 'liquid' ? (
-                <WandSparkles size={18} />
-              ) : choice.id === 'lime' ? (
-                <Star size={18} />
-              ) : null}
+              {selected === choice.id && <Check size={18} />}
             </button>
           ))}
         </div>

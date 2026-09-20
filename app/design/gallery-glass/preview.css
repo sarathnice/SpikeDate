@@ -1,0 +1,633 @@
+.gg-preview {
+  --gg-bg: #0b111b;
+  --gg-surface: #141d29;
+  --gg-text: #f5f7fa;
+  --gg-muted: #a7b1c0;
+  --gg-blue: #7db7ff;
+  background: #070c13;
+  color: var(--gg-text);
+  min-height: 100dvh;
+  padding: 24px 12px;
+  font-family: var(--font-inter), Inter, sans-serif;
+  font-weight: 400;
+}
+.gg-preview * {
+  box-sizing: border-box;
+}
+.gg-preview button,
+.gg-preview input,
+.gg-preview textarea {
+  font: inherit;
+}
+.gg-preview button {
+  cursor: pointer;
+  color: inherit;
+}
+.gg-intro {
+  max-width: 1000px;
+  margin: auto;
+  text-align: center;
+}
+.gg-intro h1 {
+  font-size: 26px;
+  font-weight: 500;
+}
+.gg-intro p,
+.gg-footnote {
+  font-size: 12px;
+  color: var(--gg-muted);
+}
+.gg-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 20px 0;
+}
+.gg-tabs button {
+  background: var(--gg-surface);
+  border: 1px solid #ffffff24;
+  border-radius: 18px;
+  padding: 9px 14px;
+  font-size: 13px;
+}
+.gg-tabs [aria-pressed='true'] {
+  border-color: var(--gg-blue);
+  color: var(--gg-blue);
+}
+.gg-phone {
+  width: min(390px, 100%);
+  height: 844px;
+  max-height: calc(100dvh - 32px);
+  min-height: 560px;
+  margin: auto;
+  background: var(--gg-bg);
+  border: 1px solid #ffffff24;
+  border-radius: 28px;
+  position: relative;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+  scrollbar-width: thin;
+}
+.gg-home {
+  overflow: hidden;
+}
+.gg-preview h2 {
+  font-size: 22px;
+  font-weight: 500;
+  margin: 0;
+}
+.gg-preview h3 {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+.gg-preview p {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.55;
+  margin: 0 0 10px;
+}
+.gg-preview small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--gg-muted);
+  line-height: 1.5;
+}
+.gg-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px;
+  min-height: 72px;
+  z-index: 2;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.gg-header strong {
+  font-size: 24px;
+  font-weight: 500;
+  text-shadow: 0 1px 4px #0008;
+}
+.gg-header strong span {
+  color: var(--gg-blue);
+}
+.gg-tools {
+  display: flex;
+  gap: 4px;
+}
+.gg-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #ffffff40;
+  border-radius: 50%;
+  background: #141d2926;
+  backdrop-filter: blur(6px);
+  flex-shrink: 0;
+}
+.gg-icon svg {
+  width: 23px;
+  height: 23px;
+}
+.gg-tools .gg-icon {
+  background: transparent;
+  backdrop-filter: none;
+  border: 0;
+  width: 44px;
+  height: 44px;
+  filter: drop-shadow(0 1px 2px #0008);
+}
+.gg-tools .gg-icon:first-child {
+  color: var(--gg-blue);
+}
+.gg-like {
+  color: #ff453a !important;
+}
+.gg-like svg {
+  width: 32px;
+  height: 32px;
+}
+.gg-cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+}
+.gg-home:before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    #0004,
+    transparent 26%,
+    transparent 47%,
+    #0008 75%,
+    #000d
+  );
+}
+.gg-secondary {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 18px;
+}
+.gg-secondary button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #141d2930;
+  border: 1px solid #fff3;
+  border-radius: 20px;
+  padding: 7px 10px;
+  font-size: 12px;
+  min-height: 40px;
+}
+.gg-home-details {
+  margin-top: auto;
+  padding: 20px 20px 16px;
+  text-shadow: 0 1px 3px #0009;
+}
+.gg-name {
+  font-size: 26px !important;
+  font-weight: 500 !important;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-bottom: 4px;
+}
+.gg-today {
+  font-size: 12px !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gg-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gg-blue);
+}
+.gg-actions {
+  display: flex;
+  justify-content: space-around;
+  gap: 10px;
+  margin-top: 16px;
+}
+.gg-nav {
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 6px 16px;
+  border-top: 1px solid #ffffff12;
+  background: var(--gg-bg);
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  flex-shrink: 0;
+}
+.gg-home .gg-nav {
+  margin-top: 0;
+}
+.gg-nav button {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  background: none;
+  border: 0;
+  min-width: 48px;
+  font-size: 11px;
+  font-weight: 400;
+}
+.gg-nav svg {
+  width: 20px;
+  height: 20px;
+}
+.gg-nav .selected {
+  color: var(--gg-blue);
+}
+.gg-nav sup {
+  position: absolute;
+  top: -3px;
+  right: 1px;
+  color: #0b111b;
+  background: var(--gg-blue);
+  border-radius: 12px;
+  min-width: 16px;
+  padding: 1px 3px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 14px;
+  transform: none;
+}
+.gg-hero {
+  height: 460px;
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: #000;
+}
+.gg-hero > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.88;
+}
+.gg-hero > div {
+  position: relative;
+  background: linear-gradient(transparent, #0b111bc9);
+  padding: 28px 20px 16px;
+}
+.gg-hero h2 {
+  font-size: 26px;
+}
+.gg-hero p {
+  font-size: 12px;
+  margin: 5px 0;
+}
+.gg-content {
+  padding: 20px;
+  flex: 1;
+}
+.gg-content section {
+  padding: 0 0 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #ffffff18;
+}
+.gg-content section h3 {
+  color: var(--gg-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.gg-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.gg-facts p,
+.gg-two p {
+  margin: 6px 0 0;
+}
+.gg-fact-row {
+  padding: 18px 0;
+}
+.gg-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.gg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.gg-chips span {
+  border: 1px solid #ffffff25;
+  border-radius: 18px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.gg-extra-photo {
+  width: 100%;
+  height: 400px;
+  object-fit: cover;
+  border-radius: 16px;
+  margin-bottom: 20px;
+}
+.gg-sticky {
+  position: sticky;
+  bottom: 0;
+  background: var(--gg-bg);
+  padding: 10px 20px 18px;
+  z-index: 3;
+}
+.gg-sticky .gg-actions {
+  margin: 0;
+}
+.gg-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.gg-person img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 16px;
+}
+.gg-person h3 {
+  margin: 0 0 4px;
+}
+.gg-primary,
+.gg-outline {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 16px;
+  padding: 12px;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  margin-top: 12px;
+}
+.gg-primary {
+  background: var(--gg-blue);
+  color: #0b111b !important;
+  border: 0;
+}
+.gg-outline {
+  background: transparent;
+  border: 1px solid #7db7ff80;
+}
+.gg-preview label {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--gg-muted);
+  margin: 18px 0 8px;
+}
+.gg-preview textarea,
+.gg-preview input {
+  width: 100%;
+  display: block;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--gg-text);
+  background: #141d29;
+  border: 1px solid #ffffff45;
+  border-radius: 13px;
+  padding: 12px;
+  margin-top: 8px;
+}
+.gg-preview textarea {
+  min-height: 125px;
+  resize: vertical;
+}
+.gg-preview :focus-visible {
+  outline: 2px solid var(--gg-blue);
+  outline-offset: 3px;
+}
+.gg-counter {
+  display: block;
+  text-align: right;
+}
+.gg-muted {
+  color: var(--gg-muted);
+  font-size: 12px !important;
+  margin-top: 18px !important;
+}
+.gg-choice button {
+  border: 1px solid #ffffff25;
+  background: var(--gg-surface);
+  border-radius: 14px;
+  min-height: 44px;
+  font-size: 14px;
+}
+.gg-choice [aria-pressed='true'] {
+  border-color: var(--gg-blue);
+  color: var(--gg-blue);
+}
+.gg-boost {
+  text-align: center;
+  padding-top: 30px;
+}
+.gg-boost > svg {
+  color: var(--gg-blue);
+  margin-bottom: 20px;
+}
+.gg-boost h2 {
+  margin-bottom: 12px;
+}
+.gg-balance {
+  background: var(--gg-surface);
+  border: 1px solid #ffffff25;
+  border-radius: 16px;
+  padding: 24px;
+  margin: 28px 0 12px;
+}
+.gg-boost > small {
+  display: block;
+  margin-top: 30px;
+}
+.gg-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 18px;
+}
+.gg-cards button {
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  background: var(--gg-surface);
+  text-align: left;
+}
+.gg-cards img {
+  width: 100%;
+  height: 205px;
+  object-fit: cover;
+}
+.gg-cards span {
+  display: block;
+  padding: 12px;
+  font-size: 14px;
+}
+.gg-cards small {
+  display: block;
+  margin-top: 5px;
+}
+.gg-chat-name {
+  background: none;
+  border: 0;
+  text-align: left;
+}
+.gg-messages {
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.gg-messages p {
+  padding: 12px 14px;
+  max-width: 85%;
+  border-radius: 18px;
+  background: var(--gg-surface);
+  align-self: flex-start;
+}
+.gg-messages .outgoing {
+  background: var(--gg-blue);
+  color: #0b111b;
+  align-self: flex-end;
+}
+.gg-composer {
+  position: sticky;
+  bottom: 71px;
+  background: var(--gg-bg);
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  z-index: 3;
+}
+.gg-composer input {
+  margin: 0;
+  min-width: 0;
+}
+.gg-composer button {
+  border: 0;
+  border-radius: 50%;
+  background: var(--gg-blue);
+  color: #0b111b;
+  width: 48px;
+  flex-shrink: 0;
+}
+.gg-setting {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  text-align: left;
+  gap: 12px;
+  border: 0;
+  border-bottom: 1px solid #ffffff20;
+  background: transparent;
+  padding: 18px 0;
+  font-size: 14px;
+}
+.gg-setting h3 {
+  font-size: 14px;
+  font-weight: 400;
+  margin: 0 0 5px;
+}
+.gg-notice {
+  position: absolute;
+  z-index: 8;
+  bottom: 90px;
+  left: 14px;
+  right: 14px;
+  background: var(--gg-surface);
+  border: 1px solid #ffffff40;
+  box-shadow: 0 4px 20px #0008;
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+}
+.gg-notice button {
+  background: none;
+  border: 0;
+}
+.gg-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: #000b;
+  display: flex;
+  align-items: center;
+  padding: 14px;
+}
+.gg-dialog {
+  background: var(--gg-bg);
+  border: 1px solid #ffffff30;
+  border-radius: 22px;
+  padding: 20px;
+  width: 100%;
+  max-height: 100%;
+  overflow: auto;
+}
+.gg-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.gg-availability {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid var(--gg-blue);
+  border-radius: 14px;
+  padding: 16px;
+  background: var(--gg-surface);
+  margin-top: 20px;
+  font-size: 14px;
+}
+.gg-availability[aria-checked='true'] {
+  color: var(--gg-blue);
+}
+.gg-delete {
+  color: #ff453a !important;
+  display: block;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 18px;
+  font-size: 14px;
+}
+.gg-footnote {
+  text-align: center;
+  margin: 20px auto;
+  max-width: 600px;
+}
+.gg-safety {
+  display: flex;
+  gap: 20px;
+}
+.gg-safety button {
+  background: none;
+  border: 0;
+  font-size: 12px;
+  color: var(--gg-muted);
+}

@@ -1,0 +1,33 @@
+/* Home counts use one visual role across Filters, Likes, and Chat. */
+:root[data-pulse-theme='default'] {
+  --home-count-background: #e31b36;
+  --home-count-foreground: #fff;
+}
+
+:root[data-pulse-theme='default'][data-pulse-accent] {
+  --home-count-background: var(--coral);
+  --home-count-foreground: var(--action-foreground);
+}
+
+@layer chat-midnight {
+  :root[data-pulse-theme='default']
+    .phone-frame
+    :is(.filter-button > span, .tabbar .tab-badge, .chat-meta b) {
+    background: var(--home-count-background) !important;
+    color: var(--home-count-foreground) !important;
+  }
+}
+
+:root[data-pulse-theme='default'] .phone-frame .filter-button > span {
+  min-width: 18px;
+  width: auto;
+  height: 18px;
+  padding: 0 4px;
+  border: 2px solid var(--nav-bg);
+  box-shadow: none;
+}
+
+/* Every Profile Lift entry point uses the same filled rocket. */
+.profile-lift-mark {
+  color: var(--amber);
+}

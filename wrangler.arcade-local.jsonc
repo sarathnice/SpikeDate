@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "spikedate-arcade-local",
+  "main": "workers/stage-entry.js",
+  "compatibility_date": "2026-09-07",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "dist/client" },
+  "durable_objects": {
+    "bindings": [{ "name": "ARCADE_ROOMS", "class_name": "ArcadeRoom" }],
+  },
+  "migrations": [{ "tag": "arcade-v1", "new_sqlite_classes": ["ArcadeRoom"] }],
+  "vars": {
+    "SPIKEDATE_ARCADE_ENABLED": "true",
+    "SPIKEDATE_ARCADE_BUBBLE_SECONDS": "10",
+    "SPIKEDATE_TEST_SEED_ENABLED": "true",
+    "SPIKEDATE_TEST_SEED_SECRET": "arcade-local-test-only",
+    "SPIKEDATE_BILLING_MODE": "mock",
+    "SPIKEDATE_PHONE_VERIFICATION_PROVIDER": "mock",
+    "SPIKEDATE_PUSH_PROVIDER": "in_app",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "spikedate-arcade-local",
+      "database_id": "00000000-0000-4000-8000-000000000000",
+      "migrations_dir": "drizzle",
+    },
+  ],
+  "r2_buckets": [
+    { "binding": "MEDIA", "bucket_name": "spikedate-arcade-local-media" },
+  ],
+}

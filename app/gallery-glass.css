@@ -1,0 +1,304 @@
+/* Gallery Glass: approved coded preview tokens. Earlier important layer wins
+   against legacy Quiet Precision overrides; every rule is theme-scoped. */
+.gallery-like-heart,
+.gallery-fresh-label {
+  display: none;
+}
+:root[data-pulse-theme='gallery'] {
+  --background: #0b111b;
+  --foreground: #f5f7fa;
+  --card: #141d29;
+  --surface: #141d29;
+  --muted-foreground: #a7b1c0;
+  --coral: #7db7ff;
+  --amber: #7db7ff;
+  --primary: #7db7ff;
+  --primary-foreground: #0b111b;
+  --accent: #7db7ff;
+  --accent-foreground: #0b111b;
+  --action-foreground: #0b111b;
+  --super-spike: #7db7ff;
+  --composer-bg: #141d29;
+  --control-bg: #141d29;
+  --nav-bg: #0b111b;
+  --topbar-bg: transparent;
+  --outer-bg: #070c13;
+  --app-backdrop: #070c13;
+  --theme-gradient: linear-gradient(#7db7ff, #7db7ff);
+  --ui-border: #ffffff24;
+  --ring: #7db7ff;
+  --border: #ffffff24;
+  --input: #ffffff45;
+}
+@layer gallery-glass {
+  :root[data-pulse-theme='gallery'] .tabbar .tab-badge {
+    background: #7db7ff !important;
+    color: #0b111b !important;
+    box-shadow: none !important;
+    font-weight: 400 !important;
+  }
+  :root[data-pulse-theme='gallery'] .toast {
+    background: #141d29 !important;
+    color: #f5f7fa !important;
+    border: 1px solid #ffffff24 !important;
+    font-size: 12px !important;
+    font-weight: 400 !important;
+  }
+  :root[data-pulse-theme='gallery'] .brand-date {
+    color: #7db7ff !important;
+    background: none !important;
+    -webkit-text-fill-color: #7db7ff !important;
+  }
+  :root[data-pulse-theme='gallery'] .brand-spike-i > span {
+    background: #7db7ff !important;
+  }
+  :root[data-pulse-theme='gallery'] .mine .bubble {
+    background: #7db7ff !important;
+    color: #0b111b !important;
+    font-size: 14px !important;
+    font-weight: 400 !important;
+  }
+  :root[data-pulse-theme='gallery'] .bubble {
+    font-size: 14px !important;
+    font-weight: 400 !important;
+    background: #141d29 !important;
+  }
+  :root[data-pulse-theme='gallery'] .phone-frame .mine .bubble {
+    background: #7db7ff !important;
+    color: #0b111b !important;
+  }
+  :root[data-pulse-theme='gallery'] .profile-sheet .profile-title h2 {
+    font-size: 26px !important;
+    font-weight: 500 !important;
+  }
+  :root[data-pulse-theme='gallery']
+    :is(.phone-frame, [role='dialog'])
+    :is(p, strong, b, label, small, input, select, textarea, button) {
+    font-family: var(--font-inter), Inter, sans-serif !important;
+    font-style: normal !important;
+    font-weight: 400 !important;
+  }
+  :root[data-pulse-theme='gallery']
+    :is(.profile-page, .profile-sheet, .registration-dialog)
+    p {
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+  }
+  :root[data-pulse-theme='gallery']
+    :is(.full-passport-facts small, .section-label, .setting-heading small) {
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    color: var(--muted-foreground) !important;
+  }
+  :root[data-pulse-theme='gallery']
+    :is(.full-passport-facts strong, .setting-heading strong) {
+    font-size: 14px !important;
+    font-weight: 400 !important;
+  }
+  :root[data-pulse-theme='gallery']
+    :is(.profile-title h2, .profile-passport-identity h1, .name-row h1) {
+    font-size: 26px !important;
+    font-weight: 500 !important;
+    font-family: var(--font-inter), Inter, sans-serif !important;
+  }
+  :root[data-pulse-theme='gallery']
+    :is(.page-header h1, .note-sheet-heading h2, [role='dialog'] h2) {
+    font-size: 22px !important;
+    font-weight: 500 !important;
+  }
+  :root[data-pulse-theme='gallery'] :is(input, select, textarea) {
+    font-size: 16px !important;
+    color: var(--foreground) !important;
+    background: var(--composer-bg) !important;
+    border: 1px solid #ffffff45 !important;
+    border-radius: 13px !important;
+  }
+  :root[data-pulse-theme='gallery']
+    :is(.primary-button, .note-dialog-actions button:first-child) {
+    background: #7db7ff !important;
+    color: #0b111b !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    border-radius: 16px !important;
+  }
+  :root[data-pulse-theme='gallery'] :is(.topbar, .profile-film-tools) {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+  :root[data-pulse-theme='gallery'] .topbar {
+    justify-content: flex-start !important;
+    padding-left: 18px !important;
+  }
+  :root[data-pulse-theme='gallery'] .topbar .wordmark {
+    position: static !important;
+    transform: none !important;
+    margin: 0 !important;
+  }
+  :root[data-pulse-theme='gallery'] .filter-button {
+    position: absolute !important;
+    top: 70px !important;
+    right: 18px !important;
+    left: auto !important;
+    background: #141d2930 !important;
+    border: 1px solid #fff3 !important;
+    border-radius: 20px !important;
+    overflow: visible !important;
+  }
+  :root[data-pulse-theme='gallery'] .voice-briefing-button {
+    top: 70px !important;
+    right: 72px !important;
+    left: auto !important;
+  }
+  :root[data-pulse-theme='gallery'] .global-boost-button {
+    color: #7db7ff !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+  }
+  :root[data-pulse-theme='gallery'] .home-action-rail {
+    position: absolute !important;
+    inset: 0 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    gap: 18px !important;
+    padding: 0 16px calc(92px + env(safe-area-inset-bottom)) !important;
+    pointer-events: none !important;
+  }
+  :root[data-pulse-theme='gallery'] .home-action-rail button {
+    pointer-events: auto;
+    width: 48px !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    border-radius: 50% !important;
+    background: #141d2926 !important;
+    border: 1px solid #ffffff40 !important;
+    box-shadow: none !important;
+    backdrop-filter: blur(6px) !important;
+    color: #f5f7fa !important;
+  }
+  :root[data-pulse-theme='gallery'] .home-action-rail .like {
+    color: #ff453a !important;
+  }
+  :root[data-pulse-theme='gallery'] .home-action-rail .like .brand-heart-mark {
+    display: none !important;
+  }
+  :root[data-pulse-theme='gallery'] .gallery-like-heart {
+    display: block !important;
+    width: 32px !important;
+    height: 32px !important;
+  }
+  :root[data-pulse-theme='gallery'] .home-action-rail .today-compose {
+    position: absolute !important;
+    top: 16px !important;
+    right: 64px !important;
+    background: transparent !important;
+    border: 0 !important;
+    backdrop-filter: none !important;
+    width: 44px !important;
+    height: 44px !important;
+  }
+  :root[data-pulse-theme='gallery'] .home-action-rail .today-feed {
+    position: absolute !important;
+    top: 74px !important;
+    left: 18px !important;
+    right: auto !important;
+    display: flex !important;
+    gap: 6px !important;
+    width: auto !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 6px 10px !important;
+    border-radius: 20px !important;
+    font-size: 12px !important;
+  }
+  :root[data-pulse-theme='gallery'] .gallery-fresh-label {
+    display: inline !important;
+  }
+  :root[data-pulse-theme='gallery'] .today-count-badge {
+    position: static !important;
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    background: none !important;
+    color: #fff !important;
+  }
+  :root[data-pulse-theme='gallery'] .card-content {
+    left: 20px !important;
+    right: 20px !important;
+    bottom: calc(158px + env(safe-area-inset-bottom)) !important;
+    padding: 0 !important;
+    background: none !important;
+    backdrop-filter: none !important;
+  }
+  :root[data-pulse-theme='gallery']
+    :is(
+      .today-card-combined,
+      .today-card-pill,
+      .tonight-card-status,
+      .chips span
+    ) {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+  :root[data-pulse-theme='gallery'] .card-content :is(.tap-hint, .card-story) {
+    display: none !important;
+  }
+  :root[data-pulse-theme='gallery'] .card-content .chips span:nth-child(n + 2) {
+    display: none !important;
+  }
+  :root[data-pulse-theme='gallery']
+    .card-content
+    :is(.distance, .chips span, .today-card-pill strong, .tonight-card-status) {
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    color: #f5f7fa !important;
+  }
+  :root[data-pulse-theme='gallery'] .tabbar {
+    background: #0b111b !important;
+    backdrop-filter: none !important;
+    border-top: 1px solid #ffffff12 !important;
+  }
+  :root[data-pulse-theme='gallery'] .tabbar button.active {
+    color: #7db7ff !important;
+  }
+  :root[data-pulse-theme='gallery']
+    :is(.tab-badge, .unread-badge, .incoming-count, .tabbar sup) {
+    font-size: 11px !important;
+    font-weight: 400 !important;
+    line-height: 14px !important;
+  }
+  :root[data-pulse-theme='gallery']
+    :is(
+      .profile-sheet,
+      .note-dialog,
+      .boost-dialog,
+      .thread-screen,
+      .profile-page
+    ) {
+    background: #0b111b !important;
+    color: #f5f7fa !important;
+  }
+  :root[data-pulse-theme='gallery'] .full-passport-facts {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 20px 10px !important;
+  }
+  :root[data-pulse-theme='gallery'] .full-passport-facts > div:nth-child(4) {
+    grid-column: 1 / -1 !important;
+  }
+  :root[data-pulse-theme='gallery'] :is(.chat-copy strong, .thread-name-link) {
+    font-size: 16px !important;
+    font-weight: 500 !important;
+  }
+  :root[data-pulse-theme='gallery'] :is(.message-input, .thread-composer) {
+    background: #141d29 !important;
+    border-color: #ffffff45 !important;
+  }
+  :root[data-pulse-theme='gallery'] :focus-visible {
+    outline: 2px solid #7db7ff !important;
+    outline-offset: 3px !important;
+  }
+}

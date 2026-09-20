@@ -1,0 +1,265 @@
+@layer photo-quality {
+  /* Brightness is an explicit upload choice, never a second display filter. */
+  .cinematic-photo-stack > .cinematic-photo-main {
+    filter: none !important;
+  }
+  .photo-crop-exact-preview {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .photo-preview-variants {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .photo-crop-review-title {
+    margin: 14px 0 7px;
+    font: 400 12px var(--font-inter), Inter, sans-serif;
+    color: var(--foreground);
+  }
+  .photo-preview-variants button {
+    min-height: 112px;
+    border: 1px solid var(--ui-border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--foreground);
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 5px;
+    padding: 6px 3px;
+    cursor: pointer;
+    font:
+      400 11px var(--font-inter),
+      Inter,
+      sans-serif;
+  }
+  .photo-preview-variants canvas {
+    display: block;
+    max-width: 100%;
+    height: 76px;
+    width: auto;
+    border-radius: 7px;
+    background: var(--secondary);
+  }
+  .photo-preview-variants span {
+    white-space: nowrap;
+    font-size: 10px;
+  }
+  .photo-preview-variants button[aria-pressed='true'] {
+    border-color: var(--coral);
+    background: color-mix(in srgb, var(--coral) 12%, var(--surface));
+  }
+  .photo-light-control {
+    display: grid;
+    gap: 8px;
+    margin: 12px 0;
+    font:
+      400 13px var(--font-inter),
+      Inter,
+      sans-serif;
+  }
+  .photo-light-control select {
+    min-height: 44px;
+    width: 100%;
+    border: 1px solid var(--ui-border);
+    border-radius: 12px;
+    padding: 8px;
+    background: var(--surface);
+    color: var(--foreground);
+    font:
+      400 16px var(--font-inter),
+      Inter,
+      sans-serif;
+  }
+  .photo-quality-notice {
+    margin: 10px 0;
+    font:
+      400 12px/1.5 var(--font-inter),
+      Inter,
+      sans-serif;
+    color: var(--foreground);
+  }
+  .photo-face-assistance {
+    margin: 10px 0;
+    display: grid;
+    gap: 6px;
+  }
+  .photo-face-assistance > button {
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid var(--ui-border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--foreground);
+    font:
+      400 12px var(--font-inter),
+      Inter,
+      sans-serif;
+  }
+  .photo-face-assistance :is(small, p),
+  .photo-quality-details {
+    font:
+      400 11px/1.5 var(--font-inter),
+      Inter,
+      sans-serif;
+    color: var(--muted-foreground);
+    margin: 0;
+  }
+  .photo-quality-details summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+  }
+  .photo-face-picker {
+    position: relative;
+    width: min(100%, 220px);
+    margin: 8px auto;
+  }
+  .photo-face-picker img {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .photo-face-picker button {
+    position: absolute;
+    min-width: 44px;
+    min-height: 44px;
+    border: 2px solid var(--foreground);
+    color: var(--foreground);
+    background: color-mix(in srgb, var(--background) 35%, transparent);
+    border-radius: 8px;
+  }
+  .profile-camera-dialog {
+    z-index: 81 !important;
+    width: min(440px, calc(100vw - 24px)) !important;
+    max-height: calc(100dvh - 24px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 18px !important;
+    gap: 10px !important;
+    overflow: hidden !important;
+    background: var(--background) !important;
+    color: var(--foreground) !important;
+  }
+  .profile-camera-overlay {
+    z-index: 80 !important;
+  }
+  .photo-crop-kicker,
+  .verification-kicker {
+    font-weight: 400 !important;
+    font-size: 11px !important;
+  }
+  .verification-dialog [data-slot='dialog-description'] {
+    font:
+      400 12px/1.5 var(--font-inter),
+      Inter,
+      sans-serif !important;
+  }
+  .verification-dialog .verification-primary {
+    font:
+      500 13px var(--font-inter),
+      Inter,
+      sans-serif !important;
+    min-height: 44px;
+  }
+  .profile-camera-header {
+    position: relative;
+    flex-shrink: 0;
+    padding-right: 32px;
+  }
+  .profile-camera-header .photo-crop-close {
+    top: 0;
+    right: 0;
+  }
+  .profile-camera-body {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .profile-camera-dialog [data-slot='dialog-title'] {
+    font:
+      500 21px/1.25 var(--font-inter),
+      Inter,
+      sans-serif !important;
+    letter-spacing: -0.5px;
+  }
+  .profile-camera-dialog [data-slot='dialog-description'],
+  .profile-camera-note {
+    font:
+      400 12px/1.5 var(--font-inter),
+      Inter,
+      sans-serif !important;
+    color: var(--muted-foreground);
+  }
+  .profile-camera-guidance {
+    margin: 8px 0 4px;
+    text-align: center;
+    color: var(--foreground);
+    font: 400 12px/1.4 var(--font-inter), Inter, sans-serif;
+  }
+  .profile-camera-stage {
+    width: min(100%, 270px);
+    aspect-ratio: 4/5;
+    max-height: 44dvh;
+    margin: 0 auto;
+    border-radius: 16px;
+    background: var(--secondary);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    position: relative;
+  }
+  .profile-camera-stage :is(video, img) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .profile-camera-stage video {
+    transform: scaleX(-1);
+  }
+  .profile-camera-guide {
+    position: absolute;
+    inset: 12% 20%;
+    border-radius: 50%;
+    border: 1px solid white;
+    pointer-events: none;
+  }
+  .profile-camera-dialog .photo-crop-footer {
+    flex-shrink: 0;
+    margin: 0;
+  }
+  .profile-camera-dialog .photo-crop-actions {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .profile-camera-dialog .photo-crop-actions > :only-child {
+    grid-column: 1/-1;
+  }
+  :is(.photo-crop-dialog, .verification-dialog) [data-slot='dialog-title'] {
+    font:
+      500 21px/1.25 var(--font-inter),
+      Inter,
+      sans-serif !important;
+    letter-spacing: -0.5px !important;
+  }
+  .verification-dialog
+    :is(.verification-consent, .verification-points, .verification-secondary) {
+    font:
+      400 12px/1.5 var(--font-inter),
+      Inter,
+      sans-serif !important;
+  }
+  .verification-dialog .verification-privacy {
+    font:
+      400 11px/1.5 var(--font-inter),
+      Inter,
+      sans-serif !important;
+  }
+}

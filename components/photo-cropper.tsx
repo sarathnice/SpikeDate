@@ -1,7 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Check, Move, RotateCcw, X, ZoomIn } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
+import { Check, LoaderCircle, Move, RotateCcw, X, ZoomIn } from 'lucide-react';
+import { detectFramingFaces } from '@/lib/face-capture';
+import { faceFramingFocus, type FramingFace } from '@/lib/face-framing';
+import {
+  applyGentleLight,
+  photoCropGeometry,
+  photoVariants,
+} from '@/lib/photo-framing';
 import {
   Dialog,
   DialogContent,
@@ -27,8 +35,6 @@ export type CroppedPhoto = {
 
 const OUTPUT_WIDTH = 1440;
 const OUTPUT_HEIGHT = 1800;
-const MIN_RECOMMENDED_WIDTH = 900;
-const MIN_RECOMMENDED_HEIGHT = 1125;
 
 function canvasBlob(canvas: HTMLCanvasElement, quality: number) {
   return new Promise<Blob>((resolve, reject) => {
@@ -50,32 +56,21 @@ function drawFocusedCrop(
   focusX: number,
   focusY: number,
   zoom: number,
+  brightness = 1,
 ) {
-  const targetRatio = width / height;
-  let cropWidth = bitmap.width;
-  let cropHeight = bitmap.height;
-  if (bitmap.width / bitmap.height > targetRatio)
-    cropWidth = bitmap.height * targetRatio;
-  else cropHeight = bitmap.width / targetRatio;
-  cropWidth /= zoom;
-  cropHeight /= zoom;
-  const sourceX = Math.max(
-    0,
-    Math.min(
-      bitmap.width - cropWidth,
-      (bitmap.width - cropWidth) * (focusX / 100),
-    ),
+  const geometry = photoCropGeometry(
+    bitmap.width,
+    bitmap.height,
+    width,
+    height,
+    focusX,
+    focusY,
+    zoom,
   );
-  const sourceY = Math.max(
-    0,
-    Math.min(
-      bitmap.height - cropHeight,
-      (bitmap.height - cropHeight) * (focusY / 100),
-    ),
-  );
+  const { sourceX, sourceY, cropWidth, cropHeight } = geometry;
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = geometry.width;
+  canvas.height = geometry.height;
   const context = canvas.getContext('2d', {
     alpha: false,
     colorSpace: 'srgb',
@@ -93,10 +88,16 @@ function drawFocusedCrop(
     cropHeight,
     0,
     0,
-    width,
-    height,
+    geometry.width,
+    geometry.height,
   );
-  return { canvas, context };
+  if (brightness !== 1) {
+    // Canvas filter is not consistently supported on mobile browsers.
+    const image = context.getImageData(0, 0, canvas.width, canvas.height);
+    applyGentleLight(image.data, brightness);
+    context.putImageData(image, 0, 0);
+  }
+  return { canvas, context, geometry };
 }
 
 function assessPhoto(
@@ -157,50 +158,80 @@ async function cropPhoto(
   focusX: number,
   focusY: number,
   zoom: number,
+  brightness: number,
 ): Promise<CroppedPhoto> {
   const bitmap = await createImageBitmap(file, {
     imageOrientation: 'from-image',
   });
-  const full = drawFocusedCrop(
-    bitmap,
-    OUTPUT_WIDTH,
-    OUTPUT_HEIGHT,
-    focusX,
-    focusY,
-    zoom,
-  );
-  const card = drawFocusedCrop(bitmap, 1080, 1440, focusX, focusY, zoom);
-  const avatar = drawFocusedCrop(bitmap, 480, 480, focusX, focusY, zoom);
-  const originalWidth = bitmap.width;
-  const originalHeight = bitmap.height;
-  const qualityWarnings = assessPhoto(
-    full.context,
-    OUTPUT_WIDTH,
-    OUTPUT_HEIGHT,
-  );
-  const [blob, cardBlob, avatarBlob] = await Promise.all([
-    canvasBlob(full.canvas, 0.93),
-    canvasBlob(card.canvas, 0.9),
-    canvasBlob(avatar.canvas, 0.86),
-  ]);
-  bitmap.close();
-  return {
-    blob,
-    cardBlob,
-    avatarBlob,
-    originalBlob: file,
-    width: OUTPUT_WIDTH,
-    height: OUTPUT_HEIGHT,
-    originalWidth,
-    originalHeight,
-    focusX,
-    focusY,
-    zoom,
-    lowResolution:
-      originalWidth < MIN_RECOMMENDED_WIDTH ||
-      originalHeight < MIN_RECOMMENDED_HEIGHT,
-    qualityWarnings,
-  };
+  try {
+    const full = drawFocusedCrop(
+      bitmap,
+      OUTPUT_WIDTH,
+      OUTPUT_HEIGHT,
+      focusX,
+      focusY,
+      zoom,
+      brightness,
+    );
+    const card = drawFocusedCrop(
+      bitmap,
+      photoVariants.card.width,
+      photoVariants.card.height,
+      focusX,
+      focusY,
+      zoom,
+      brightness,
+    );
+    const avatar = drawFocusedCrop(
+      bitmap,
+      480,
+      480,
+      focusX,
+      focusY,
+      zoom,
+      brightness,
+    );
+    const originalWidth = bitmap.width;
+    const originalHeight = bitmap.height;
+    const qualityWarnings = assessPhoto(
+      full.context,
+      full.canvas.width,
+      full.canvas.height,
+    );
+    const [blob, cardBlob, avatarBlob] = await Promise.all([
+      canvasBlob(full.canvas, 0.93),
+      canvasBlob(card.canvas, 0.9),
+      canvasBlob(avatar.canvas, 0.86),
+    ]);
+    return {
+      blob,
+      cardBlob,
+      avatarBlob,
+      originalBlob: file,
+      width: full.canvas.width,
+      height: full.canvas.height,
+      originalWidth,
+      originalHeight,
+      focusX,
+      focusY,
+      zoom,
+      lowResolution: full.geometry.lowResolution || card.geometry.lowResolution,
+      qualityWarnings,
+    };
+  } finally {
+    bitmap.close();
+  }
+}
+
+async function detectPhotoFaces(bitmap: ImageBitmap) {
+  const canvas = document.createElement('canvas');
+  const scale = Math.min(1, 640 / Math.max(bitmap.width, bitmap.height));
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Framing assistance is unavailable.');
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  return detectFramingFaces(canvas);
 }
 
 export function PhotoCropper({
@@ -218,7 +249,20 @@ export function PhotoCropper({
   const [focusX, setFocusX] = useState(50);
   const [focusY, setFocusY] = useState(36);
   const [zoom, setZoom] = useState(1);
+  const [brightness, setBrightness] = useState(1);
+  const [previewVariant, setPreviewVariant] =
+    useState<keyof typeof photoVariants>('full');
+  const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
+  const [qualityNotice, setQualityNotice] = useState('');
+  const [faces, setFaces] = useState<FramingFace[]>([]);
+  const [findingFaces, setFindingFaces] = useState(false);
+  const [faceNotice, setFaceNotice] = useState('');
+  const framingAttempt = useRef(0);
+  const userAdjusted = useRef(false);
+  const previewCanvas = useRef<HTMLCanvasElement>(null);
+  const reviewCanvases = useRef<Record<string, HTMLCanvasElement | null>>({});
   const [saving, setSaving] = useState(false);
+  const [savePhase, setSavePhase] = useState('');
   const [error, setError] = useState('');
   const drag = useRef<{
     x: number;
@@ -234,22 +278,170 @@ export function PhotoCropper({
     setFocusX(50);
     setFocusY(36);
     setZoom(1);
+    setBrightness(1);
+    setPreviewVariant('full');
+    setBitmap(null);
     setError('');
-    return () => URL.revokeObjectURL(url);
+    setFaces([]);
+    setFaceNotice('Preparing automatic framing…');
+    setFindingFaces(false);
+    userAdjusted.current = false;
+    let cancelled = false;
+    let decoded: ImageBitmap | null = null;
+    void createImageBitmap(file, { imageOrientation: 'from-image' })
+      .then((image) => {
+        decoded = image;
+        if (!cancelled) setBitmap(image);
+        else image.close();
+      })
+      .catch(() => {
+        if (!cancelled)
+          setError(
+            'This photo format could not be opened. Try a JPEG, PNG or WebP photo.',
+          );
+      });
+    return () => {
+      framingAttempt.current++;
+      cancelled = true;
+      decoded?.close();
+      URL.revokeObjectURL(url);
+    };
   }, [file, open]);
 
+  const applyDetectedFaces = useCallback(
+    (detected: FramingFace[], image: ImageBitmap, attempt: number) => {
+      if (attempt !== framingAttempt.current) return;
+      setFaces(detected);
+      if (detected.length === 1) {
+        if (userAdjusted.current) {
+          setFaceNotice('Face found. Your manual crop was kept.');
+          return;
+        }
+        const focus = faceFramingFocus(detected[0], image.width, image.height);
+        setFocusX(focus.focusX);
+        setFocusY(focus.focusY);
+        setZoom(1);
+        setFaceNotice('Face framed automatically. Review all three crops below.');
+      } else {
+        setFaceNotice(
+          detected.length
+            ? 'More than one face found. Tap your face below to frame it.'
+            : 'No clear face found. Drag and zoom to frame your photo manually.',
+        );
+      }
+    },
+    [],
+  );
+
+  const runFaceDetection = useCallback(
+    async (image: ImageBitmap) => {
+      const attempt = ++framingAttempt.current;
+      setFindingFaces(true);
+      setFaceNotice('Finding a face on this device…');
+      try {
+        applyDetectedFaces(await detectPhotoFaces(image), image, attempt);
+      } catch {
+        if (attempt === framingAttempt.current)
+          setFaceNotice('Auto frame is unavailable. Drag and zoom manually; saving still works.');
+      } finally {
+        if (attempt === framingAttempt.current) setFindingFaces(false);
+      }
+    },
+    [applyDetectedFaces],
+  );
+
+  useEffect(() => {
+    if (!bitmap || !open) return;
+    void runFaceDetection(bitmap);
+    return () => {
+      framingAttempt.current++;
+    };
+  }, [bitmap, open, runFaceDetection]);
+
+  useEffect(() => {
+    if (!bitmap || !previewCanvas.current || !open) return;
+    const variant = photoVariants[previewVariant];
+    const { canvas, context, geometry } = drawFocusedCrop(
+      bitmap,
+      variant.width,
+      variant.height,
+      focusX,
+      focusY,
+      zoom,
+      brightness,
+    );
+    const preview = previewCanvas.current;
+    preview.width = canvas.width;
+    preview.height = canvas.height;
+    preview.getContext('2d')?.drawImage(canvas, 0, 0);
+    const warnings = assessPhoto(context, canvas.width, canvas.height);
+    setQualityNotice(
+      [
+        geometry.lowResolution
+          ? 'Limited source detail at this framing. Zoom out or use a larger original; we won’t artificially upscale it.'
+          : '',
+        ...warnings,
+      ]
+        .filter(Boolean)
+        .join(' '),
+    );
+  }, [bitmap, open, focusX, focusY, zoom, brightness, previewVariant]);
+
+  useEffect(() => {
+    if (!bitmap || !open) return;
+    for (const [key, variant] of Object.entries(photoVariants)) {
+      const preview = reviewCanvases.current[key];
+      if (!preview) continue;
+      const scale = Math.min(1, 220 / Math.max(variant.width, variant.height));
+      const { canvas } = drawFocusedCrop(
+        bitmap,
+        Math.round(variant.width * scale),
+        Math.round(variant.height * scale),
+        focusX,
+        focusY,
+        zoom,
+        brightness,
+      );
+      preview.width = canvas.width;
+      preview.height = canvas.height;
+      preview.getContext('2d')?.drawImage(canvas, 0, 0);
+    }
+  }, [bitmap, open, focusX, focusY, zoom, brightness]);
+
   const reset = () => {
+    userAdjusted.current = true;
     setFocusX(50);
     setFocusY(36);
     setZoom(1);
+    setBrightness(1);
+  };
+
+  const chooseFace = (face: FramingFace) => {
+    if (!bitmap) return;
+    userAdjusted.current = true;
+    const focus = faceFramingFocus(face, bitmap.width, bitmap.height);
+    setFocusX(focus.focusX);
+    setFocusY(focus.focusY);
+    setZoom(1);
+    setFaceNotice(
+      'Face framing suggested. Check all three crops and adjust if needed.',
+    );
+  };
+  const findFaces = async () => {
+    if (!bitmap || findingFaces || saving) return;
+    userAdjusted.current = false;
+    await runFaceDetection(bitmap);
   };
 
   const confirm = async () => {
     if (!file || saving) return;
     setSaving(true);
+    setSavePhase('Preparing photo…');
     setError('');
     try {
-      await onConfirm(await cropPhoto(file, focusX, focusY, zoom));
+      const photo = await cropPhoto(file, focusX, focusY, zoom, brightness);
+      setSavePhase('Uploading photo…');
+      await onConfirm(photo);
       onOpenChange(false);
     } catch (cause) {
       setError(
@@ -259,126 +451,254 @@ export function PhotoCropper({
       );
     } finally {
       setSaving(false);
+      setSavePhase('');
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
-      <DialogContent showCloseButton={false} className="photo-crop-dialog">
-        <button
-          type="button"
-          className="photo-crop-close"
-          aria-label="Close photo editor"
-          onClick={() => onOpenChange(false)}
-          disabled={saving}
-        >
-          <X size={20} />
-        </button>
-        <p className="photo-crop-kicker">PROFILE PHOTO · 4:5</p>
-        <DialogTitle>Frame your best shot</DialogTitle>
-        <DialogDescription>
-          Drag to position your face. SpikeDate uses this focal framing to fill
-          mobile screens edge to edge without stretching your photo.
-        </DialogDescription>
-        <div
-          className="photo-crop-stage"
-          onPointerDown={(event) => {
-            event.currentTarget.setPointerCapture(event.pointerId);
-            drag.current = {
-              x: event.clientX,
-              y: event.clientY,
-              focusX,
-              focusY,
-            };
-          }}
-          onPointerMove={(event) => {
-            if (!drag.current) return;
-            const bounds = event.currentTarget.getBoundingClientRect();
-            setFocusX(
-              Math.max(
-                0,
-                Math.min(
-                  100,
-                  drag.current.focusX -
-                    ((event.clientX - drag.current.x) / bounds.width) * 58,
-                ),
-              ),
-            );
-            setFocusY(
-              Math.max(
-                0,
-                Math.min(
-                  100,
-                  drag.current.focusY -
-                    ((event.clientY - drag.current.y) / bounds.height) * 58,
-                ),
-              ),
-            );
-          }}
-          onPointerUp={() => {
-            drag.current = null;
-          }}
-          onPointerCancel={() => {
-            drag.current = null;
-          }}
-        >
-          {source && (
-            // The temporary object URL is local-only and never leaves the device.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={source}
-              alt="Crop preview"
-              draggable={false}
-              style={{
-                objectPosition: `${focusX}% ${focusY}%`,
-                transform: `scale(${zoom})`,
-              }}
-            />
-          )}
-          <div className="photo-crop-safe-zone" aria-hidden="true" />
-          <span className="photo-crop-move-hint">
-            <Move size={14} /> Drag to reposition
-          </span>
-        </div>
-        <label className="photo-crop-zoom">
-          <ZoomIn size={18} />
-          <span>Zoom</span>
-          <input
-            type="range"
-            min="1"
-            max="2.2"
-            step="0.02"
-            value={zoom}
-            aria-label="Photo zoom"
-            onChange={(event) => setZoom(Number(event.target.value))}
-          />
-        </label>
-        <div className="photo-crop-quality">
-          <Check size={16} />
-          <span>
-            <strong>High-quality export</strong>
-            <small>
-              Original preserved · full, discovery and avatar crops generated
-            </small>
-          </span>
-        </div>
-        {error && (
-          <p className="photo-crop-error" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="photo-crop-actions">
-          <button type="button" onClick={reset} disabled={saving}>
-            <RotateCcw size={17} /> Reset
-          </button>
+      <DialogContent
+        showCloseButton={false}
+        className="photo-crop-dialog"
+        overlayClassName="photo-crop-overlay"
+        aria-busy={saving}
+      >
+        <div className="photo-crop-header">
           <button
             type="button"
-            className="primary"
-            onClick={confirm}
+            className="photo-crop-close"
+            aria-label="Close photo editor"
+            onClick={() => onOpenChange(false)}
             disabled={saving}
           >
-            {saving ? 'Preparing…' : 'Use photo'}
+            <X size={20} />
           </button>
+          <p className="photo-crop-kicker">
+            PROFILE PHOTO · {photoVariants[previewVariant].label}
+          </p>
+          <DialogTitle>Frame your best shot</DialogTitle>
+          <DialogDescription>
+            We suggest a face crop on your device. Review the three saved views, then adjust if needed.
+          </DialogDescription>
+        </div>
+        <div className="photo-crop-body">
+          <div
+            className="photo-crop-stage"
+            style={{
+              aspectRatio: `${photoVariants[previewVariant].width}/${photoVariants[previewVariant].height}`,
+            }}
+            onPointerDown={(event) => {
+              if (saving) return;
+              userAdjusted.current = true;
+              event.currentTarget.setPointerCapture(event.pointerId);
+              drag.current = {
+                x: event.clientX,
+                y: event.clientY,
+                focusX,
+                focusY,
+              };
+            }}
+            onPointerMove={(event) => {
+              if (!drag.current) return;
+              const bounds = event.currentTarget.getBoundingClientRect();
+              setFocusX(
+                Math.max(
+                  0,
+                  Math.min(
+                    100,
+                    drag.current.focusX -
+                      ((event.clientX - drag.current.x) / bounds.width) * 58,
+                  ),
+                ),
+              );
+              setFocusY(
+                Math.max(
+                  0,
+                  Math.min(
+                    100,
+                    drag.current.focusY -
+                      ((event.clientY - drag.current.y) / bounds.height) * 58,
+                  ),
+                ),
+              );
+            }}
+            onPointerUp={() => {
+              drag.current = null;
+            }}
+            onPointerCancel={() => {
+              drag.current = null;
+            }}
+          >
+            {source && (
+              // The temporary object URL is local-only and never leaves the device.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={source}
+                alt="Crop preview"
+                draggable={false}
+                style={{
+                  objectPosition: `${focusX}% ${focusY}%`,
+                  transform: `scale(${zoom})`,
+                }}
+              />
+            )}
+            {bitmap && (
+              <canvas
+                ref={previewCanvas}
+                className="photo-crop-exact-preview"
+                aria-label="Exact saved crop preview"
+              />
+            )}
+            <div className="photo-crop-safe-zone" aria-hidden="true" />
+            <span className="photo-crop-move-hint">
+              <Move size={14} /> Drag to reposition
+            </span>
+          </div>
+          <p className="photo-crop-review-title">Review your three crops</p>
+          <div className="photo-preview-variants" aria-label="Preview saved framing">
+            {Object.entries(photoVariants).map(([key, variant]) => (
+              <button
+                type="button"
+                key={key}
+                aria-pressed={previewVariant === key}
+                disabled={saving}
+                onClick={() =>
+                  setPreviewVariant(key as keyof typeof photoVariants)
+                }
+              >
+                <canvas
+                  ref={(element) => { reviewCanvases.current[key] = element; }}
+                  aria-hidden="true"
+                  style={{ aspectRatio: `${variant.width}/${variant.height}` }}
+                />
+                <span>{variant.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="photo-face-assistance">
+            <button
+              type="button"
+              disabled={!bitmap || saving || findingFaces}
+              onClick={findFaces}
+            >
+              {findingFaces ? 'Auto framing…' : 'Find faces for framing'}
+            </button>
+            <small>
+              Auto framing runs on this device only. It does not verify identity or upload a face scan.
+            </small>
+            {faceNotice && <p role="status">{faceNotice}</p>}
+            {faces.length > 1 && bitmap && (
+              <div
+                className="photo-face-picker"
+                style={{ aspectRatio: `${bitmap.width}/${bitmap.height}` }}
+              >
+                <Image
+                  src={source}
+                  alt="Choose your face in the original"
+                  width={bitmap.width}
+                  height={bitmap.height}
+                  unoptimized
+                />
+                {faces.map((face, index) => (
+                  <button
+                    type="button"
+                    key={index}
+                    disabled={saving}
+                    aria-label={`Frame face ${index + 1}`}
+                    onClick={() => chooseFace(face)}
+                    style={{
+                      left: `${face.x * 100}%`,
+                      top: `${face.y * 100}%`,
+                      width: `${face.width * 100}%`,
+                      height: `${face.height * 100}%`,
+                    }}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <label className="photo-crop-zoom">
+            <ZoomIn size={18} />
+            <span>Zoom</span>
+            <input
+              type="range"
+              min="1"
+              max="2.2"
+              step="0.02"
+              value={zoom}
+              disabled={saving}
+              aria-label="Photo zoom"
+              onChange={(event) => {
+                userAdjusted.current = true;
+                setZoom(Number(event.target.value));
+              }}
+            />
+          </label>
+          <label className="photo-light-control">
+            Photo look
+            <select
+              aria-label="Photo look"
+              value={brightness}
+              disabled={saving}
+              onChange={(event) => setBrightness(Number(event.target.value))}
+            >
+              <option value={1}>Natural · Recommended</option>
+              <option value={1.06}>Gentle light · +6% brightness</option>
+            </select>
+          </label>
+          {qualityNotice && (
+            <p className="photo-quality-notice" role="status">
+              {qualityNotice}
+            </p>
+          )}
+          <details className="photo-quality-details">
+            <summary>Quality &amp; crop details</summary>
+            <div className="photo-crop-quality">
+              <Check size={16} />
+              <span>
+                <strong>High-quality export</strong>
+                <small>
+                  Original preserved · full, discovery and avatar crops
+                  generated
+                </small>
+              </span>
+            </div>
+          </details>
+        </div>
+        <div className="photo-crop-footer">
+          {error && (
+            <p className="photo-crop-error" role="alert">
+              {error}
+            </p>
+          )}
+          <p className="photo-crop-status" role="status" aria-live="polite">
+            {saving
+              ? savePhase
+              : 'Original preserved · natural look by default.'}
+          </p>
+          <div className="photo-crop-actions">
+            <button type="button" onClick={reset} disabled={saving}>
+              <RotateCcw size={17} /> Reset
+            </button>
+            <button
+              type="button"
+              className="primary"
+              onClick={confirm}
+              disabled={saving || !bitmap}
+              aria-label="Save photo"
+            >
+              {saving && (
+                <LoaderCircle
+                  size={18}
+                  className="photo-crop-spinner"
+                  aria-hidden="true"
+                />
+              )}
+              {saving ? savePhase : 'Save photo'}
+            </button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -2,6 +2,7 @@ import {
   expect,
   request as playwrightRequest,
   test,
+  type Locator,
   type Page,
 } from '@playwright/test';
 import path from 'node:path';
@@ -36,7 +37,9 @@ async function signIn(page: Page) {
   await page.getByRole('button', { name: /Fill selected test login/i }).click();
   await page.getByRole('button', { name: 'Sign in to SpikeDate' }).click();
   await expect(page.locator('.phone-frame')).toBeVisible();
-  await page.waitForLoadState('networkidle');
+  await expect(
+    page.getByRole('button', { name: 'Profile', exact: true }),
+  ).toBeVisible();
   const dismiss = page.getByRole('button', { name: /^Dismiss /i });
   if (
     await dismiss
@@ -57,20 +60,14 @@ async function signIn(page: Page) {
   if (await maybeLater.isVisible().catch(() => false)) await maybeLater.click();
 }
 
-async function expectImagesLoaded(page: Page) {
+async function expectImageDecoded(image: Locator, timeout = 12_000) {
   await expect
-    .poll(() =>
-      page
-        .locator('img')
-        .evaluateAll((images) =>
-          images.every(
-            (image) =>
-              (image as HTMLImageElement).complete &&
-              (image as HTMLImageElement).naturalWidth > 0,
-          ),
-        ),
+    .poll(
+      () =>
+        image.evaluate((element) => (element as HTMLImageElement).naturalWidth),
+      { timeout },
     )
-    .toBe(true);
+    .toBeGreaterThan(0);
 }
 
 async function seedLocalMutualMatch(page: Page) {
@@ -168,16 +165,7 @@ test('premium phone verification is clear and mobile friendly', async ({
   await expect(authShell).toHaveCSS('overflow-y', 'auto');
   await expect(page.locator('.auth-phone-verification')).toBeVisible();
   await expect(page.getByLabel('Mobile number')).toBeVisible();
-  await expect(page.getByLabel('Email')).toBeVisible();
-  await page.locator('.auth-submit').scrollIntoViewIfNeeded();
-  await expect(page.locator('.auth-submit')).toBeInViewport();
-  const shellCanReachBottom = await authShell.evaluate((element) => {
-    element.scrollTop = element.scrollHeight;
-    return (
-      element.scrollHeight <= element.clientHeight + 1 || element.scrollTop > 0
-    );
-  });
-  expect(shellCanReachBottom).toBe(true);
+  await expect(page.getByLabel('Email')).toBeHidden();
   const phoneSuffix = String(
     1000 +
       ((Date.now() + (testInfo.project.name === 'ios-mobile' ? 0 : 1)) % 9000),
@@ -191,15 +179,27 @@ test('premium phone verification is clear and mobile friendly', async ({
   await page.getByRole('button', { name: 'Verify', exact: true }).click();
   await expect(page.getByText('Verified and kept private')).toBeVisible();
   await expect(page.getByText(/never appears on your profile/i)).toBeVisible();
+  await expect(page.getByLabel('Email')).toBeVisible();
+  await page.locator('.auth-submit').scrollIntoViewIfNeeded();
+  await expect(page.locator('.auth-submit')).toBeInViewport();
+  const shellCanReachBottom = await authShell.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    return (
+      element.scrollHeight <= element.clientHeight + 1 || element.scrollTop > 0
+    );
+  });
+  expect(shellCanReachBottom).toBe(true);
 });
 
 test('discovery actions and full profile remain usable', async ({ page }) => {
   await signIn(page);
-  await expectImagesLoaded(page);
+  await expectImageDecoded(
+    page.locator('.discover-screen .cinematic-photo-main'),
+  );
   const homePortrait = page.locator('.profile-card .cinematic-photo-main');
   await expect(homePortrait).toBeVisible();
   await expect(homePortrait).toHaveCSS('object-fit', 'cover');
-  await expect(homePortrait).not.toHaveCSS('filter', 'none');
+  await expect(homePortrait).toHaveCSS('filter', 'none');
   await expect(
     page.locator('.profile-card .cinematic-photo-backdrop'),
   ).toHaveCount(0);
@@ -208,8 +208,10 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
   ).toBeVisible();
   const presence = page.locator('.profile-presence');
   if (await presence.count()) {
-    await expect(page.getByLabel(/is online now/)).toBeVisible();
-    await expect(presence).toHaveText('Online now');
+    await expect(
+      page.getByLabel(/was active in the last 15 minutes|is online now/),
+    ).toBeVisible();
+    await expect(presence).toHaveText(/^(Active recently|Online now)$/);
   }
   await expect(
     page.getByRole('button', { name: /Like .*$/ }).first(),
@@ -218,7 +220,9 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
     0,
   );
   await expect(
-    page.getByRole('button', { name: /Send .* a Spike introduction/ }),
+    page
+      .getByRole('button', { name: /Send .* a Spike introduction/ })
+      .or(page.getByRole('button', { name: /^Message / })),
   ).toBeVisible();
   await expect(
     page.getByRole('button', { name: /Save .* privately/ }),
@@ -235,7 +239,9 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
   const fullProfileMedia = await dialog.locator('.profile-film').boundingBox();
   expect(fullProfileMedia?.height ?? 0).toBeGreaterThan(480);
   await expect(
-    dialog.getByRole('button', { name: /Send a Spike introduction/ }),
+    dialog
+      .getByRole('button', { name: /Send a Spike introduction/ })
+      .or(dialog.getByRole('button', { name: 'Message match', exact: true })),
   ).toBeVisible();
   await expect(
     dialog.getByRole('button', { name: 'Save privately' }),
@@ -268,14 +274,35 @@ test('Like advances immediately while Spike has one top-placement send action', 
   const firstLikeLabel = await likeButton.getAttribute('aria-label');
   await likeButton.click();
   await expect(page.getByRole('dialog', { name: /^Like /i })).toHaveCount(0);
+  const matchChat = page.getByRole('button', { name: 'Back to chats' });
+  const likeUpgrade = page.getByRole('heading', {
+    name: /Keep liking today|Keep connecting today/,
+  });
   await expect
-    .poll(() =>
-      page
+    .poll(async () => {
+      if ((await matchChat.isVisible()) || (await likeUpgrade.isVisible()))
+        return true;
+      const currentLike = page
         .getByRole('button', { name: /^Like [A-Za-z]/ })
-        .first()
-        .getAttribute('aria-label'),
-    )
-    .not.toBe(firstLikeLabel);
+        .first();
+      return (
+        (await currentLike.count()) > 0 &&
+        (await currentLike.getAttribute('aria-label')) !== firstLikeLabel
+      );
+    })
+    .toBe(true);
+  if (await matchChat.isVisible()) {
+    await matchChat.click();
+    await page.getByRole('button', { name: 'Spike', exact: true }).click();
+  } else if (await likeUpgrade.isVisible()) {
+    await expect(page.getByRole('dialog')).toContainText('Likes today');
+    await page
+      .getByRole('button', { name: 'Close subscription details' })
+      .click();
+  }
+  await expect(
+    page.getByRole('button', { name: /^Like [A-Za-z]/ }).first(),
+  ).toBeVisible();
 
   const firstSpikeLabel = await page
     .getByRole('button', { name: /^Like [A-Za-z]/ })
@@ -298,14 +325,116 @@ test('Like advances immediately while Spike has one top-placement send action', 
   await expect(dialog).toContainText(/delivered at the top of Likes/i);
   await dialog.getByRole('button', { name: /Send Spike/i }).click();
   await expect(dialog).not.toBeVisible();
+  const upgrade = page.getByRole('heading', { name: 'Send another Spike' });
   await expect
-    .poll(() =>
-      page
+    .poll(async () =>
+      (await upgrade.isVisible()) ||
+      (await page
         .getByRole('button', { name: /^Like [A-Za-z]/ })
         .first()
-        .getAttribute('aria-label'),
+        .getAttribute('aria-label')) !== firstSpikeLabel,
     )
-    .not.toBe(firstSpikeLabel);
+    .toBe(true);
+  if (await upgrade.isVisible()) {
+    await expect(page.getByRole('dialog')).toContainText('0 Spikes available');
+    await page
+      .getByRole('button', { name: 'Close subscription details' })
+      .click();
+    await expect(
+      page.getByRole('button', { name: /^Like [A-Za-z]/ }).first(),
+    ).toHaveAttribute('aria-label', firstSpikeLabel!);
+  }
+});
+
+test('Send Spike focused composer keeps context and action visible on mobile', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page
+    .getByRole('button', { name: /Send .* a Spike introduction/ })
+    .click();
+  const dialog = page.getByRole('dialog', { name: /^Spike /i });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByText('An introduction that stands out'),
+  ).toBeVisible();
+  await expect(dialog.locator('.spike-recipient')).toContainText(
+    'Spikes left this week',
+  );
+  await expect(
+    dialog.getByRole('button', { name: 'Prompt', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(dialog.locator('.spike-context-quote')).toContainText(
+    'THEIR PROMPT',
+  );
+  await page.screenshot({
+    path: test.info().outputPath('send-spike-prompt.png'),
+  });
+  await dialog.getByRole('button', { name: 'Photo', exact: true }).click();
+  await expect(dialog.locator('.spike-context-quote')).toContainText(
+    'THEIR PHOTO',
+  );
+  const interest = dialog.getByRole('button', { name: 'Interest', exact: true });
+  const hasSharedInterest = await interest.isVisible();
+  if (hasSharedInterest) {
+    await interest.click();
+    await expect(dialog.locator('.spike-context-quote')).toContainText(
+      'SHARED INTEREST',
+    );
+  }
+  await expect(dialog.getByLabel('Profile note')).toBeVisible();
+  const action = dialog.getByRole('button', {
+    name: 'Send Spike',
+    exact: true,
+  });
+  await expect(action).toBeVisible();
+  await expect(dialog).toContainText(
+    'Uses 1 Spike · delivered at the top of Likes',
+  );
+  const geometry = await dialog.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    const actionBounds = element
+      .querySelector('.note-dialog-actions')!
+      .getBoundingClientRect();
+    return {
+      dialogLeft: bounds.left,
+      dialogRight: bounds.right,
+      actionBottom: actionBounds.bottom,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      overflow: element.scrollWidth - element.clientWidth,
+    };
+  });
+  expect(geometry.dialogLeft).toBeGreaterThanOrEqual(-1);
+  expect(geometry.dialogRight).toBeLessThanOrEqual(geometry.width + 1);
+  expect(geometry.actionBottom).toBeLessThanOrEqual(geometry.height + 1);
+  expect(geometry.overflow).toBeLessThanOrEqual(1);
+  await page.screenshot({
+    path: test.info().outputPath('send-spike-interest.png'),
+  });
+  await page.route('**/api/interactions', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        interaction: { kind: 'super_spike' },
+        superSpikesRemaining: 2,
+      }),
+    });
+  });
+  const request = page.waitForRequest(
+    (item) =>
+      item.url().endsWith('/api/interactions') && item.method() === 'POST',
+  );
+  await action.click();
+  const payload = (await request).postDataJSON() as {
+    targetType: string;
+    targetRef: string;
+  };
+  expect(payload.targetType).toBe(hasSharedInterest ? 'profile' : 'photo');
+  expect(payload.targetRef).toContain(hasSharedInterest ? 'Interest ·' : 'Photo 1');
+  await expect(dialog).not.toBeVisible();
 });
 
 test('Galaxy, Likes, Chat, and Profile navigation expose primary actions', async ({
@@ -318,8 +447,10 @@ test('Galaxy, Likes, Chat, and Profile navigation expose primary actions', async
       name: /Lift my profile|View active Profile Lift/,
     }),
   ).toBeVisible();
-  await expect(page.getByText('Start with a plan')).toBeVisible();
-  await expect(page.getByText('Browse the Galaxy')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Galaxy', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('Find your kind of connection')).toBeVisible();
 
   await page.getByRole('button', { name: /^Likes/ }).click();
   await expect(
@@ -359,6 +490,18 @@ test('Galaxy, Likes, Chat, and Profile navigation expose primary actions', async
   await expect(page.locator('.push-settings-card')).toContainText(
     'Quiet hours',
   );
+  await expect(page.locator('.push-settings-card')).toContainText(
+    'Connection updates appear in-app.',
+  );
+  await expect(
+    page.locator('.push-settings-card').getByText('New matches'),
+  ).toHaveCSS('font-weight', '500');
+  await expect(
+    page.locator('.push-settings-card').getByText('Choose what reaches you'),
+  ).toHaveCSS('font-weight', '500');
+  await expect(page.locator('.push-settings-card')).not.toContainText(
+    'Delivered in-app; push is used only on registered devices.',
+  );
   await expect(page.locator('.voice-settings-card')).toContainText(
     'Daily announcements',
   );
@@ -370,7 +513,7 @@ test('Today composer merges the update and private availability', async ({
 }) => {
   await signIn(page);
   const homeToday = page
-    .locator('.home-action-rail')
+    .locator('.home-today-tools')
     .getByRole('button', { name: 'Post or edit your Today update' });
   await expect(homeToday).toBeVisible();
   await expect(homeToday).toHaveText('');
@@ -382,6 +525,21 @@ test('Today composer merges the update and private availability', async ({
   await expect(
     page.getByRole('dialog', { name: 'Today', exact: true }),
   ).toBeVisible();
+  const todaySheet = page.getByRole('dialog', { name: 'Today', exact: true });
+  await expect(todaySheet).toContainText('24-HOUR MOMENT');
+  await expect(todaySheet).toHaveCSS('backdrop-filter', 'none');
+  const todayBounds = await todaySheet.boundingBox();
+  expect(todayBounds).not.toBeNull();
+  expect(todayBounds!.x).toBeGreaterThanOrEqual(-1);
+  expect(todayBounds!.x + todayBounds!.width).toBeLessThanOrEqual(
+    page.viewportSize()!.width + 1,
+  );
+  expect(todayBounds!.y + todayBounds!.height).toBeLessThanOrEqual(
+    page.viewportSize()!.height + 1,
+  );
+  await page.screenshot({
+    path: test.info().outputPath('today-editorial.png'),
+  });
   await page.getByRole('button', { name: 'Close Today composer' }).click();
 
   await page.getByRole('button', { name: /Open .* full profile/i }).click();
@@ -424,10 +582,32 @@ test('Today composer merges the update and private availability', async ({
   await expect(page.getByLabel('Available until')).toHaveCount(0);
   await dialog.getByLabel('Today update').fill('Coffee and a walk after work.');
   await tonightSwitch.check();
+  const availabilitySaved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/availability') &&
+      response.request().method() === 'PUT',
+    { timeout: 30_000 },
+  );
   await dialog
     .getByRole('button', { name: /Post for today|Save Today/ })
     .click();
-  await expect(dialog).not.toBeVisible();
+  const availabilityResponse = await availabilitySaved;
+  await test.info().attach('Today-availability-response', {
+    body: JSON.stringify(
+      {
+        status: availabilityResponse.status(),
+        request: availabilityResponse.request().postDataJSON(),
+      },
+      null,
+      2,
+    ),
+    contentType: 'application/json',
+  });
+  expect(
+    availabilityResponse.ok(),
+    `Today availability save: HTTP ${availabilityResponse.status()}; see attached request window`,
+  ).toBe(true);
+  await expect(dialog).not.toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.today-profile-manager')).toHaveCount(0);
   const profileToday = page
     .locator('.profile-passport-topbar')
@@ -440,6 +620,63 @@ test('Today composer merges the update and private availability', async ({
   await expect(dialog.getByLabel('Available tonight')).toBeChecked();
   await expect(page.getByText('AVAILABILITY', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Close Today composer' }).click();
+  await page.getByRole('button', { name: 'Preview my profile card' }).click();
+  const preview = page.locator('.preview-screen');
+  await expect(preview).toBeVisible();
+  await expect(preview.locator('.today-card-pill')).toContainText(
+    'Coffee and a walk after work.',
+  );
+  await expect(preview.locator('.tonight-card-status')).toContainText(
+    'Available tonight',
+  );
+  await expect(preview.locator('.cinematic-photo-main')).not.toHaveAttribute(
+    'src',
+    /_next\/image/,
+  );
+  await expect
+    .poll(() =>
+      preview.locator('.cinematic-photo-main').evaluate((image) => {
+        const photo = image as HTMLImageElement;
+        return photo.naturalWidth > 0;
+      }),
+    )
+    .toBe(true);
+  await expect(
+    preview.getByRole('button', { name: /Send a Spike/ }),
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Back to profile' }).click();
+  await expect
+    .poll(async () => {
+      const response = await page.request.get('/api/profile');
+      if (!response.ok()) return '';
+      const data = (await response.json()) as {
+        dailyUpdate?: { text?: string } | null;
+      };
+      return data.dailyUpdate?.text ?? '';
+    })
+    .toBe('Coffee and a walk after work.');
+  await page.reload();
+  await page.getByRole('button', { name: 'Profile', exact: true }).click();
+  await page.getByRole('button', { name: 'Preview my profile card' }).click();
+  await expect(page.locator('.preview-screen .today-card-pill')).toContainText(
+    'Coffee and a walk after work.',
+  );
+  await expect(
+    page.locator('.preview-screen .tonight-card-status'),
+  ).toContainText('Available tonight');
+  await page
+    .getByRole('button', { name: 'Open your full profile preview' })
+    .click();
+  const fullPreview = page.locator('.profile-preview-sheet');
+  await expect(fullPreview).toBeVisible();
+  await expect(fullPreview.locator('.full-preview-today')).toContainText(
+    'Coffee and a walk after work.',
+  );
+  await expect(fullPreview.locator('.full-preview-today')).toContainText(
+    'Available tonight',
+  );
+  await fullPreview.getByRole('button', { name: 'Close full profile' }).click();
+  await expect(page.locator('.preview-screen')).toBeVisible();
 });
 
 test('private date planning requires the safety gate on mobile', async ({
@@ -448,6 +685,7 @@ test('private date planning requires the safety gate on mobile', async ({
   await signIn(page);
   await seedLocalMutualMatch(page);
   await page.getByRole('button', { name: 'Galaxy', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plans', exact: true }).click();
   await page.getByRole('button', { name: /Plan a coffee date/i }).click();
 
   const planner = page.locator('.plan-dialog');
@@ -489,7 +727,7 @@ test('photo safety check is accessible and fits the mobile viewport', async ({
     .getByRole('button', { name: /Photo Verified|Verify your photos/i })
     .click();
   const verification = page.getByRole('dialog', {
-    name: /Your photos are verified|Confirm you match your photos/i,
+    name: /Your photos are verified|Capture your face/i,
   });
   await expect(verification).toBeVisible();
   await expect(
@@ -521,6 +759,28 @@ test('Profile Lift and subscription sheets fit between safe areas', async ({
     name: /Be seen sooner|Your Profile Lift is active/i,
   });
   await expect(lift).toBeVisible();
+  await expect(lift).toContainText('PROFILE LIFT');
+  await expect(lift).toHaveCSS('backdrop-filter', 'none');
+  const liftBounds = await lift.boundingBox();
+  expect(liftBounds).not.toBeNull();
+  expect(liftBounds!.x).toBeGreaterThanOrEqual(-1);
+  expect(liftBounds!.x + liftBounds!.width).toBeLessThanOrEqual(
+    page.viewportSize()!.width + 1,
+  );
+  expect(liftBounds!.y + liftBounds!.height).toBeLessThanOrEqual(
+    page.viewportSize()!.height + 1,
+  );
+  await page.screenshot({ path: test.info().outputPath('lift-editorial.png') });
+  await lift.getByText('How Profile Lift works', { exact: true }).click();
+  await lift.getByText('Get more Profile Lifts', { exact: true }).click();
+  const liftAction = lift.getByRole('button', { name: /Start .* Profile Lift/i });
+  if (await liftAction.isVisible()) {
+    const actionBounds = await liftAction.boundingBox();
+    expect(actionBounds).not.toBeNull();
+    expect(actionBounds!.y + actionBounds!.height).toBeLessThanOrEqual(
+      page.viewportSize()!.height + 1,
+    );
+  }
   await expect(
     lift
       .getByRole('button', { name: /Start .* Profile Lift/i })
@@ -588,13 +848,28 @@ test('profile photo crop, upload, display, and cleanup work on mobile', async ({
   page,
 }) => {
   await signIn(page);
+  const inventoryResponse = await page.request.get('/api/profile');
+  const originalMedia = (await inventoryResponse.json()).media as {
+    id: string;
+    type: string;
+  }[];
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
   await page.getByRole('button', { name: /Edit preferences & media/i }).click();
   const registration = page.getByRole('dialog', {
     name: 'Preferences & media',
   });
   await expect(registration).toBeVisible();
+  const firstPhoto = originalMedia.find((item) => item.type === 'photo');
+  if (firstPhoto)
+    await expect(
+      registration.locator('.profile-media-tile img').first(),
+    ).toHaveAttribute('src', new RegExp(firstPhoto.id));
   const before = await registration.locator('.profile-media-tile').count();
+  const uploadResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/media') &&
+      response.request().method() === 'POST',
+  );
   await registration
     .getByLabel('Add and crop profile photo')
     .setInputFiles(path.resolve('public/maya.png'));
@@ -605,19 +880,38 @@ test('profile photo crop, upload, display, and cleanup work on mobile', async ({
   expect(cropBounds).not.toBeNull();
   expect(cropBounds!.width / cropBounds!.height).toBeCloseTo(0.8, 1);
   await cropper.getByLabel('Photo zoom').fill('1.18');
-  await cropper.getByRole('button', { name: 'Use photo' }).click();
-  await expect(cropper).toBeHidden();
+  await cropper.getByRole('button', { name: 'Save photo' }).click();
+  const upload = await uploadResponse;
+  expect(upload.ok()).toBe(true);
+  const uploadedId = (await upload.json()).media.id as string;
+  await expect(cropper).toBeHidden({ timeout: 30_000 });
   await expect(registration.locator('.profile-media-tile')).toHaveCount(
     before + 1,
   );
-  await expectImagesLoaded(page);
+  await expectImageDecoded(
+    registration.locator('.profile-media-tile').last().locator('img'),
+    30_000,
+  );
 
-  const lastPhoto = registration.locator('.profile-media-tile').last();
+  const lastPhoto = registration
+    .locator('.profile-media-tile')
+    .filter({ has: page.locator(`img[src*="${uploadedId}"]`) });
   const uploadedSource = await lastPhoto.locator('img').getAttribute('src');
   expect(uploadedSource).toMatch(/(?:\/api\/media\/|^data:image\/)/);
   const remove = lastPhoto.getByRole('button', {
     name: /Remove profile photo/i,
   });
+  const deleted = page.waitForResponse(
+    (response) =>
+      response.url().includes(`/api/media/${uploadedId}`) &&
+      response.request().method() === 'DELETE',
+  );
   await remove.click();
+  expect((await deleted).ok()).toBe(true);
   await expect(registration.locator('.profile-media-tile')).toHaveCount(before);
+  const remaining = (await (await page.request.get('/api/profile')).json())
+    .media as { id: string }[];
+  expect(remaining.map((item) => item.id)).not.toContain(uploadedId);
+  for (const item of originalMedia)
+    expect(remaining.map((photo) => photo.id)).toContain(item.id);
 });

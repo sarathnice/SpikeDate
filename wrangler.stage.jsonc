@@ -3,16 +3,28 @@
   "name": "spikedate-stage",
   "workers_dev": true,
   "preview_urls": true,
-  "main": "dist/server/index.js",
+  "main": "workers/stage-entry.js",
+  "durable_objects": {
+    "bindings": [{ "name": "ARCADE_ROOMS", "class_name": "ArcadeRoom" }],
+  },
+  "migrations": [{ "tag": "arcade-v1", "new_sqlite_classes": ["ArcadeRoom"] }],
   "compatibility_date": "2026-09-07",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    "directory": "dist/client"
+    "directory": "dist/client",
   },
   "observability": {
-    "enabled": true
+    "enabled": true,
+  },
+  "images": {
+    "binding": "IMAGES",
+  },
+  "cache": {
+    "enabled": true,
   },
   "vars": {
+    "SPIKEDATE_ARCADE_ENABLED": "true",
+    "SPIKEDATE_IMAGES_ENABLED": "true",
     "NEXT_PUBLIC_PULSE_VOICE_CLOUD_ENABLED": "false",
     "NEXT_PUBLIC_PULSE_VOICE_COMMAND_ENABLED": "false",
     "NEXT_PUBLIC_PULSE_VOICE_ENABLED": "true",
@@ -30,20 +42,20 @@
     "SPIKEDATE_PHONE_VERIFICATION_PROVIDER": "mock",
     "SPIKEDATE_PHONE_VERIFICATION_REQUIRED": "true",
     "SPIKEDATE_PUSH_PROVIDER": "in_app",
-    "SPIKEDATE_TEST_SEED_ENABLED": "true"
+    "SPIKEDATE_TEST_SEED_ENABLED": "true",
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "spikedate-stage",
       "database_id": "ca142a34-ff1e-4772-8f86-8580c744b86a",
-      "migrations_dir": "drizzle"
-    }
+      "migrations_dir": "drizzle",
+    },
   ],
   "r2_buckets": [
     {
       "binding": "MEDIA",
-      "bucket_name": "spikedate-media-stage"
-    }
-  ]
+      "bucket_name": "spikedate-media-stage",
+    },
+  ],
 }

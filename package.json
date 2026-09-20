@@ -6,6 +6,9 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "predev": "node scripts/prepare-face-assets.mjs",
+    "prebuild": "node scripts/prepare-face-assets.mjs",
+    "prebuild:staging": "node scripts/prepare-face-assets.mjs",
     "dev": "vinext dev",
     "build": "vinext build",
     "build:staging": "cross-env NEXT_PUBLIC_SPIKEDATE_SERVER_DATA_ENABLED=true NEXT_PUBLIC_SPIKEDATE_DATE_PLANS_ENABLED=true vinext build",
@@ -22,6 +25,11 @@
     "deploy:cloudflare:staging": "npm run build:staging && npm run db:migrate:staging && wrangler deploy --config wrangler.stage.jsonc",
     "test": "vitest run",
     "test:ui": "playwright test",
+    "arcade:local": "wrangler dev --config wrangler.arcade-local.jsonc --port 3007 --persist-to outputs/qa/arcade/local-state",
+    "test:arcade:ui": "cross-env SPIKEDATE_UI_URL=http://127.0.0.1:3007 SPIKEDATE_QA_REPORT_DIR=outputs/qa/arcade/retest playwright test tests/playwright/arcade-live.spec.ts",
+    "qa": "node tests/qa/run.mjs",
+    "qa:stage": "node tests/qa/run.mjs --url https://spikedate-stage.sarathnice.workers.dev --open",
+    "test:qa": "node --test tests/qa/report.test.mjs",
     "test:all": "npm run lint && npm run test && npm run build && npm run test:ui",
     "lint": "oxlint",
     "format": "oxfmt"
@@ -34,6 +42,7 @@
     "@capacitor/ios": "8.4.3",
     "@capacitor/network": "^8.0.1",
     "@capacitor/push-notifications": "^8.1.2",
+    "@mediapipe/tasks-vision": "0.10.32",
     "@shadcn/react": "0.3.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",

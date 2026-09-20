@@ -1,0 +1,752 @@
+/* Quiet Precision: the approved Option A typography and spacing system.
+ * This scoped important layer bridges legacy theme-specific !important rules.
+ * Brand wordmarks, icon geometry, photos, colors and screen layouts are intact.
+ */
+@layer quiet-precision {
+  .spike-intro-icon {
+    display: inline-flex;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .spike-intro-icon > .spike-intro-star {
+    position: absolute;
+    left: 20%;
+    top: 28%;
+  }
+  .spike-intro-icon > .spike-intro-plus {
+    position: absolute;
+    left: 53%;
+    top: 30%;
+  }
+  .today-tonight-toggle > span {
+    flex: 1;
+    min-width: 0;
+  }
+  [data-slot='switch'] {
+    display: inline-flex !important;
+    box-sizing: border-box;
+    flex: 0 0 38px !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    max-width: 38px !important;
+    height: 22px !important;
+    min-height: 22px !important;
+    padding: 2px !important;
+    border-width: 1px !important;
+  }
+  [data-slot='switch'] [data-slot='switch-thumb'] {
+    position: absolute !important;
+    left: 2px !important;
+    top: 2px !important;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    width: 16px !important;
+    height: 16px !important;
+    margin: 0 !important;
+    translate: none !important;
+    transform: translateX(0) !important;
+  }
+  [data-slot='switch'][aria-checked='true'] [data-slot='switch-thumb'] {
+    transform: translateX(16px) !important;
+  }
+  .own-photo-section {
+    margin: 20px 0;
+  }
+  .profile-photo-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+    gap: 6px;
+    padding: 12px 20px;
+  }
+  .profile-photo-strip button {
+    position: relative;
+    aspect-ratio: 3/4;
+    overflow: hidden;
+    padding: 0;
+    border: 1px solid var(--ui-border);
+    border-radius: 8px;
+  }
+  .profile-photo-strip button[aria-pressed='true'] {
+    border: 2px solid var(--foreground);
+  }
+  .profile-photo-strip img {
+    object-fit: cover;
+  }
+  .own-photo-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .own-photo-heading strong,
+  .own-photo-heading small {
+    display: block;
+  }
+  .own-photo-heading > span {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .own-photo-heading .section-edit {
+    width: auto !important;
+    flex: 0 0 auto;
+    margin: 0;
+    white-space: nowrap;
+  }
+  .own-photo-heading strong {
+    font-size: 14px;
+    font-weight: 400;
+  }
+  .own-photo-heading small {
+    font-size: 12px;
+    color: var(--muted-foreground);
+  }
+  .own-photo-grid {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+    padding: 3px 2px 8px;
+    max-width: 100%;
+  }
+  .own-photo-grid button {
+    position: relative;
+    flex: 0 0 48px;
+    width: 48px;
+    min-width: 48px;
+    min-height: 64px;
+    padding: 0;
+    scroll-snap-align: start;
+    aspect-ratio: 3 / 4;
+    overflow: hidden;
+    border: 1px solid var(--ui-border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--foreground);
+  }
+  .own-photo-grid img {
+    object-fit: cover;
+  }
+  .own-photo-grid button > span {
+    position: absolute;
+    bottom: 3px;
+    left: 3px;
+    background: #090b14;
+    color: white;
+    border-radius: 5px;
+    padding: 1px 3px;
+    font-size: 10px;
+    font-weight: 400;
+  }
+  .profile-page .communication-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .profile-page .communication-settings-heading {
+    order: 0;
+  }
+  .communication-disclosure > summary {
+    cursor: pointer;
+    list-style: none;
+    min-height: 44px;
+    align-items: center;
+    gap: 12px;
+  }
+  .communication-disclosure > summary::-webkit-details-marker {
+    display: none;
+  }
+  .communication-disclosure > summary > svg {
+    flex-shrink: 0;
+    transition: transform 160ms ease;
+    color: var(--foreground);
+  }
+  .communication-disclosure[open] > summary > svg {
+    transform: rotate(90deg);
+  }
+  .communication-disclosure > summary > span {
+    min-width: 0;
+  }
+  .profile-page .communication-disclosure > summary small {
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    letter-spacing: normal !important;
+    color: var(--muted-foreground) !important;
+  }
+  .profile-page :is(.toggle-row, .voice-setting-toggle, .today-tonight-toggle) {
+    gap: 12px;
+  }
+  .profile-page
+    :is(.toggle-row, .voice-setting-toggle, .today-reminder-time)
+    > span {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .profile-page .today-reminder-time {
+    flex-wrap: wrap;
+  }
+  .profile-page .today-reminder-time select {
+    max-width: 100%;
+  }
+  .profile-page .communication-settings-heading h2 {
+    font-family: var(--font-inter), Inter, sans-serif !important;
+    font-size: 16px !important;
+    font-weight: 500 !important;
+    margin: 0 0 6px !important;
+  }
+  .profile-page .communication-settings-heading p {
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    color: var(--muted-foreground) !important;
+    margin: 0 !important;
+  }
+  .profile-page .communication-settings .push-settings-card {
+    order: 1;
+    margin: 0 !important;
+  }
+  .profile-page .communication-settings .engagement-settings-card {
+    order: 2;
+    margin: 0 !important;
+  }
+  .profile-page
+    .communication-settings
+    :is(.push-setting-toggle, .engagement-setting-toggle) {
+    padding: 13px 0 !important;
+    gap: 16px !important;
+    align-items: center;
+  }
+  .profile-page
+    .communication-settings
+    :is(.push-setting-toggle, .engagement-setting-toggle)
+    > span {
+    min-width: 0;
+    flex: 1;
+  }
+  .profile-page .communication-settings [role='switch'] {
+    flex-shrink: 0;
+    width: 38px !important;
+    min-width: 38px !important;
+    max-width: 38px !important;
+    height: 22px !important;
+    min-height: 22px !important;
+    padding: 0 !important;
+  }
+  .profile-page .communication-settings [data-slot='switch-thumb'] {
+    width: 16px !important;
+    height: 16px !important;
+    margin-left: 0 !important;
+    background: var(--foreground) !important;
+  }
+  .profile-page
+    .communication-settings
+    [role='switch'][aria-checked='true']
+    [data-slot='switch-thumb'] {
+    transform: translateX(16px) !important;
+  }
+  .profile-page
+    .communication-settings
+    [role='switch'][aria-checked='false']
+    [data-slot='switch-thumb'] {
+    transform: translateX(0) !important;
+  }
+  .profile-page
+    .communication-settings
+    :is(.push-setting-toggle, .engagement-setting-toggle)
+    p {
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    color: var(--muted-foreground) !important;
+    line-height: 1.5 !important;
+    margin: 4px 0 0 !important;
+  }
+  :root {
+    --qp-font: var(--font-inter), Inter, Arial, sans-serif;
+    --qp-name: 1.5rem;
+    --qp-title: 1.25rem;
+    --qp-section: 0.875rem;
+    --qp-body: 0.8125rem;
+    --qp-label: 0.79rem;
+    --qp-helper: 0.75rem;
+    --qp-caption: 0.6875rem;
+    --qp-field: 1rem;
+    --qp-space: 17px;
+  }
+
+  :where(.phone-frame, .auth-card, [role='dialog'], .admin-shell)
+    :is(
+      h1,
+      h2,
+      h3,
+      h4,
+      p,
+      strong,
+      em,
+      i,
+      b,
+      small,
+      label,
+      span,
+      button,
+      a,
+      li,
+      input,
+      select,
+      textarea
+    ):where(:not(.brand-wordmark, .brand-wordmark *, .admin-brand strong)) {
+    font-family: var(--qp-font) !important;
+    font-weight: 400 !important;
+    font-style: normal !important;
+  }
+
+  :where(.phone-frame, .auth-card, [role='dialog'], .admin-shell)
+    :is(h1, h2, h3, h4) {
+    font-weight: 500 !important;
+    line-height: 1.4 !important;
+    letter-spacing: -0.02em !important;
+  }
+  :where(.phone-frame, .auth-card, [role='dialog'], .admin-shell) h1,
+  :is([data-slot='dialog-title'], [data-slot='sheet-title']) {
+    font-family: var(--qp-font) !important;
+    font-size: var(--qp-title) !important;
+    font-weight: 500 !important;
+    font-style: normal !important;
+    line-height: 1.3 !important;
+    letter-spacing: -0.02em !important;
+  }
+  :where(.phone-frame, .auth-card, [role='dialog'], .admin-shell)
+    :is(h2, h3, h4) {
+    font-size: var(--qp-section) !important;
+  }
+  :where(.phone-frame, .auth-card, [role='dialog'], .admin-shell) p {
+    font-size: var(--qp-body) !important;
+    line-height: 1.6 !important;
+  }
+  :where(.phone-frame, .auth-card, [role='dialog'], .admin-shell) small,
+  :is([data-slot='dialog-description'], [data-slot='sheet-description']) {
+    font-family: var(--qp-font) !important;
+    font-size: var(--qp-helper) !important;
+    font-weight: 400 !important;
+    line-height: 1.45 !important;
+  }
+  :where(.phone-frame, .auth-card, [role='dialog'], .admin-shell) label {
+    font-size: var(--qp-label) !important;
+    line-height: 1.4 !important;
+  }
+  :where(.phone-frame, .auth-card, [role='dialog'], .admin-shell)
+    :is(input:not([type='checkbox']):not([type='range']), select, textarea) {
+    font-family: var(--qp-font) !important;
+    font-size: var(--qp-field) !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+  }
+  :where(.phone-frame, .auth-card, [role='dialog'], .admin-shell)
+    button:not(.section-edit) {
+    font-size: var(--qp-section) !important;
+    line-height: 1.4 !important;
+  }
+  :where(.phone-frame, .auth-card, [role='dialog'], .admin-shell)
+    :is(
+      .primary-button,
+      .secondary-button,
+      .auth-submit,
+      .full-profile-sticky-reply
+    ),
+  :is(.auth-tabs, .profile-section-nav, .profile-quick-actions) button,
+  :is(.likes-tabs, .note-targets) button,
+  :is(.sent-message-button, .incoming-name-link, .chat-name-link) {
+    font-weight: 500 !important;
+  }
+
+  /* Names and answers are distinct roles; strong is not automatically bold. */
+  .profile-passport-identity h1,
+  .profile-title h2,
+  .profile-card .name-row h1,
+  .profile-card .name-row h1 span {
+    font-size: var(--qp-name) !important;
+    font-weight: 500 !important;
+    line-height: 1.25 !important;
+    letter-spacing: -0.025em !important;
+  }
+  .profile-page .setting-heading > span > small,
+  .profile-page .setting-heading > strong,
+  .profile-page
+    :is(.push-settings-card, .engagement-settings-card, .voice-settings-card)
+    .setting-heading
+    strong,
+  .profile-page
+    .settings-list:not(.passport-details-list)
+    .setting-heading
+    strong,
+  .profile-page .passport-details-title > span,
+  .profile-sheet .profile-details .section-label {
+    font-size: var(--qp-section) !important;
+    font-weight: 500 !important;
+    line-height: 1.45 !important;
+    letter-spacing: -0.01em !important;
+  }
+  .profile-page .passport-details-list .setting-heading strong,
+  .profile-sheet .full-passport-facts strong {
+    font-size: var(--qp-body) !important;
+    font-weight: 400 !important;
+    line-height: 1.6 !important;
+  }
+  .profile-page
+    :is(.push-setting-toggle, .engagement-setting-toggle, .voice-setting-toggle)
+    strong {
+    font-size: var(--qp-label) !important;
+    font-weight: 500 !important;
+  }
+  .profile-page
+    :is(.push-setting-toggle, .engagement-setting-toggle, .voice-setting-toggle)
+    p,
+  .profile-page .push-settings-intro,
+  .profile-page .today-reminder-time p,
+  .profile-sheet .full-passport-facts small {
+    font-size: var(--qp-helper) !important;
+    line-height: 1.45 !important;
+  }
+  .profile-sheet .profile-details > section {
+    padding-block: var(--qp-space) !important;
+  }
+  .profile-sheet .full-passport-facts {
+    gap: var(--qp-space) !important;
+  }
+
+  .registration-dialog :is(.field-grid, .prompt-fields),
+  .auth-form {
+    gap: var(--qp-space) !important;
+  }
+  .registration-dialog :is(.field-label, .choice-group > p),
+  :is(.registration-dialog .choice-group, .note-targets) button,
+  .detail-chips > span,
+  .profile-interest-strip span {
+    font-size: var(--qp-label) !important;
+    font-weight: 400 !important;
+    line-height: 1.4 !important;
+  }
+  .registration-dialog
+    :is(
+      .field-policy,
+      .field-policy span,
+      .field-help,
+      .quality-note,
+      .quality-note span,
+      .field-label b
+    ),
+  .auth-test-accounts :is(label, p, button),
+  .note-input-label > span,
+  .note-context-card small {
+    font-size: var(--qp-helper) !important;
+    font-weight: 400 !important;
+    line-height: 1.45 !important;
+  }
+  :is(.registration-dialog, .auth-form, .note-sheet)
+    :is(input:not([type='checkbox']):not([type='range']), select, textarea) {
+    border-radius: 13px !important;
+  }
+  :is(
+      .registration-dialog,
+      .auth-card,
+      .note-sheet,
+      .boost-dialog,
+      .subscription-dialog
+    )
+    .primary-button {
+    border-radius: 13px !important;
+  }
+
+  /* Chat keeps a comfortable reading size rather than shrinking to profile copy. */
+  .chat-row strong,
+  .thread-header strong,
+  .thread-name-link strong {
+    font-size: 1rem !important;
+    font-weight: 500 !important;
+    letter-spacing: -0.01em !important;
+  }
+  .chat-row small {
+    font-size: var(--qp-body) !important;
+    line-height: 1.5 !important;
+  }
+  .chat-row small.unread-copy,
+  .chat-empty-state strong,
+  .chat-presets button {
+    font-weight: 500 !important;
+  }
+  .icebreakers.inline button {
+    font-weight: 500 !important;
+  }
+  .bubble {
+    font-family: var(--qp-font) !important;
+    font-size: 0.9375rem !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+  }
+  .thread-header small,
+  .day-label,
+  .chat-meta time,
+  .message-time {
+    font-size: var(--qp-helper) !important;
+    font-weight: 400 !important;
+  }
+  .message-status {
+    font-size: var(--qp-helper) !important;
+    font-weight: 400 !important;
+  }
+
+  .note-context-card strong,
+  .note-input-label strong,
+  .boost-steps strong,
+  .plan-grid section > strong,
+  .plan-usage strong,
+  .galaxy-plan-tile strong,
+  .galaxy-plan-copy h3,
+  .engagement-nudge strong {
+    font-size: var(--qp-section) !important;
+    font-weight: 500 !important;
+  }
+  .incoming-note {
+    font-family: var(--qp-font) !important;
+    font-size: var(--qp-body) !important;
+    font-weight: 400 !important;
+    font-style: normal !important;
+    line-height: 1.6 !important;
+  }
+  .boost-packs em {
+    font-size: var(--qp-title) !important;
+    font-weight: 500 !important;
+  }
+  .plan-safety-status,
+  .chat-plan-card em {
+    font-size: var(--qp-helper) !important;
+    font-weight: 500 !important;
+  }
+  .boost-steps > div > span,
+  .boost-balance,
+  .plan-usage span,
+  .likes-tabs button,
+  .incoming-actions button,
+  .quick-filter-sheet .field-label,
+  .filter-section-title {
+    font-size: var(--qp-label) !important;
+    font-weight: 500 !important;
+  }
+  .flow-kicker,
+  .eyebrow,
+  .plan-dialog-kicker,
+  .today-composer-kicker,
+  .today-privacy-note,
+  .boost-pack-badge,
+  .likes-section-label,
+  .note-context-card small {
+    font-size: var(--qp-caption) !important;
+    font-weight: 400 !important;
+    line-height: 1.45 !important;
+  }
+  .galaxy-fit-badge,
+  .room-copy em,
+  .subscription-dialog .plan-grid section > span {
+    font-size: var(--qp-caption) !important;
+    font-weight: 400 !important;
+  }
+  .likes-tabs button > span {
+    font-size: var(--qp-helper) !important;
+    font-weight: 400 !important;
+    line-height: 1.3 !important;
+  }
+  .preview-screen .preview-header strong {
+    font-size: var(--qp-section) !important;
+    font-weight: 500 !important;
+  }
+
+  /* Readable navigation/counters without changing the icon/tap-target shapes. */
+  .tabbar button,
+  .tabbar .tab-label {
+    font-size: var(--qp-caption) !important;
+    font-weight: 400 !important;
+    line-height: 1.3 !important;
+  }
+  .tabbar button.active .tab-label {
+    font-weight: 500 !important;
+  }
+  :is(
+    .tab-badge,
+    .incoming-badge,
+    .chat-meta b,
+    .today-count-badge,
+    .filter-button > span
+  ) {
+    font-size: var(--qp-helper) !important;
+    font-weight: 400 !important;
+    line-height: 1 !important;
+    min-width: 18px;
+    min-height: 18px;
+  }
+  .tabbar .tab-label {
+    white-space: nowrap;
+  }
+
+  /* Editorial Midnight (A): quiet captions, readable answers, photo-first. */
+  .profile-sheet .profile-title h2 {
+    font-size: 26px !important;
+    line-height: 1.2 !important;
+    letter-spacing: -0.7px !important;
+  }
+  .profile-page .passport-details-list .setting-heading small,
+  .profile-sheet .profile-details .section-label,
+  .profile-sheet .full-passport-facts small,
+  .registration-dialog .field-label,
+  .registration-dialog .choice-group > p {
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+    letter-spacing: 0.02em !important;
+    text-transform: none !important;
+    color: var(--muted-foreground) !important;
+  }
+  .profile-page
+    .passport-details-list
+    :is(p, .setting-heading strong, .profile-detail-lines span),
+  .profile-sheet .profile-details :is(p, .full-passport-facts strong) {
+    font-size: 14px !important;
+    font-weight: 400 !important;
+    line-height: 1.6 !important;
+  }
+  .profile-page .passport-details-list > section {
+    padding: 20px 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  .profile-sheet .profile-details {
+    padding: 0 20px 24px !important;
+  }
+  .profile-sheet .profile-details > section {
+    padding: 20px 0 !important;
+  }
+  .profile-sheet .profile-details .section-label {
+    display: block;
+    margin-bottom: 8px !important;
+  }
+  .profile-sheet .full-passport-facts {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 20px 10px !important;
+    padding: 20px 0 !important;
+  }
+  .profile-sheet .full-passport-facts > div {
+    border: 0 !important;
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  .profile-sheet .full-passport-facts > div > svg {
+    display: block !important;
+    flex: 0 0 17px;
+    width: 17px;
+    height: 17px;
+    margin-top: 2px;
+    color: var(--foreground) !important;
+    opacity: 0.82;
+  }
+  .profile-sheet .full-passport-facts > div {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 9px !important;
+    min-width: 0;
+  }
+  .profile-sheet .full-passport-facts > div > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .profile-sheet .full-passport-facts small {
+    margin-bottom: 4px !important;
+  }
+  :is(.profile-page .passport-details-list, .profile-sheet .profile-details)
+    .detail-chips {
+    gap: 7px 14px !important;
+  }
+  :is(.profile-page .passport-details-list, .profile-sheet .profile-details)
+    .detail-chips
+    > span {
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    color: var(--foreground) !important;
+  }
+  .registration-dialog [data-slot='dialog-title'] {
+    font-size: 22px !important;
+    letter-spacing: -0.5px !important;
+  }
+  .registration-dialog .field-grid {
+    gap: 18px !important;
+  }
+  .registration-dialog .field-grid label {
+    gap: 7px !important;
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    color: var(--muted-foreground) !important;
+  }
+  .registration-dialog [data-slot='dialog-description'],
+  .registration-dialog .optional-fields-toggle small {
+    color: var(--muted-foreground) !important;
+    font-size: 12px !important;
+    font-weight: 400 !important;
+  }
+  .registration-dialog .optional-fields-toggle {
+    background: transparent !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--ui-border) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 12px 0 !important;
+    min-height: 44px !important;
+    font-weight: 400 !important;
+  }
+  .registration-dialog .field-grid :is(input, select, textarea) {
+    color: var(--foreground) !important;
+  }
+  .registration-dialog.registration-dialog .field-label {
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    color: var(--muted-foreground) !important;
+    letter-spacing: normal !important;
+  }
+  .registration-dialog .primary-button {
+    border-radius: 14px !important;
+  }
+  .profile-page
+    .passport-details-list
+    :is(p, .setting-heading strong, .profile-detail-lines span),
+  .profile-sheet .profile-details :is(p, .full-passport-facts strong) {
+    color: var(--foreground) !important;
+  }
+  .profile-page .editorial-own-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 17px 14px;
+    margin-top: 15px;
+  }
+  .profile-page .editorial-own-facts small {
+    display: block;
+    color: var(--muted-foreground) !important;
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    margin-bottom: 4px;
+  }
+  .registration-dialog .field-grid :is(input, select),
+  .registration-dialog textarea {
+    padding: 12px !important;
+    height: auto !important;
+    min-height: 48px !important;
+  }
+}

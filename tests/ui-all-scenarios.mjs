@@ -863,48 +863,44 @@ await evaluate(
 );
 await wait();
 await click('.profile-quick-actions button', 'App theme');
-await verify('Theme picker includes default and five alternatives', () =>
+await verify('Theme picker includes only the five Midnight colorways', () =>
   evaluate(
-    `document.querySelectorAll('.theme-option').length===6 && document.querySelector('.theme-dialog')?.textContent.includes('Solar Minimal') && document.querySelector('.theme-dialog')?.textContent.includes('Liquid Mono') && document.querySelector('.theme-dialog')?.textContent.includes('Liquid Lime')`,
+    `document.querySelectorAll('.theme-option').length===5 && ['default','electric-blue','spring-green','neon-orchid','vermilion'].every((id)=>document.querySelector('.theme-option[data-theme-choice="'+id+'"]'))`,
   ),
 );
-await verify('Default SpikeDate remains the starting theme', () =>
+await verify('Vermilion is the starting theme', () =>
   evaluate(
-    `document.querySelector('.theme-option[data-theme-choice="default"]')?.getAttribute('aria-pressed')==='true'`,
+    `document.querySelector('.theme-option[data-theme-choice="vermilion"]')?.getAttribute('aria-pressed')==='true'`,
   ),
 );
-await click('.theme-option', 'Aurora');
-await verify('Aurora theme applies immediately', () =>
-  evaluate(`document.documentElement.dataset.pulseTheme==='aurora'`),
+await click('.theme-option', 'Electric Blue');
+await verify('Electric Blue applies on Midnight surfaces', () =>
+  evaluate(`document.documentElement.dataset.pulseTheme==='default' && document.documentElement.dataset.pulseAccent==='electric-blue'`),
 );
 await click('.profile-quick-actions button', 'App theme');
-await click('.theme-option', 'Velvet Galaxy');
-await verify('Velvet Galaxy theme applies immediately', () =>
-  evaluate(`document.documentElement.dataset.pulseTheme==='velvet'`),
+await click('.theme-option', 'Spring Green');
+await verify('Spring Green applies immediately', () =>
+  evaluate(`document.documentElement.dataset.pulseAccent==='spring-green'`),
 );
 await click('.profile-quick-actions button', 'App theme');
-await click('.theme-option', 'Solar Minimal');
-await verify('Solar Minimal applies its light palette', () =>
-  evaluate(
-    `document.documentElement.dataset.pulseTheme==='solar' && getComputedStyle(document.querySelector('.phone-frame')).backgroundColor==='rgb(247, 243, 235)'`,
-  ),
+await click('.theme-option', 'Neon Orchid');
+await verify('Neon Orchid applies immediately', () =>
+  evaluate(`document.documentElement.dataset.pulseAccent==='neon-orchid'`),
 );
 await click('.profile-quick-actions button', 'App theme');
-await click('.theme-option', 'Liquid Mono');
-await verify('Liquid Mono applies monochrome glass styling', () =>
-  evaluate(
-    `document.documentElement.dataset.pulseTheme==='liquid' && getComputedStyle(document.documentElement).getPropertyValue('--coral').trim()==='#ffffff' && getComputedStyle(document.querySelector('.tabbar')).backdropFilter!=='none'`,
-  ),
+await click('.theme-option', 'Vermilion');
+await verify('Vermilion applies immediately', () =>
+  evaluate(`document.documentElement.dataset.pulseAccent==='vermilion'`),
 );
 await reload();
 await verify('Selected theme persists after reload', () =>
-  evaluate(`document.documentElement.dataset.pulseTheme==='liquid'`),
+  evaluate(`document.documentElement.dataset.pulseAccent==='vermilion'`),
 );
 await click('.tabbar button', 'Profile');
 await click('.profile-quick-actions button', 'App theme');
 await click('.theme-option', 'Midnight');
-await verify('User can restore Default SpikeDate', () =>
-  evaluate(`document.documentElement.dataset.pulseTheme==='default'`),
+await verify('User can restore Midnight', () =>
+  evaluate(`document.documentElement.dataset.pulseTheme==='default' && !document.documentElement.dataset.pulseAccent`),
 );
 await click('.self-row button');
 await verify('Registration step 1 collects basics', () =>
@@ -1038,9 +1034,9 @@ await verify('Deleting Today removes it and restores the post action', () =>
     `!JSON.parse(localStorage.getItem('pulse-daily-stories')).some(item=>item.authorEmail==='demo@spikedate.app') && document.querySelector('.profile-passport-topbar button')?.textContent.includes('Post Today') && !document.querySelector('.today-profile-actions')`,
   ),
 );
-await verify('Daily Today reminders are optional and time-configurable', () =>
+await verify('Today reminders are optional and time-configurable', () =>
   evaluate(
-    `document.querySelector('[aria-label="Enable Daily Today idea"]')?.getAttribute('aria-checked')==='true' && document.querySelectorAll('[aria-label="Today reminder time"] option').length===3 && document.querySelector('.today-reminder-time')?.textContent.includes('Shown only when you open SpikeDate')`,
+    `document.querySelector('[aria-label="Enable Share your Today"]')?.getAttribute('aria-checked')==='true' && document.querySelectorAll('[aria-label="Today reminder time"] option').length===3 && document.querySelector('.today-reminder-time')?.textContent.includes('Shown in-app when you return')`,
   ),
 );
 await click('.section-edit', 'Edit prompts');

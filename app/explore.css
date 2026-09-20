@@ -1,0 +1,150 @@
+/* Option C: compact, theme-aware Explore tabs. Technical Galaxy IDs stay intact. */
+@layer quiet-precision {
+  .explore-hub {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    padding-top: 26px;
+  }
+  .explore-hub .galaxy-page-header {
+    padding: 12px 2px 0 !important;
+  }
+  .explore-hub .galaxy-page-header h1 {
+    font-size: 24px !important;
+    color: var(--foreground) !important;
+    background: none !important;
+    -webkit-text-fill-color: currentColor !important;
+    text-shadow: none !important;
+  }
+  .explore-tabs {
+    display: flex;
+    gap: 5px;
+    padding: 4px;
+    border: 1px solid var(--ui-border);
+    border-radius: 13px;
+    background: var(--surface);
+  }
+  .explore-tabs button {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 3px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: 12px !important;
+    font-weight: 400 !important;
+  }
+  .explore-tabs button[aria-selected='true'] {
+    background: color-mix(in srgb, var(--foreground) 10%, var(--surface));
+    color: var(--foreground);
+  }
+  .explore-tabs button svg {
+    flex-shrink: 0;
+  }
+  .explore-hub [role='tabpanel'][hidden] {
+    display: none !important;
+  }
+  .explore-hub .galaxy-browse-heading {
+    margin: 0 0 8px !important;
+  }
+  .explore-hub .room-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .explore-hub .room-tile,
+  .explore-hub .room-tile.wide {
+    height: 98px !important;
+    grid-column: auto !important;
+    border-radius: 13px !important;
+    box-shadow: none !important;
+  }
+  .explore-hub .room-copy {
+    inset: auto 10px 9px !important;
+  }
+  .explore-hub .room-copy strong {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px !important;
+    font-weight: 400 !important;
+  }
+  .explore-hub .room-copy strong svg {
+    flex: 0 0 17px;
+  }
+  .explore-hub .room-copy small {
+    display: none !important;
+  }
+  .explore-hub .room-copy em {
+    display: block;
+    margin-top: 4px !important;
+    font-size: 11px !important;
+    color: #fff;
+    font-style: normal;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  .explore-hub .stand-note {
+    margin-top: 10px;
+    font-size: 11px !important;
+  }
+  .explore-hub .galaxy-plan-builder {
+    padding: 12px;
+    border-radius: 16px;
+    box-shadow: none;
+  }
+  .explore-hub .galaxy-plan-grid {
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .explore-hub .galaxy-plan-tile {
+    padding: 8px 3px;
+    min-height: 76px;
+    border-radius: 10px;
+  }
+  .explore-hub .galaxy-plan-result {
+    padding: 12px;
+    margin-top: 10px;
+    border-radius: 12px;
+  }
+  .explore-hub .galaxy-upcoming {
+    margin-top: 12px;
+  }
+  .explore-hub .astrology-discovery {
+    margin: 0;
+  }
+  .explore-games-shortcut {
+    width: 100%;
+    margin-top: 10px;
+    min-height: 72px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--ui-border);
+    border-radius: 16px;
+    background: var(--surface);
+    color: var(--foreground);
+    text-align: left;
+  }
+  .explore-games-shortcut > span {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .explore-games-shortcut small {
+    color: var(--muted-foreground);
+  }
+  .explore-games-shortcut > svg {
+    flex-shrink: 0;
+  }
+}

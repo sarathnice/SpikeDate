@@ -8,12 +8,15 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { cameraQualityMessage } from '@/lib/camera-quality';
+import { detectCaptureFaces } from '@/lib/face-capture';
 
 export type PhotoVerificationStatus =
   | 'unverified'
   | 'pending'
   | 'needs_review'
   | 'needs_retry'
+  | 'capture_ready'
   | 'photo_verified'
   | 'identity_verified';
 
@@ -24,15 +27,6 @@ type FrameMetrics = {
   frameCount: number;
   captureDigest: string;
 };
-
-type FaceDetectorLike = {
-  detect: (source: HTMLCanvasElement) => Promise<unknown[]>;
-};
-
-type FaceDetectorConstructor = new (options?: {
-  fastMode?: boolean;
-  maxDetectedFaces?: number;
-}) => FaceDetectorLike;
 
 export function assessCameraFrame(data: Uint8ClampedArray) {
   let luminance = 0;
@@ -53,19 +47,6 @@ export function assessCameraFrame(data: Uint8ClampedArray) {
     brightness: samples ? luminance / samples : 0,
     sharpness: samples > 1 ? contrast / (samples - 1) : 0,
   };
-}
-
-function frameMessage(metrics: Omit<FrameMetrics, 'captureDigest'>) {
-  if (metrics.brightness < 42) return 'Move somewhere brighter and try again.';
-  if (metrics.brightness > 225)
-    return 'Reduce the light directly behind or in front of you.';
-  if (metrics.sharpness < 4.5)
-    return 'Hold the phone steady and let the camera focus.';
-  if (metrics.faceCount === 0)
-    return 'Keep one face completely inside the oval.';
-  if (metrics.faceCount !== null && metrics.faceCount > 1)
-    return 'Only one person can complete this safety check.';
-  return '';
 }
 
 async function digestCanvas(canvas: HTMLCanvasElement) {
@@ -92,6 +73,7 @@ export function PhotoVerificationDialog({
   serverEnabled,
   accountKey,
   onStatusChange,
+  registration = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -99,15 +81,19 @@ export function PhotoVerificationDialog({
   serverEnabled: boolean;
   accountKey: string;
   onStatusChange: (status: PhotoVerificationStatus) => void;
+  registration?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const requestId = useRef('');
-  const [stage, setStage] = useState<'intro' | 'camera' | 'result'>('intro');
+  const generation = useRef(0);
+  const [stage, setStage] = useState<'intro' | 'camera' | 'review' | 'result'>('intro');
   const [consented, setConsented] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [testMode, setTestMode] = useState(false);
+  const [pendingCapture, setPendingCapture] = useState<FrameMetrics | null>(null);
+  const [capturedPreview, setCapturedPreview] = useState('');
 
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -115,25 +101,80 @@ export function PhotoVerificationDialog({
     if (videoRef.current) videoRef.current.srcObject = null;
   };
 
+  const cancelPending = () => {
+    const attempt = generation.current;
+    const id = requestId.current;
+    requestId.current = '';
+    if (serverEnabled && id)
+      void fetch('/api/verification', {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel', requestId: id }),
+      })
+        .then((response) => {
+          if (response.ok && attempt === generation.current)
+            onStatusChange('unverified');
+        })
+        .catch(() => {});
+  };
+
   useEffect(() => {
+    generation.current += 1;
+    setBusy(false);
     if (!open) {
       stopCamera();
+      setPendingCapture(null);
+      setCapturedPreview('');
       return;
     }
-    setStage(status === 'unverified' ? 'intro' : 'result');
+    setStage(
+      status === 'unverified' || status === 'needs_retry' ? 'intro' : 'result',
+    );
     setConsented(false);
     setMessage('');
     setTestMode(false);
-    return stopCamera;
+    setPendingCapture(null);
+    setCapturedPreview('');
+    return () => {
+      generation.current += 1;
+      stopCamera();
+    };
   }, [open, status]);
+
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState !== 'hidden') return;
+      generation.current += 1;
+      stopCamera();
+      cancelPending();
+      setStage('intro');
+      setBusy(false);
+      setMessage(
+        'Camera paused while the app was in the background. Start again when ready.',
+      );
+    };
+    if (open) document.addEventListener('visibilitychange', onHide);
+    return () => document.removeEventListener('visibilitychange', onHide);
+  }, [open]);
+
+  useEffect(() => {
+    if (stage === 'camera' && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      void videoRef.current.play().catch(() => {});
+    }
+  }, [stage]);
 
   const startCamera = async () => {
     if (!consented || busy) return;
+    const attempt = ++generation.current;
     setBusy(true);
     setMessage('');
     try {
       if (!navigator.mediaDevices?.getUserMedia)
-        throw new Error('This device does not provide camera access here.');
+        throw new Error(
+          'Camera access requires HTTPS (or localhost) and a supported browser. Open the secure app on a camera-equipped device and retry.',
+        );
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
@@ -142,8 +183,12 @@ export function PhotoVerificationDialog({
           height: { ideal: 720 },
         },
       });
+      if (attempt !== generation.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
-      if (serverEnabled) {
+      if (serverEnabled && !requestId.current) {
         const response = await fetch('/api/verification', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -156,27 +201,39 @@ export function PhotoVerificationDialog({
         };
         if (!response.ok || !result.request)
           throw new Error(result.error || 'The safety check could not start.');
+        if (attempt !== generation.current) {
+          void fetch('/api/verification', {
+            method: 'POST',
+            keepalive: true,
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              action: 'cancel',
+              requestId: result.request.id,
+            }),
+          }).catch(() => {});
+          return;
+        }
         requestId.current = result.request.id;
         setTestMode(Boolean(result.testMode));
-      } else {
+      } else if (!serverEnabled) {
         requestId.current = `local_${Date.now()}`;
         setTestMode(true);
       }
       setStage('camera');
-      window.setTimeout(() => {
-        if (!videoRef.current) return;
-        videoRef.current.srcObject = stream;
-        void videoRef.current.play().catch(() => {});
-      }, 0);
     } catch (error) {
-      stopCamera();
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : 'Camera access was not available. Try again.',
-      );
+      if (attempt === generation.current) stopCamera();
+      if (attempt === generation.current)
+        setMessage(
+          error instanceof Error
+            ? error.name === 'NotAllowedError'
+              ? 'Camera permission was denied. Allow camera access in your browser settings and retry, or finish later.'
+              : error.name === 'NotFoundError'
+                ? 'No camera was found. Use a device with a front camera, or finish later.'
+                : error.message
+            : 'Camera access was not available. Try again.',
+        );
     } finally {
-      setBusy(false);
+      if (attempt === generation.current) setBusy(false);
     }
   };
 
@@ -187,6 +244,7 @@ export function PhotoVerificationDialog({
       return;
     }
     setBusy(true);
+    const attempt = ++generation.current;
     setMessage('Checking lighting, focus, and face position…');
     try {
       const canvas = document.createElement('canvas');
@@ -211,32 +269,60 @@ export function PhotoVerificationDialog({
       const { brightness, sharpness } = assessCameraFrame(
         context.getImageData(0, 0, canvas.width, canvas.height).data,
       );
-      const Detector = (
-        window as typeof window & { FaceDetector?: FaceDetectorConstructor }
-      ).FaceDetector;
-      const faceCount = Detector
-        ? (
-            await new Detector({ fastMode: true, maxDetectedFaces: 2 }).detect(
-              canvas,
-            )
-          ).length
-        : null;
+      let detection: Awaited<ReturnType<typeof detectCaptureFaces>>;
+      try {
+        detection = await detectCaptureFaces(canvas);
+      } catch {
+        throw new Error(
+          'Face detection could not load. Check your connection and retry; your profile has not been verified.',
+        );
+      }
+      if (attempt !== generation.current) return;
+      const { faceCount, positioned } = detection;
       const metrics = {
         brightness,
         sharpness,
         faceCount,
         frameCount: 1,
       };
-      const qualityMessage = frameMessage(metrics);
+      const qualityMessage = cameraQualityMessage(metrics);
       if (qualityMessage) {
         setMessage(qualityMessage);
+        return;
+      }
+      if (!positioned) {
+        setMessage('Move closer and center your whole face inside the oval.');
         return;
       }
       const payload: FrameMetrics = {
         ...metrics,
         captureDigest: await digestCanvas(canvas),
       };
-      let nextStatus: PhotoVerificationStatus = 'photo_verified';
+      if (attempt !== generation.current) return;
+      setPendingCapture(payload);
+      setCapturedPreview(canvas.toDataURL('image/jpeg', 0.9));
+      stopCamera();
+      setStage('review');
+      setMessage('');
+    } catch (error) {
+      if (attempt === generation.current)
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'The camera check could not finish. Try again.',
+        );
+    } finally {
+      if (attempt === generation.current) setBusy(false);
+    }
+  };
+
+  const saveCapture = async () => {
+    if (!pendingCapture || busy) return;
+    const attempt = ++generation.current;
+    setBusy(true);
+    setMessage('Saving your camera check…');
+    try {
+      let nextStatus: PhotoVerificationStatus = 'capture_ready';
       if (serverEnabled) {
         const response = await fetch('/api/verification', {
           method: 'POST',
@@ -244,7 +330,7 @@ export function PhotoVerificationDialog({
           body: JSON.stringify({
             action: 'complete',
             requestId: requestId.current,
-            metrics: payload,
+            metrics: pendingCapture,
           }),
         });
         const result = (await response.json()) as {
@@ -255,25 +341,29 @@ export function PhotoVerificationDialog({
         if (!response.ok)
           throw new Error(result.error || 'The safety check could not finish.');
         nextStatus = result.status || 'needs_review';
+        requestId.current = '';
+        if (attempt !== generation.current) return;
         setTestMode(Boolean(result.testMode));
       } else {
         window.localStorage.setItem(
           `spikedate-photo-verification:${accountKey}`,
-          'photo_verified',
+          'capture_ready',
         );
       }
-      stopCamera();
+      setPendingCapture(null);
+      setCapturedPreview('');
       onStatusChange(nextStatus);
       setStage('result');
       setMessage('');
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : 'The camera check could not finish. Try again.',
-      );
+      if (attempt === generation.current)
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'The camera check could not be saved. Try again.',
+        );
     } finally {
-      setBusy(false);
+      if (attempt === generation.current) setBusy(false);
     }
   };
 
@@ -312,16 +402,28 @@ export function PhotoVerificationDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) stopCamera();
+        if (!next) {
+          generation.current += 1;
+          stopCamera();
+          cancelPending();
+        }
         onOpenChange(next);
       }}
     >
-      <DialogContent showCloseButton={false} className="verification-dialog">
+      <DialogContent
+        showCloseButton={false}
+        className={`verification-dialog ${stage === 'camera' || stage === 'review' ? 'verification-dialog-capture' : ''}`}
+      >
         <button
           type="button"
           className="match-close"
           aria-label="Close photo verification"
-          onClick={() => onOpenChange(false)}
+          onClick={() => {
+            generation.current += 1;
+            stopCamera();
+            cancelPending();
+            onOpenChange(false);
+          }}
         >
           <X size={19} />
         </button>
@@ -331,18 +433,21 @@ export function PhotoVerificationDialog({
             <div className="verification-shield" aria-hidden="true">
               <ShieldCheck size={32} />
             </div>
-            <p className="verification-kicker">PROFILE SAFETY</p>
-            <DialogTitle>Confirm you match your photos</DialogTitle>
+            <p className="verification-kicker">
+              {registration ? 'REGISTRATION · CAMERA CHECK' : 'PROFILE SAFETY'}
+            </p>
+            <DialogTitle>Capture your face</DialogTitle>
             <DialogDescription>
-              A private camera check helps people know that a live person
-              resembles the main profile photo.
+              One clear face, in even light. This prepares a capture—it does not
+              verify identity or test liveness.
             </DialogDescription>
             <div className="verification-points">
               <span>
                 <Check size={17} /> Uses the front camera only
               </span>
               <span>
-                <Check size={17} /> Checks lighting, focus, and one visible face
+                <Check size={17} /> Checks lighting, image detail, and one
+                visible face
               </span>
               <span>
                 <Check size={17} /> Never adds this selfie to your profile
@@ -355,9 +460,9 @@ export function PhotoVerificationDialog({
                 onChange={(event) => setConsented(event.target.checked)}
               />
               <span>
-                I consent to this one-time camera safety check. I understand
-                that Photo Verified does not verify someone’s background or
-                intentions.
+                I consent to on-device face detection. The selfie is not
+                uploaded or saved; only a capture hash and check status are
+                stored. This does not verify my identity.
               </span>
             </label>
             {message && (
@@ -375,53 +480,92 @@ export function PhotoVerificationDialog({
               {busy ? 'Starting camera…' : 'Start camera check'}
             </button>
             <p className="verification-privacy">
-              The test build evaluates the camera frame without uploading the
-              selfie. Production biometric matching requires the configured
-              verification provider.
+              Liveness and profile-photo matching are not connected yet. No
+              verified badge is issued by this check. Your new profile stays
+              private until verification is completed.
             </p>
+            <button
+              type="button"
+              className="verification-secondary"
+              disabled={busy}
+              onClick={() => onOpenChange(false)}
+            >
+              Finish later
+            </button>
           </>
         )}
 
         {stage === 'camera' && (
           <>
-            <p className="verification-kicker">LIVE CAMERA CHECK</p>
-            <DialogTitle>Place your face inside the oval</DialogTitle>
-            <DialogDescription>
-              Face forward in even light. Remove sunglasses and keep everyone
-              else out of the frame.
-            </DialogDescription>
-            <div className="verification-camera">
-              <video ref={videoRef} autoPlay muted playsInline />
-              <span className="verification-face-guide" aria-hidden="true" />
-              <span className="verification-live-dot">LIVE</span>
+            <div className="verification-capture-header">
+              <p className="verification-kicker">ON-DEVICE FACE DETECTION</p>
+              <DialogTitle>Place your face inside the oval</DialogTitle>
+              <DialogDescription>
+                Face forward in even light. Keep everyone else out of the frame.
+              </DialogDescription>
             </div>
-            {message && (
-              <p
-                className={`verification-message ${message.startsWith('Checking') ? '' : 'error'}`}
-                role="status"
+            <div className="verification-capture-body">
+              <div className="verification-camera">
+                <video ref={videoRef} autoPlay muted playsInline />
+                <span className="verification-face-guide" aria-hidden="true" />
+                <span className="verification-live-dot">LIVE</span>
+              </div>
+            </div>
+            <div className="verification-capture-actions">
+              {message && (
+                <p className={`verification-message ${message.startsWith('Checking') ? '' : 'error'}`} role="status">
+                  {message}
+                </p>
+              )}
+              <button type="button" className="primary-button verification-primary" onClick={capture} disabled={busy}>
+                <Camera size={19} /> {busy ? 'Checking…' : 'Capture and check'}
+              </button>
+              <button
+                type="button"
+                className="verification-secondary"
+                onClick={() => {
+                  stopCamera();
+                  generation.current += 1;
+                  cancelPending();
+                  setStage('intro');
+                  setMessage('');
+                }}
               >
-                {message}
-              </p>
-            )}
-            <button
-              type="button"
-              className="primary-button verification-primary"
-              onClick={capture}
-              disabled={busy}
-            >
-              <Camera size={19} /> {busy ? 'Checking…' : 'Capture and check'}
-            </button>
-            <button
-              type="button"
-              className="verification-secondary"
-              onClick={() => {
-                stopCamera();
-                setStage('intro');
-                setMessage('');
-              }}
-            >
-              Back
-            </button>
+                Back
+              </button>
+            </div>
+          </>
+        )}
+
+        {stage === 'review' && (
+          <>
+            <div className="verification-capture-header">
+              <p className="verification-kicker">REVIEW YOUR CAPTURE</p>
+              <DialogTitle>Is your face clear and centered?</DialogTitle>
+              <DialogDescription>
+                Retake if needed, or save this camera check. The selfie is not stored or added to your profile.
+              </DialogDescription>
+            </div>
+            <div className="verification-capture-body">
+              <div className="verification-camera verification-captured-preview">
+                {/* Ephemeral camera frame; never sent to the server. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={capturedPreview} alt="Captured face for review" />
+              </div>
+            </div>
+            <div className="verification-capture-actions">
+              {message && <p className="verification-message error" role="alert">{message}</p>}
+              <button type="button" className="primary-button verification-primary" onClick={saveCapture} disabled={busy}>
+                <Check size={19} /> {busy ? 'Saving check…' : 'Save camera check'}
+              </button>
+              <button type="button" className="verification-secondary" onClick={() => {
+                setPendingCapture(null);
+                setCapturedPreview('');
+                void startCamera();
+              }} disabled={busy}>
+                <RefreshCw size={17} /> Retake
+              </button>
+            </div>
           </>
         )}
 
@@ -433,24 +577,27 @@ export function PhotoVerificationDialog({
               {verified ? <Check size={34} /> : <ShieldCheck size={32} />}
             </div>
             <p className="verification-kicker">PROFILE SAFETY</p>
-            <DialogTitle>
+            <DialogTitle aria-live="polite">
               {verified
                 ? 'Your photos are verified'
-                : status === 'needs_retry'
-                  ? 'Another capture is needed'
-                  : 'Your check is under review'}
+                : status === 'capture_ready'
+                  ? 'Camera check complete'
+                  : status === 'needs_retry'
+                    ? 'Another capture is needed'
+                    : 'Photo verification is not complete'}
             </DialogTitle>
             <DialogDescription>
               {verified
                 ? 'A Photo Verified badge now appears with your SpikeDate profile.'
-                : status === 'needs_retry'
-                  ? 'Try again with one face, steady focus, and even lighting.'
-                  : 'We will update the badge after the configured provider completes the check.'}
+                : status === 'capture_ready'
+                  ? 'One clear face was detected. Liveness and profile-photo matching still require a verification provider. This check does not issue a verified badge or make a new profile discoverable.'
+                  : status === 'needs_retry'
+                    ? 'Try again with one face, steady focus, and even lighting.'
+                    : 'Photo verification is not complete. Liveness and profile-photo matching require a connected verification provider.'}
             </DialogDescription>
             {testMode && (
               <p className="verification-test-mode">
-                Test mode · camera quality flow verified without retaining a
-                selfie
+                Local test mode · no identity decision and no retained selfie
               </p>
             )}
             {message && (

@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { connectionSchema, connectionFromRow } from '@/lib/profile-connection';
+import { isAdult } from '@/lib/account-validation';
+import { zodiacFromBirthDate } from '@/lib/astrology';
 import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { json, readJson } from '@/lib/server/http';
@@ -10,6 +13,8 @@ import {
 export const runtime = 'edge';
 
 const profileSchema = z.object({
+  birthDate: z.iso.date().refine((value) => isAdult(value)),
+  gender: z.string().trim().min(1).max(40),
   displayName: z.string().trim().min(2).max(50),
   bio: z.string().trim().max(500),
   pronouns: z.string().trim().max(40).nullable(),
@@ -38,6 +43,7 @@ const preferencesSchema = z.object({
 });
 
 const schema = z.discriminatedUnion('section', [
+  z.object({ section: z.literal('connection'), data: connectionSchema }),
   z.object({ section: z.literal('profile'), data: profileSchema.partial() }),
   z.object({ section: z.literal('preferences'), data: preferencesSchema }),
   z.object({
@@ -101,7 +107,7 @@ export async function GET(request: Request) {
         .all(),
       db
         .prepare(
-          'SELECT id, text, visibility, available_tonight, expires_at FROM daily_updates WHERE user_id = ? AND expires_at > ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1',
+          'SELECT id, text, visibility, available_tonight, created_at, expires_at FROM daily_updates WHERE user_id = ? AND expires_at > ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1',
         )
         .bind(user.id, Date.now())
         .first(),
@@ -130,7 +136,20 @@ export async function GET(request: Request) {
         }>(),
     ]);
     const readiness = await getProfileReadiness(db, user.id);
+    const connection = connectionFromRow(
+      await db
+        .prepare('SELECT * FROM profile_connections WHERE user_id = ?')
+        .bind(user.id)
+        .first(),
+    );
+    const birth = await db
+      .prepare('SELECT birth_date FROM users WHERE id = ?')
+      .bind(user.id)
+      .first<{ birth_date: string }>();
     return json({
+      connection,
+      zodiac: zodiacFromBirthDate(birth?.birth_date),
+      birthDate: birth?.birth_date ?? null,
       user,
       profile,
       preferences,
@@ -167,11 +186,31 @@ export async function PATCH(request: Request) {
     const user = await requireUser(request, db);
     if (user instanceof Response) return user;
     const now = Date.now();
-    if (parsed.data.section === 'profile') {
-      const entries = Object.entries(parsed.data.data);
-      if (!entries.length) return json({ ok: true });
+    if (parsed.data.section === 'connection') {
+      const data = parsed.data.data;
+      await db
+        .prepare(
+          'INSERT INTO profile_connections (user_id, relationship_style, dating_pace, communication_preference, values_json, rhythm_json, languages_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET relationship_style = excluded.relationship_style, dating_pace = excluded.dating_pace, communication_preference = excluded.communication_preference, values_json = excluded.values_json, rhythm_json = excluded.rhythm_json, languages_json = excluded.languages_json, updated_at = excluded.updated_at',
+        )
+        .bind(
+          user.id,
+          data.relationshipStyle,
+          data.datingPace,
+          data.communicationPreference,
+          JSON.stringify(data.values),
+          JSON.stringify(data.rhythm),
+          JSON.stringify(data.languages),
+          now,
+          now,
+        )
+        .run();
+    } else if (parsed.data.section === 'profile') {
+      const { birthDate, ...profileData } = parsed.data.data;
+      const entries = Object.entries(profileData);
+      if (!entries.length && !birthDate) return json({ ok: true });
       const columns: Record<string, string> = {
         displayName: 'display_name',
+        gender: 'gender',
         bio: 'bio',
         pronouns: 'pronouns',
         occupation: 'occupation',
@@ -189,14 +228,26 @@ export async function PATCH(request: Request) {
         discoverable: 'discoverable_requested',
       };
       const assignments = entries.map(([key]) => columns[key] + ' = ?');
-      await db
-        .prepare(
-          'UPDATE profiles SET ' +
-            assignments.join(', ') +
-            ', completed_at = COALESCE(completed_at, ?), updated_at = ? WHERE user_id = ?',
-        )
-        .bind(...entries.map(([, value]) => value), now, now, user.id)
-        .run();
+      const updates = [];
+      if (birthDate)
+        updates.push(
+          db
+            .prepare(
+              'UPDATE users SET birth_date = ?, updated_at = ? WHERE id = ?',
+            )
+            .bind(birthDate, now, user.id),
+        );
+      if (entries.length)
+        updates.push(
+          db
+            .prepare(
+              'UPDATE profiles SET ' +
+                assignments.join(', ') +
+                ', completed_at = COALESCE(completed_at, ?), updated_at = ? WHERE user_id = ?',
+            )
+            .bind(...entries.map(([, value]) => value), now, now, user.id),
+        );
+      await db.batch(updates);
     } else if (parsed.data.section === 'preferences') {
       if (parsed.data.data.minAge > parsed.data.data.maxAge)
         return json(
@@ -209,7 +260,9 @@ export async function PATCH(request: Request) {
             'relationship_goals_json = ?, dealbreakers_json = ?, updated_at = ? WHERE user_id = ?',
         )
         .bind(
-          JSON.stringify(parsed.data.data.genders),
+          JSON.stringify(
+            parsed.data.data.genders.map((gender) => gender.toLowerCase()),
+          ),
           parsed.data.data.minAge,
           parsed.data.data.maxAge,
           parsed.data.data.maxDistanceKm,
@@ -224,7 +277,7 @@ export async function PATCH(request: Request) {
         .prepare('SELECT id FROM profile_prompts WHERE user_id = ?')
         .bind(user.id)
         .all<{ id: string }>();
-      await db.batch([
+      const statements = [
         ...existing.results.map((item) =>
           db.prepare('DELETE FROM profile_prompts WHERE id = ?').bind(item.id),
         ),
@@ -243,7 +296,8 @@ export async function PATCH(request: Request) {
               now,
             ),
         ),
-      ]);
+      ];
+      if (statements.length) await db.batch(statements);
     } else {
       const existing = await db
         .prepare('SELECT interest_id FROM user_interests WHERE user_id = ?')
@@ -263,7 +317,7 @@ export async function PATCH(request: Request) {
           };
         }),
       );
-      await db.batch([
+      const statements = [
         ...existing.results.map((item) =>
           db
             .prepare(
@@ -287,7 +341,8 @@ export async function PATCH(request: Request) {
             )
             .bind(user.id, item.id),
         ]),
-      ]);
+      ];
+      if (statements.length) await db.batch(statements);
     }
     const readiness = await reconcileDiscoverability(db, user.id);
     return json({ ok: true, section: parsed.data.section, readiness });

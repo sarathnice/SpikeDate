@@ -1,0 +1,114 @@
+.astrology-discovery {
+  margin: 16px 0;
+}
+.astrology-method {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.astrology-method summary {
+  cursor: pointer;
+  min-height: 32px;
+}
+.astrology-tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--foreground);
+  text-align: left;
+}
+.astrology-tile > span {
+  flex: 1;
+}
+.astrology-tile strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 400;
+}
+.astrology-tile small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.astrology-dialog {
+  max-height: 85dvh;
+  overflow-y: auto;
+  color: var(--foreground);
+  background: var(--background);
+}
+.astrology-disclaimer {
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+}
+.astrology-opt-in {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+.astrology-opt-in input {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  accent-color: var(--coral);
+}
+.astrology-filter {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.astrology-filter select {
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  color: var(--foreground);
+  background: var(--background);
+}
+.astrology-people {
+  display: grid;
+  gap: 12px;
+}
+.astrology-people article {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+}
+.astrology-people img {
+  width: 56px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.astrology-people article > div {
+  flex: 1;
+  min-width: 0;
+}
+.astrology-people strong {
+  font-size: 14px;
+  font-weight: 400;
+}
+.astrology-people small {
+  display: block;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.astrology-people button {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 6px;
+  color: var(--foreground);
+  font-size: 13px;
+  background: transparent;
+}

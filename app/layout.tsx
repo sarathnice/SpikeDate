@@ -1,6 +1,27 @@
 import type { Metadata } from 'next';
 import { Inter, Playfair_Display, Poppins } from 'next/font/google';
 import './globals.css';
+import './count-typography.css';
+import './registration-vibe.css';
+import './profile-connection.css';
+import './photo-quality.css';
+import './quiet-rail.css';
+import './connections.css';
+import './profile-atelier.css';
+import './profile-preview.css';
+import './chat-midnight.css';
+import './gallery-glass.css';
+import './quiet-precision.css';
+import './astrology.css';
+import './games.css';
+import './explore.css';
+import './send-spike.css';
+import './popup-editorial.css';
+import './high-intent-moment.css';
+import './reminder-moments.css';
+import './midnight-actions.css';
+import './midnight-color-variants.css';
+import './counts-lift.css';
 
 const inter = Inter({
   variable: '--font-inter',

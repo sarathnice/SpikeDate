@@ -1,0 +1,22 @@
+/* Declare before theme/legacy important layers so every theme shares one
+   numeric role. Labels, profile ages and other text are intentionally unchanged. */
+@layer count-typography {
+  :root
+    .phone-frame
+    :is(.filter-button > span, .tab-badge, .today-count-badge) {
+    font-family: var(--font-inter), Inter, sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 300 !important;
+    font-style: normal !important;
+    line-height: 16px !important;
+    letter-spacing: 0 !important;
+    font-variant-numeric: tabular-nums !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 18px;
+    min-height: 18px;
+  }
+}

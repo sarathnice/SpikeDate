@@ -1,0 +1,266 @@
+/* Grouped reminder preferences and the shared Quiet Card presentation. */
+.profile-page .engagement-settings-card {
+  background: var(--surface);
+}
+
+.profile-page .reminder-settings-group {
+  padding-top: 14px;
+}
+
+.profile-page .reminder-settings-group + .reminder-settings-group {
+  margin-top: 2px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.profile-page .reminder-settings-group-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+:root .profile-page .reminder-settings-group-heading strong {
+  color: var(--coral);
+  font-family: var(--font-inter), Inter, Arial, sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.09em !important;
+}
+
+.profile-page .reminder-settings-group-heading small {
+  color: var(--muted-foreground);
+  font-size: 0.68rem !important;
+  font-weight: 400 !important;
+  text-align: right;
+}
+
+.profile-page .reminder-settings-group .engagement-setting-toggle {
+  min-height: 54px;
+  border-top: 0;
+  padding: 7px 0 !important;
+  gap: 10px !important;
+}
+
+.profile-page .reminder-settings-group .reminder-setting-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 31px !important;
+  width: 31px;
+  height: 31px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--foreground) 7%, var(--surface));
+  color: var(--coral);
+}
+
+.profile-page .reminder-settings-group .reminder-setting-copy {
+  flex: 1 1 auto !important;
+}
+
+.profile-page .reminder-settings-group .reminder-setting-copy strong {
+  font-size: 0.79rem !important;
+  font-weight: 500 !important;
+}
+
+.profile-page .reminder-settings-group .reminder-setting-copy p {
+  margin-top: 2px;
+  font-size: 0.7rem !important;
+  font-weight: 400 !important;
+}
+
+.profile-page .reminder-preview-disclosure {
+  margin-top: 9px;
+  padding-top: 11px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.profile-page .reminder-preview-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  color: var(--foreground);
+  font-family: var(--font-inter), Inter, Arial, sans-serif;
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+
+.profile-page .reminder-preview-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.profile-page .reminder-preview-disclosure > summary svg:first-child {
+  color: var(--coral);
+}
+
+.profile-page .reminder-preview-disclosure > summary svg:last-child {
+  margin-left: auto;
+  color: var(--muted-foreground);
+  transition: transform 160ms ease;
+}
+
+.profile-page .reminder-preview-disclosure[open] > summary svg:last-child {
+  transform: rotate(180deg);
+}
+
+.profile-page .reminder-preview-disclosure > p {
+  margin: 3px 0 11px;
+  color: var(--muted-foreground);
+  font-size: 0.69rem !important;
+  font-weight: 400 !important;
+}
+
+.reminder-preview-switcher {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.reminder-preview-switcher button {
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--ui-border);
+  border-radius: 11px;
+  background: var(--control-bg);
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.reminder-preview-switcher button[aria-pressed='true'] {
+  border-color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 14%, var(--surface));
+  color: var(--foreground);
+}
+
+.engagement-prompt {
+  padding: 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: 19px;
+  background: color-mix(in srgb, var(--background) 96%, var(--foreground) 4%);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.27);
+  backdrop-filter: none;
+}
+
+.engagement-prompt:not(.super) .engagement-prompt-heading {
+  grid-template-columns: 42px minmax(0, 1fr) 44px;
+}
+
+.engagement-prompt:not(.super) .engagement-prompt-icon {
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--coral);
+  color: var(--action-foreground);
+  box-shadow: none;
+}
+
+.engagement-prompt.boost .engagement-prompt-icon,
+.engagement-prompt.boost .engagement-prompt-actions .primary {
+  background: var(--amber);
+  color: var(--background);
+}
+
+.engagement-prompt.boost .engagement-prompt-icon .profile-lift-mark,
+.engagement-prompt.boost .engagement-prompt-icon .profile-lift-mark svg {
+  color: var(--background) !important;
+}
+
+.engagement-prompt:not(.super) .engagement-prompt-heading small {
+  margin-bottom: 3px;
+  color: var(--muted-foreground);
+  font-size: 0.63rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+
+.engagement-prompt:not(.super) .engagement-prompt-heading strong {
+  overflow: visible;
+  font-family: var(--font-poppins), Poppins, sans-serif;
+  font-size: 1.04rem;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.engagement-prompt:not(.super) .engagement-prompt-copy {
+  margin-top: 12px;
+  font-size: 0.79rem;
+  font-weight: 400;
+  line-height: 1.48;
+}
+
+.engagement-prompt:not(.super) .engagement-prompt-meta {
+  margin-top: 10px;
+  color: var(--foreground);
+  font-size: 0.71rem;
+  font-weight: 400;
+}
+
+.engagement-prompt .engagement-prompt-close {
+  background: transparent;
+}
+
+.engagement-prompt .engagement-prompt-actions {
+  display: block;
+  margin-top: 14px;
+}
+
+.engagement-prompt .engagement-prompt-actions .primary {
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--coral);
+  color: var(--action-foreground);
+  font-family: var(--font-poppins), Poppins, sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.engagement-prompt.super .engagement-prompt-actions .primary {
+  background: var(--super-spike);
+  color: var(--super-spike-foreground);
+}
+
+.profile-page .engagement-prompt.reminder-preview-card {
+  position: static;
+  inset: auto;
+  width: 100%;
+  margin: 0;
+  padding: 13px;
+  animation: none;
+  box-shadow: none;
+}
+
+.profile-page .engagement-prompt.reminder-preview-card .engagement-prompt-heading {
+  grid-template-columns: 40px minmax(0, 1fr) 28px;
+  gap: 8px;
+}
+
+.profile-page .engagement-prompt.reminder-preview-card .engagement-prompt-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.profile-page .engagement-prompt.reminder-preview-card .engagement-prompt-heading strong {
+  font-size: 0.91rem;
+}
+
+.profile-page .engagement-prompt.reminder-preview-card .engagement-prompt-close {
+  width: 28px;
+  height: 28px;
+}
+
+.profile-page .engagement-prompt.reminder-preview-card .engagement-prompt-actions .primary:disabled {
+  opacity: 1;
+  cursor: default;
+}

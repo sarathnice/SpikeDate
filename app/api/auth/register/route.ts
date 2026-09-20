@@ -5,6 +5,7 @@ import { identifier, json, readJson } from '@/lib/server/http';
 import {
   emailSchema,
   passwordSchema,
+  isAdult,
   validationError,
 } from '@/lib/server/validation';
 import {
@@ -24,14 +25,6 @@ const schema = z.object({
   termsAccepted: z.literal(true),
   phoneVerificationToken: z.string().trim().max(4096).optional(),
 });
-
-function isAdult(birthDate: string) {
-  const birthday = new Date(birthDate + 'T00:00:00Z');
-  if (Number.isNaN(birthday.valueOf())) return false;
-  const threshold = new Date();
-  threshold.setUTCFullYear(threshold.getUTCFullYear() - 18);
-  return birthday <= threshold;
-}
 
 export async function POST(request: Request) {
   const input = await readJson<unknown>(request);

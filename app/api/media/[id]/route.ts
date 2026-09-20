@@ -3,6 +3,8 @@ import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { json } from '@/lib/server/http';
 import { reconcileDiscoverability } from '@/lib/server/profile-readiness';
+import { mediaResponseBody } from '@/lib/media-response';
+import { optimizeProfileImage } from '@/lib/server/image-delivery';
 
 export const runtime = 'edge';
 type Context = { params: Promise<{ id: string }> };
@@ -109,23 +111,39 @@ export async function GET(request: Request, context: Context) {
             : media.object_key;
     const object = await bucket.get(selectedKey);
     if (!object) return json({ error: 'Media not found.' }, { status: 404 });
-    if (object.etag && request.headers.get('if-none-match') === object.etag)
+    if (
+      (env as unknown as { SPIKEDATE_IMAGES_ENABLED?: string })
+        .SPIKEDATE_IMAGES_ENABLED !== 'true' &&
+      object.etag &&
+      request.headers.get('if-none-match') === object.etag
+    )
       return new Response(null, {
         status: 304,
         headers: { etag: object.etag },
       });
-    return new Response(object.body, {
+    const responseMedia = await mediaResponseBody(
+      object.body,
+      object.httpMetadata?.contentType,
+    );
+    const response = new Response(responseMedia.body, {
       headers: {
         'cache-control': 'private, max-age=3600, stale-while-revalidate=86400',
         ...(object.etag ? { etag: object.etag } : {}),
-        'content-type':
-          object.httpMetadata?.contentType ?? 'application/octet-stream',
+        'content-type': responseMedia.contentType,
         'content-disposition': 'inline',
         'x-content-type-options': 'nosniff',
         'x-spikedate-explicit': media.explicit ? 'true' : 'false',
         'x-spikedate-image-variant': variant,
       },
     });
+    const imageCache = (caches as unknown as { default?: Cache }).default;
+    return optimizeProfileImage(
+      request,
+      response,
+      env as unknown as Parameters<typeof optimizeProfileImage>[2],
+      variant,
+      imageCache,
+    );
   });
 }
 

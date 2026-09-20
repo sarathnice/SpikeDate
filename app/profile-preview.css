@@ -1,0 +1,61 @@
+/* Preview reuses real home controls, but never sends an interaction to oneself. */
+@layer profile-preview {
+  .phone-frame .preview-wrap > .discover-screen {
+    height: 100% !important;
+    padding: 0 !important;
+    position: relative;
+  }
+  .phone-frame .preview-wrap .home-action-rail {
+    inset: auto 10px 16px auto !important;
+    padding: 0 !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 6px !important;
+    pointer-events: auto !important;
+  }
+  .phone-frame .preview-wrap .home-action-rail button {
+    position: relative !important;
+    inset: auto !important;
+    padding: 0 !important;
+    display: grid !important;
+    place-items: center !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+  .phone-frame .preview-wrap .gallery-fresh-label {
+    display: none !important;
+  }
+  .phone-frame .preview-wrap .today-count-badge {
+    position: absolute !important;
+    top: -2px !important;
+    right: -2px !important;
+  }
+  .phone-frame .preview-wrap .profile-card .card-content {
+    left: 16px !important;
+    right: 72px !important;
+    bottom: 18px !important;
+  }
+  .phone-frame .preview-banner {
+    padding-right: 64px !important;
+    flex-shrink: 0;
+  }
+  .phone-frame .preview-action-feedback {
+    position: absolute;
+    z-index: 8;
+    left: 22px;
+    right: 80px;
+    top: 68px;
+    padding: 10px 12px;
+    margin: 0;
+    border-radius: 12px;
+    background: var(--background);
+    color: var(--foreground);
+    font:
+      400 12px/1.4 var(--font-inter),
+      Inter,
+      sans-serif;
+    pointer-events: none;
+  }
+}

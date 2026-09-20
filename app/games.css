@@ -1,0 +1,334 @@
+.play-together-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 400;
+  padding: 10px 14px;
+}
+.dating-games {
+  margin: 8px 16px;
+}
+.arcade-panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.arcade-connection {
+  font-size: 12px;
+  color: var(--foreground);
+  font-weight: 400;
+}
+.arcade-button {
+  min-height: 44px;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--foreground);
+}
+.arcade-four {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  padding: 6px;
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.arcade-four button {
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  min-width: 0;
+  min-height: 220px;
+}
+.arcade-four span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid var(--ui-border);
+  background: var(--background);
+  font-size: 22px;
+}
+.arcade-four span[data-piece='0'],
+.arcade-bubbles button[data-colour='0'] {
+  color: #ff6577;
+}
+.arcade-four span[data-piece='1'],
+.arcade-bubbles button[data-colour='1'] {
+  color: #72beff;
+}
+.arcade-bubbles {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  max-width: 320px;
+  width: 100%;
+  justify-self: center;
+}
+.arcade-bubbles button {
+  height: 44px;
+  min-width: 0;
+  border-radius: 50%;
+  border: 1px solid var(--ui-border);
+  font-size: 32px;
+  line-height: 1;
+  background: var(--surface);
+}
+.arcade-bubbles button[data-colour='-1'] {
+  background: transparent;
+  border-color: transparent;
+}
+.arcade-scores {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+.arcade-scores b {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.arcade-results {
+  padding-left: 20px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.arcade-outcome {
+  border: 1px solid var(--ui-border);
+  padding: 12px;
+  border-radius: 12px;
+}
+.arcade-panel button:disabled {
+  cursor: default;
+}
+.chat-quick-tools .dating-games {
+  flex: 1 0 100%;
+  margin: 0;
+}
+.chat-quick-tools:has(.dating-games) {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+.games-dialog {
+  max-height: 85dvh;
+  overflow-y: auto;
+  background: var(--background);
+  color: var(--foreground);
+}
+.games-dialog h2 {
+  font-size: 18px;
+  font-weight: 400;
+  margin: 0;
+}
+.games-dialog h3 {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+.games-dialog p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.games-dialog small {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.games-demo-label {
+  border: 1px dashed var(--ui-border);
+  border-radius: 10px;
+  padding: 8px;
+  color: var(--muted-foreground);
+}
+.games-error {
+  color: var(--foreground);
+  border: 1px solid var(--coral);
+  padding: 10px;
+  border-radius: 10px;
+}
+.game-moods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.game-moods button,
+.game-options button,
+.game-buttons button {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 400;
+}
+.game-moods button[aria-pressed='true'],
+.game-options button[aria-pressed='true'] {
+  border-color: var(--foreground);
+  background: var(--muted);
+}
+.game-picker-tip {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.game-catalog {
+  display: grid;
+  gap: 8px;
+}
+.game-catalog > button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 88px;
+  padding: 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  text-align: left;
+  background: var(--surface);
+  color: var(--foreground);
+}
+.game-catalog > button > span {
+  flex: 1;
+  min-width: 0;
+}
+.game-catalog strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 400;
+  margin: 3px 0;
+}
+.game-catalog p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.game-heading {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.game-options {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+.game-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+.game-buttons .game-primary {
+  background: var(--foreground);
+  color: var(--background);
+  border-color: var(--foreground);
+}
+.game-buttons button:disabled,
+.game-catalog button:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+.game-text-label,
+.game-guess {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.game-text-label textarea,
+.game-guess select {
+  padding: 12px;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 16px;
+}
+.game-text-label textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+.game-reveals {
+  display: grid;
+  gap: 8px;
+}
+.game-reveals article {
+  border: 1px solid var(--ui-border);
+  padding: 12px;
+  border-radius: 14px;
+}
+.game-reveals article > div {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 8px;
+  margin: 8px 0;
+}
+.game-reveals span {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.game-reveals p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.game-leave {
+  min-height: 44px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-top: 12px;
+  background: transparent;
+}
+.games-preview {
+  max-width: 430px;
+  min-height: 100dvh;
+  margin: auto;
+  padding: 28px 16px;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), Inter, sans-serif;
+}
+.games-preview h1 {
+  font-size: 28px;
+  font-weight: 400;
+}
+.games-preview h2 {
+  font-size: 18px;
+  font-weight: 400;
+}
+.games-preview p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.games-preview small {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.games-preview-chat {
+  border: 1px solid var(--ui-border);
+  padding: 16px;
+  margin-top: 24px;
+  border-radius: 22px;
+}
+.preview-message {
+  padding: 12px;
+  background: var(--surface);
+  border-radius: 16px;
+}

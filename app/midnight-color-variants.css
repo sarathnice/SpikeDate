@@ -1,0 +1,98 @@
+/* These four looks inherit Midnight's geometry, surfaces and navigation.
+   Only brand/action colors change; Like stays the same red semantic action. */
+:root[data-pulse-theme='default'][data-pulse-accent='electric-blue'] {
+  --coral: #3978ff;
+  --amber: #7ea7ff;
+}
+:root[data-pulse-theme='default'][data-pulse-accent='spring-green'] {
+  --coral: #75eb8a;
+  --amber: #b8f6c2;
+}
+:root[data-pulse-theme='default'][data-pulse-accent='neon-orchid'] {
+  --coral: #c05cff;
+  --amber: #dda3ff;
+}
+:root[data-pulse-theme='default'][data-pulse-accent='vermilion'] {
+  --coral: #f45e3f;
+  --amber: #ff9a75;
+}
+:root[data-pulse-theme='default']:is(
+  [data-pulse-accent='electric-blue'],
+  [data-pulse-accent='spring-green'],
+  [data-pulse-accent='neon-orchid'],
+  [data-pulse-accent='vermilion']
+) {
+  --brand-red: var(--coral);
+  --brand-orange: var(--amber);
+  --brand-gradient: linear-gradient(135deg, var(--coral), var(--amber));
+  --theme-gradient: linear-gradient(135deg, var(--coral), var(--amber));
+  --primary: var(--coral);
+  --accent: var(--coral);
+  --ring: var(--coral);
+  --primary-foreground: #10141f;
+  --accent-foreground: #10141f;
+  --action-foreground: #10141f;
+  --super-spike: var(--coral);
+  --super-spike-foreground: #10141f;
+  --app-backdrop: radial-gradient(
+    circle at 50% 20%,
+    color-mix(in srgb, var(--coral) 17%, #090b14) 0,
+    #090b14 42%,
+    #04050a 82%
+  );
+  --midnight-soft-accent: color-mix(in srgb, var(--coral) 36%, white);
+}
+
+:root[data-pulse-theme='default'][data-pulse-accent] .brand-spike-i > span {
+  background: var(--coral);
+}
+:root[data-pulse-theme='default'][data-pulse-accent] .brand-date {
+  color: var(--amber);
+}
+:root[data-pulse-theme='default'][data-pulse-accent] .tab-badge.likes {
+  background: var(--coral);
+  color: var(--action-foreground);
+}
+:root[data-pulse-theme='default'][data-pulse-accent] .today-viewer-gradient {
+  background: linear-gradient(145deg, var(--coral), var(--amber) 68%, #151722);
+}
+:root[data-pulse-theme='default'][data-pulse-accent]
+  .phone-frame[data-active-tab='Chat'] {
+  --chat-accent: var(--coral);
+}
+
+@layer chat-midnight {
+  :root[data-pulse-theme='default'][data-pulse-accent]
+    .phone-frame :is(.chat-row small.unread-copy, .chat-inbox-filters span, .chat-total),
+  :root[data-pulse-theme='default'][data-pulse-accent]
+    .phone-frame .midnight-chat .message-status.compact-marks.is-read,
+  :root[data-pulse-theme='default'][data-pulse-accent]
+    .phone-frame .midnight-chat .chat-media-error {
+    color: var(--midnight-soft-accent) !important;
+  }
+  :root[data-pulse-theme='default'][data-pulse-accent]
+    .phone-frame .midnight-chat .chat-recording-dot,
+  :root[data-pulse-theme='default'][data-pulse-accent]
+    .phone-frame .midnight-chat .chat-media-primary {
+    background: var(--coral) !important;
+  }
+  :root[data-pulse-theme='default'][data-pulse-accent]
+    .phone-frame .midnight-chat .chat-media-primary {
+    color: var(--action-foreground) !important;
+  }
+}
+
+@layer quiet-rail {
+  :root[data-pulse-theme='default'][data-pulse-accent]
+    .phone-frame .quiet-rail-home .home-action-rail .spark svg {
+    color: var(--super-spike) !important;
+  }
+}
+
+/* Keep the picker usable on compact phones. */
+.theme-dialog .theme-grid {
+  max-height: min(60dvh, 590px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}

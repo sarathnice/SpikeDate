@@ -1,0 +1,20 @@
+/* Midnight uses one solid red for high-emphasis actions. Keep brand, status,
+   and secondary-control colors independent from this button treatment. */
+:root[data-pulse-theme='default'] :is(
+  .primary-button,
+  .engagement-prompt-actions .primary,
+  .photo-crop-actions button.primary,
+  .galaxy-plan-response-tools button.accept,
+  .plan-alternate-proposal button,
+  .plan-safe-button,
+  .plan-alternate-editor button:nth-last-child(2),
+  .chat-plan-response-actions button:first-child,
+  .today-viewer-actions form button,
+  .voice-play-button,
+  .auth-phone-row button:not(:disabled)
+) {
+  border-color: var(--coral);
+  background: var(--coral);
+  color: var(--action-foreground);
+  box-shadow: none;
+}

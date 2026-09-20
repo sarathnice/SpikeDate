@@ -447,7 +447,8 @@ button:focus-visible {
   font-size: 0.75rem;
   font-weight: 750;
 }
-.auth-form input {
+.auth-form input,
+.auth-form select {
   width: 100%;
   min-height: 49px;
   padding: 0 13px;
@@ -461,6 +462,28 @@ button:focus-visible {
 .auth-form input:focus {
   border-color: var(--coral);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--coral) 14%, transparent);
+}
+.auth-form label.auth-consent {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+.connection-sent-state {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: inherit;
+}
+.auth-form .auth-consent input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  flex-shrink: 0;
+  padding: 0;
+  margin-top: 2px;
+  accent-color: var(--foreground);
 }
 .auth-phone-verification {
   display: grid;
@@ -1063,16 +1086,62 @@ button:focus-visible {
 /* Photo preparation keeps a sharp 4:5 portrait intact while the adaptive
    backdrop fills taller iOS and Android screens without stretching it. */
 .photo-crop-dialog {
+  z-index: 81;
   width: min(calc(100% - 16px), 420px);
-  max-height: 96dvh;
-  overflow-y: auto;
-  padding: 20px;
+  max-height: calc(
+    100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+  );
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
   border: 1px solid color-mix(in srgb, white 20%, var(--ui-border));
   border-radius: 28px;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-inter), Inter, Arial, sans-serif;
   scrollbar-width: none;
+}
+.photo-crop-overlay {
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.65);
+}
+.photo-crop-header {
+  position: relative;
+  padding: 18px 18px 0;
+}
+.photo-crop-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 18px 12px;
+}
+.photo-crop-footer {
+  position: relative;
+  z-index: 4;
+  padding: 10px 18px max(14px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--ui-border);
+  background: var(--background);
+}
+.photo-crop-status {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+.photo-crop-spinner {
+  animation: photo-crop-spin 1s linear infinite;
+}
+@keyframes photo-crop-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .photo-crop-spinner {
+    animation: none;
+  }
 }
 .photo-crop-close {
   position: absolute;
@@ -1110,7 +1179,7 @@ button:focus-visible {
   line-height: 1.45;
 }
 .photo-crop-stage {
-  width: min(100%, 310px);
+  width: min(100%, 310px, max(120px, calc((100dvh - 340px) * 0.8)));
   aspect-ratio: 4 / 5;
   position: relative;
   margin: 0 auto;
@@ -1229,7 +1298,7 @@ button:focus-visible {
   color: var(--action-foreground);
 }
 .photo-crop-actions button:disabled {
-  opacity: 0.58;
+  opacity: 0.85;
   cursor: wait;
 }
 .photo-scrim {
@@ -3312,6 +3381,206 @@ button > .lucide-calendar-check {
 .plan-grid section > span {
   font-family: var(--font-poppins), Poppins, 'Avenir Next', sans-serif;
   font-weight: 500;
+}
+
+/* Shared regular Inter foundation for profile viewing and registration. */
+:root {
+  --profile-font: var(--font-inter), Inter, Arial, sans-serif;
+  --profile-name-size: 1.75rem;
+  --profile-section-size: 1.125rem;
+  --profile-heading-size: 1rem;
+  --profile-label-size: 0.79rem;
+  --profile-helper-size: 0.7rem;
+  --profile-body-weight: 400;
+  --profile-heading-weight: 400;
+}
+:root
+  :is(
+    .profile-page,
+    .profile-sheet,
+    .profile-card,
+    .registration-dialog,
+    .photo-crop-dialog
+  )
+  :is(h1, h2, h3, p, strong, b, small, label, input, select, textarea, button) {
+  font-family: var(--profile-font) !important;
+  font-style: normal;
+}
+:root
+  :is(
+    .profile-page,
+    .profile-sheet,
+    .profile-card,
+    .registration-dialog,
+    .photo-crop-dialog
+  )
+  :is(p, strong, b, small, label, input, select, textarea, button) {
+  font-weight: var(--profile-body-weight) !important;
+}
+:root .profile-page .profile-passport-identity.self-row h1,
+:root .profile-sheet .profile-title h2,
+:root .profile-card .name-row h1 {
+  font-size: var(--profile-name-size);
+  font-weight: 500;
+  line-height: 1.18;
+  letter-spacing: -0.025em;
+}
+:root .profile-page .setting-heading strong,
+:root .profile-page .push-settings-card .setting-heading strong {
+  font-size: var(--profile-heading-size);
+  font-weight: var(--profile-heading-weight) !important;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
+:root .profile-sheet .full-profile-passport .section-label,
+:root .registration-dialog [data-slot='dialog-title'],
+:root .photo-crop-dialog [data-slot='dialog-title'] {
+  font-size: var(--profile-section-size);
+  font-weight: var(--profile-heading-weight);
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+:root
+  .profile-page
+  :is(
+    .push-setting-toggle,
+    .voice-setting-toggle,
+    .engagement-setting-toggle,
+    .today-reminder-time,
+    .toggle-row
+  )
+  strong,
+:root
+  .profile-page
+  :is(.profile-intent-card, .profile-story-card, .profile-passport-facts)
+  strong,
+:root .profile-sheet .full-passport-facts strong,
+:root .profile-page .profile-account-tools button strong,
+:root .registration-dialog .registration-body strong,
+:root .registration-dialog .choice-group button,
+:root .registration-dialog .prompt-fields label,
+:root
+  .registration-dialog
+  :is(.field-label, .choice-group > p, .range-fields label) {
+  font-size: var(--profile-label-size);
+  line-height: 1.4;
+}
+:root .profile-page small,
+:root .profile-sheet .full-passport-facts small,
+:root .registration-dialog .registration-body small,
+:root .profile-page .push-setting-toggle p,
+:root .profile-page .push-settings-intro,
+:root .profile-page .voice-setting-toggle p,
+:root .profile-page .engagement-setting-toggle p,
+:root .profile-page .today-reminder-time p,
+:root
+  .registration-dialog
+  :is(
+    [data-slot='dialog-description'],
+    .field-policy,
+    .quality-note,
+    .field-help
+  ) {
+  font-size: var(--profile-helper-size);
+  line-height: 1.35;
+}
+:root .profile-sheet .full-profile-passport p,
+:root .profile-card .card-story,
+:root .profile-card .distance,
+:root .registration-dialog .registration-body p,
+:root .profile-page .profile-passport-identity p {
+  font-size: var(--profile-label-size);
+  line-height: 1.5;
+}
+:root .profile-page .push-setting-toggle {
+  min-height: 64px;
+  padding-block: 10px;
+}
+:root .profile-page .push-setting-toggle > span {
+  min-width: 0;
+  gap: 4px;
+}
+:root .profile-page .profile-passport-facts strong,
+:root .profile-sheet .full-passport-facts strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+:root .registration-dialog :is(input:not([type='range']), select, textarea) {
+  font-size: 1rem;
+  line-height: 1.4;
+}
+:root
+  .auth-card[data-auth-mode='signup']
+  :is(.auth-copy, .auth-form, .auth-tabs)
+  :is(
+    h1,
+    h2,
+    h3,
+    p,
+    strong,
+    b,
+    small,
+    label,
+    span,
+    input,
+    select,
+    textarea,
+    button
+  ) {
+  font-family: var(--font-inter), Inter, Arial, sans-serif !important;
+  font-size: 0.79rem !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+  letter-spacing: normal;
+  line-height: 1.4;
+}
+:root
+  .auth-card[data-auth-mode='signup']
+  :is(.auth-copy, .auth-form)
+  :is(h1, h2, h3, p, strong, b, small, label, input, select, textarea) {
+  color: var(--foreground) !important;
+}
+/* Regular Inter baseline; Sharp Mobile role sizes at the end of this file
+   override legacy theme sizing. Icon-only edit buttons retain zero-sized text. */
+:root
+  :is(.profile-page, .profile-sheet, .profile-card, .registration-dialog)
+  :is(h1, h2, h3, p, strong, b, small, label, span, input, select, textarea),
+:root .registration-dialog button,
+:root .registration-dialog .flow-kicker,
+:root .profile-page .profile-section-nav button,
+:root .profile-page .profile-quick-actions button {
+  font-family: var(--font-inter), Inter, Arial, sans-serif !important;
+  font-size: 0.79rem !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+  letter-spacing: normal;
+  line-height: 1.4;
+}
+:root .profile-page :is(h1, h2, h3, p, strong, b, small, label),
+:root
+  .profile-sheet
+  .profile-details
+  :is(h1, h2, h3, p, strong, b, small, label, .section-label),
+:root
+  .registration-dialog
+  :is(
+    h1,
+    h2,
+    h3,
+    p,
+    strong,
+    b,
+    small,
+    label,
+    input,
+    select,
+    textarea,
+    .field-label,
+    .flow-kicker
+  ),
+:root .registration-dialog .choice-group button {
+  color: var(--foreground) !important;
 }
 .chat-meta b,
 .tab-badge,
@@ -5938,6 +6207,14 @@ button > .lucide-calendar-check {
   display: flex;
   flex-direction: column;
 }
+.profile-preview-sheet .profile-scroll {
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+.full-preview-today p:last-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .preview-banner {
   min-height: 73px;
   display: grid;
@@ -5977,6 +6254,15 @@ button > .lucide-calendar-check {
 }
 .preview-wrap .profile-card {
   height: 100%;
+}
+.preview-screen .today-card-pill {
+  grid-template-columns: 18px minmax(0, 1fr);
+  cursor: default;
+  pointer-events: none;
+}
+.preview-screen .tonight-card-status {
+  cursor: default;
+  pointer-events: none;
 }
 .edit-card {
   position: absolute;
@@ -8988,10 +9274,17 @@ button > .lucide-calendar-check {
   color: var(--muted-foreground);
 }
 .push-settings-card {
-  padding: 13px 14px;
+  padding: 11px 13px;
   border: 1px solid var(--ui-border);
   border-radius: 18px;
   background: var(--card);
+}
+.push-settings-intro {
+  margin: 5px 0 3px;
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+  font-weight: 350;
+  line-height: 1.38;
 }
 .push-setting-toggle {
   display: flex;
@@ -9010,6 +9303,31 @@ button > .lucide-calendar-check {
   color: var(--muted-foreground);
   font-size: 0.68rem;
   line-height: 1.35;
+}
+.profile-page .push-settings-card .setting-heading small {
+  font-size: 0.6rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+.profile-page .push-settings-card .setting-heading strong {
+  font-size: 0.8rem;
+  font-weight: 350;
+  letter-spacing: -0.015em;
+}
+.profile-page .push-setting-toggle {
+  padding: 6px 0;
+}
+.profile-page .push-setting-toggle strong {
+  color: var(--foreground);
+  font-size: 0.75rem;
+  font-weight: 350;
+  letter-spacing: -0.005em;
+  line-height: 1.25;
+}
+.profile-page .push-setting-toggle p {
+  font-size: 0.68rem;
+  font-weight: 350;
+  line-height: 1.38;
 }
 .profile-media-tile,
 .profile-media-add {
@@ -9050,6 +9368,49 @@ button > .lucide-calendar-check {
 .verification-dialog > .match-close {
   top: 16px;
   right: 16px;
+}
+
+.verification-dialog-capture {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  overflow: hidden;
+  padding: 16px 16px max(12px, env(safe-area-inset-bottom));
+}
+
+.verification-capture-header {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding-right: 32px;
+}
+
+.verification-capture-header [data-slot='dialog-title'],
+.verification-capture-header [data-slot='dialog-description'] {
+  margin: 0;
+}
+
+.verification-capture-body {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  place-items: center;
+  overscroll-behavior: contain;
+}
+
+.verification-capture-actions {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 7px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+  background: var(--surface);
+}
+
+.verification-capture-actions .verification-message {
+  max-height: 72px;
+  overflow-y: auto;
 }
 
 .verification-shield {
@@ -9169,7 +9530,7 @@ button > .lucide-calendar-check {
 
 .verification-camera {
   position: relative;
-  width: min(100%, 330px);
+  width: min(100%, 330px, max(160px, calc(100dvh - 355px)));
   aspect-ratio: 1;
   margin: 2px auto;
   overflow: hidden;
@@ -9178,10 +9539,14 @@ button > .lucide-calendar-check {
   background: #090a0d;
 }
 
-.verification-camera video {
+.verification-camera :is(video, img) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+}
+
+.verification-camera video {
   transform: scaleX(-1);
 }
 
@@ -9276,7 +9641,18 @@ button > .lucide-calendar-check {
   }
 
   .verification-camera {
-    width: min(100%, 306px);
+    width: min(100%, 306px, max(160px, calc(100dvh - 355px)));
+  }
+}
+
+@media (max-height: 600px) {
+  .verification-dialog-capture {
+    gap: 5px;
+    padding-block: 10px max(8px, env(safe-area-inset-bottom));
+  }
+
+  .verification-capture-header [data-slot='dialog-description'] {
+    display: none;
   }
 }
 .profile-media-number {
@@ -10749,4 +11125,163 @@ button > .lucide-calendar-check {
 .plan-grid section > span {
   font-family: var(--font-poppins), Poppins, 'Avenir Next', sans-serif;
   font-weight: 500;
+}
+
+/* Option A — Sharp Mobile. Keep the home card and brand wordmark unchanged.
+   Scope role overrides after all theme rules so every theme is consistent. */
+:root {
+  --profile-name-size: 1.375rem;
+  --profile-section-size: 0.875rem;
+  --profile-heading-size: 0.875rem;
+  --profile-body-size: 0.8125rem;
+  --profile-label-size: 0.79rem;
+  --profile-helper-size: 0.75rem;
+  --profile-registration-title-size: 1.125rem;
+}
+:root
+  :is(.profile-page, .profile-sheet, .registration-dialog)
+  :is(h1, h2, h3, p, strong, b, small, label, span, input, select, textarea),
+:root .preview-screen .profile-card :is(h1, p, strong, b, small, span) {
+  font-family: var(--profile-font) !important;
+  font-size: var(--profile-body-size) !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+  letter-spacing: normal;
+  line-height: 1.5;
+}
+:root .profile-page .profile-passport-identity h1,
+:root .profile-sheet .profile-title h2,
+:root .preview-screen .profile-card .name-row h1 {
+  font-size: var(--profile-name-size) !important;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+:root .profile-page :is(h2, h3),
+:root .profile-page .setting-heading > span > small,
+:root .profile-page .setting-heading > strong,
+:root
+  .profile-page
+  :is(.push-settings-card, .engagement-settings-card, .voice-settings-card)
+  .setting-heading
+  strong,
+:root
+  .profile-page
+  .settings-list:not(.passport-details-list)
+  .setting-heading
+  strong,
+:root .profile-page .passport-details-title > span,
+:root .profile-sheet .profile-details .section-label,
+:root .registration-dialog :is(h2, h3) {
+  font-size: var(--profile-section-size) !important;
+  line-height: 1.4;
+}
+:root .registration-dialog [data-slot='dialog-title'] {
+  font-size: var(--profile-registration-title-size) !important;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+:root .profile-page :is(label, .profile-interest-strip span),
+:root
+  .profile-page
+  :is(
+    .push-setting-toggle,
+    .voice-setting-toggle,
+    .engagement-setting-toggle,
+    .today-reminder-time,
+    .toggle-row
+  )
+  strong,
+:root .profile-sheet .detail-chips > span,
+:root
+  .registration-dialog
+  :is(
+    label,
+    .field-label,
+    .choice-group > p,
+    .choice-group button,
+    .range-fields label
+  ) {
+  font-size: var(--profile-label-size) !important;
+  line-height: 1.4;
+}
+:root .profile-page small,
+:root
+  .profile-page
+  :is(
+    .push-setting-toggle,
+    .voice-setting-toggle,
+    .engagement-setting-toggle,
+    .today-reminder-time
+  )
+  p,
+:root .profile-page .push-settings-intro,
+:root .profile-sheet small,
+:root .profile-sheet .full-passport-facts small,
+:root
+  .registration-dialog
+  :is(
+    small,
+    .flow-kicker,
+    [data-slot='dialog-description'],
+    .field-policy,
+    .field-policy span,
+    .quality-note,
+    .quality-note span,
+    .field-help,
+    .field-label b
+  ) {
+  font-size: var(--profile-helper-size) !important;
+  line-height: 1.4;
+}
+/* Section titles are small elements in the passport, not helper copy. */
+:root .profile-page .setting-heading > span > small {
+  font-size: var(--profile-section-size) !important;
+}
+:root
+  :is(.profile-page, .profile-sheet, .registration-dialog)
+  :is(input:not([type='range']):not([type='checkbox']), select, textarea),
+:root
+  .auth-card[data-auth-mode='signup']
+  .auth-form
+  :is(input, select, textarea) {
+  font-family: var(--profile-font) !important;
+  font-size: 1rem !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+  line-height: 1.4;
+}
+:root .registration-dialog button,
+:root .profile-page :is(.profile-section-nav, .profile-quick-actions) button,
+:root
+  .profile-sheet
+  :is(.primary-button, .secondary-button, .full-profile-sticky-reply) {
+  font-family: var(--profile-font) !important;
+  font-size: 0.875rem !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+}
+:root .registration-dialog .choice-group button {
+  font-size: var(--profile-label-size) !important;
+}
+:root .auth-card[data-auth-mode='signup'] .auth-copy :is(h1, h2, h3) {
+  font-size: var(--profile-registration-title-size) !important;
+}
+:root .auth-card[data-auth-mode='signup'] .auth-copy p {
+  font-size: var(--profile-body-size) !important;
+}
+:root .auth-card[data-auth-mode='signup'] .auth-form small {
+  font-size: var(--profile-helper-size) !important;
+}
+:root .auth-card[data-auth-mode='signup'] :is(.auth-form, .auth-tabs) button {
+  font-size: 0.875rem !important;
+}
+:root .registration-dialog .field-grid,
+:root .registration-dialog .prompt-fields {
+  gap: 14px;
+}
+:root .profile-sheet .profile-details > section {
+  padding-block: 14px;
+}
+:root .profile-page .passport-details-list .setting-heading strong {
+  font-size: var(--profile-body-size) !important;
 }

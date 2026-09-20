@@ -9,11 +9,38 @@ export default defineConfig({
   expect: { timeout: 12_000 },
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  retries: process.env.SPIKEDATE_QA_RETRIES === '1' ? 1 : 0,
   reporter: [
     ['list'],
-    ['json', { outputFile: 'outputs/playwright-results.json' }],
+    [
+      'json',
+      {
+        outputFile: process.env.SPIKEDATE_QA_REPORT_DIR
+          ? `${process.env.SPIKEDATE_QA_REPORT_DIR}/playwright.json`
+          : 'outputs/playwright-results.json',
+      },
+    ],
+    [
+      'html',
+      {
+        outputFolder: process.env.SPIKEDATE_QA_REPORT_DIR
+          ? `${process.env.SPIKEDATE_QA_REPORT_DIR}/browser-report`
+          : 'playwright-report',
+        open: 'never',
+      },
+    ],
+    [
+      'junit',
+      {
+        outputFile: process.env.SPIKEDATE_QA_REPORT_DIR
+          ? `${process.env.SPIKEDATE_QA_REPORT_DIR}/junit.xml`
+          : 'outputs/playwright-junit.xml',
+      },
+    ],
   ],
+  outputDir: process.env.SPIKEDATE_QA_REPORT_DIR
+    ? `${process.env.SPIKEDATE_QA_REPORT_DIR}/artifacts`
+    : 'test-results',
   use: {
     baseURL: process.env.SPIKEDATE_UI_URL || 'http://127.0.0.1:3002',
     ...(process.env.SPIKEDATE_SITES_BYPASS_TOKEN

@@ -74,13 +74,13 @@ export async function currentUser(request: Request, db = getDb()) {
   const tokenHash = await sha256(token);
   return db
     .prepare(
-      'SELECT users.id, users.email, users.status ' +
+      'SELECT users.id, users.email, users.status, sessions.id AS sessionId ' +
         'FROM sessions JOIN users ON users.id = sessions.user_id ' +
         'WHERE sessions.token_hash = ? AND sessions.revoked_at IS NULL ' +
         "AND sessions.expires_at > ? AND users.status = 'active' LIMIT 1",
     )
     .bind(tokenHash, Date.now())
-    .first<{ id: string; email: string; status: string }>();
+    .first<{ id: string; email: string; status: string; sessionId: string }>();
 }
 
 export async function requireUser(request: Request, db = getDb()) {

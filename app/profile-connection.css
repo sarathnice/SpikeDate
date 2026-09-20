@@ -1,0 +1,91 @@
+@layer registration-vibe {
+  .connection-fields {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+  .connection-fields label {
+    display: grid;
+    gap: 6px;
+  }
+  .connection-fields :is(input, select) {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    border: 1px solid var(--ui-border);
+    border-radius: 12px;
+    padding: 10px;
+    color: var(--foreground);
+    background: var(--secondary);
+    font:
+      400 16px var(--font-inter),
+      Inter,
+      sans-serif !important;
+  }
+  .connection-fields fieldset {
+    min-width: 0;
+    border: 0;
+    padding: 0;
+    margin: 0;
+  }
+  .connection-fields :is(legend, label) {
+    font-size: 12px !important;
+    font-weight: 400 !important;
+  }
+  .connection-fields small {
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--muted-foreground);
+  }
+  .connection-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0;
+  }
+  .connection-choices button {
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid var(--ui-border);
+    border-radius: 14px;
+    background: var(--secondary);
+    color: var(--foreground);
+    font-size: 12px !important;
+    font-weight: 400 !important;
+  }
+  .connection-choices button[aria-pressed='true'] {
+    border-color: var(--coral);
+    background: color-mix(in srgb, var(--coral) 12%, var(--background));
+  }
+  .connection-choices button:disabled {
+    opacity: 0.45;
+  }
+  .connection-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 12px;
+    margin-top: 12px;
+  }
+  .connection-summary-grid > div {
+    display: flex;
+    gap: 8px;
+    min-width: 0;
+  }
+  .connection-summary-grid svg {
+    flex-shrink: 0;
+    color: var(--muted-foreground);
+  }
+  .connection-summary-grid small {
+    color: var(--muted-foreground);
+    font-size: 11px !important;
+    font-weight: 400 !important;
+  }
+  .connection-summary-grid p {
+    margin: 4px 0 0 !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+    overflow-wrap: anywhere;
+  }
+}

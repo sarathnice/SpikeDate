@@ -1,0 +1,273 @@
+/* Option A — Quiet Atelier. Early important layer wins legacy theme overrides.
+ * Scope to profile views; keep photography, action semantics and theme tokens. */
+@layer profile-atelier {
+  .profile-page {
+    font-family: var(--font-inter), Inter, sans-serif !important;
+  }
+  .profile-page
+    > :is(
+      .profile-intent-card,
+      .profile-passport-facts,
+      .profile-story-card,
+      .profile-interest-strip
+    ) {
+    display: none !important;
+  }
+  .profile-page .profile-passport-hero {
+    height: 190px !important;
+    min-height: 190px !important;
+    border-radius: 20px !important;
+  }
+  .profile-page .profile-section-nav {
+    margin: 14px 0 20px !important;
+    position: static !important;
+    display: flex !important;
+    gap: 4px !important;
+    padding: 4px !important;
+    min-height: 44px !important;
+    background: var(--card) !important;
+    border: 1px solid var(--ui-border) !important;
+    border-radius: 24px !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+  .profile-page .profile-section-nav > button {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    flex: 1 !important;
+    min-width: 0;
+    min-height: 36px !important;
+    padding: 6px 4px !important;
+    border: 0 !important;
+    border-radius: 20px !important;
+    background: transparent !important;
+    font:
+      normal 400 12px/1.5 var(--font-inter),
+      Inter,
+      sans-serif !important;
+    color: var(--foreground) !important;
+  }
+  .profile-page
+    :is(
+      .passport-details-title > span,
+      .profile-tools-label,
+      .own-photo-heading strong
+    ) {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+  .profile-page :is(.passport-details-title, .profile-tools-label) {
+    margin: 22px 0 10px !important;
+  }
+  .profile-page .atelier-categories {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    background: var(--card) !important;
+    border: 1px solid var(--ui-border) !important;
+    border-radius: 18px !important;
+    overflow: hidden;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+  .profile-page .atelier-category {
+    display: flex !important;
+    width: 100% !important;
+    min-height: 66px !important;
+    align-items: center !important;
+    gap: 11px !important;
+    padding: 13px 12px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    text-align: left;
+    background: transparent !important;
+    color: var(--foreground) !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    cursor: pointer;
+  }
+  .profile-page .atelier-category + .atelier-category {
+    border-top: 1px solid var(--ui-border) !important;
+  }
+  .profile-page .atelier-category-icon {
+    display: grid !important;
+    place-items: center !important;
+    flex: 0 0 32px !important;
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 10px !important;
+    background: color-mix(in srgb, var(--coral) 12%, var(--card)) !important;
+    color: color-mix(in srgb, var(--coral) 65%, var(--foreground)) !important;
+  }
+  .profile-page .atelier-category-copy {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+  .profile-page .atelier-category-copy small {
+    display: block !important;
+    font:
+      normal 400 12.64px/1.5 var(--font-inter),
+      Inter,
+      sans-serif !important;
+    color: var(--foreground) !important;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+  }
+  .profile-page .atelier-category-copy strong {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    font:
+      normal 400 12px/1.6 var(--font-inter),
+      Inter,
+      sans-serif !important;
+    color: var(--muted-foreground) !important;
+    margin: 2px 0 0 !important;
+  }
+  .profile-page .atelier-category > svg {
+    flex: 0 0 16px;
+    color: var(--muted-foreground) !important;
+  }
+  .profile-page .lower-profile-tools {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    border: 1px solid var(--ui-border) !important;
+    border-radius: 18px !important;
+    overflow: hidden;
+    background: var(--card) !important;
+  }
+  .profile-page .lower-profile-tools > button {
+    width: 100% !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 13px 12px !important;
+    min-height: 66px !important;
+  }
+  .profile-page .lower-profile-tools > button + button {
+    border-top: 1px solid var(--ui-border) !important;
+  }
+  .profile-page .lower-profile-tools > button strong {
+    font:
+      normal 400 12.64px/1.5 var(--font-inter),
+      Inter,
+      sans-serif !important;
+  }
+  .profile-page .lower-profile-tools > button small {
+    font:
+      normal 400 12px/1.6 var(--font-inter),
+      Inter,
+      sans-serif !important;
+    color: var(--muted-foreground) !important;
+  }
+  .profile-page .lower-profile-tools > button > svg:first-child {
+    color: color-mix(in srgb, var(--coral) 65%, var(--foreground)) !important;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  .profile-page .communication-disclosure summary > span > strong {
+    display: flex !important;
+    align-items: center !important;
+    gap: 11px !important;
+    font-weight: 400 !important;
+  }
+  .profile-page .communication-disclosure summary strong > svg {
+    color: color-mix(in srgb, var(--coral) 65%, var(--foreground)) !important;
+    flex-shrink: 0;
+  }
+  .profile-sheet .profile-details > section {
+    margin: 22px 0 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+  .profile-sheet .profile-details .section-label {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-bottom: 10px !important;
+    font:
+      normal 400 11px/1.5 var(--font-inter),
+      Inter,
+      sans-serif !important;
+    letter-spacing: 1px !important;
+    color: var(--muted-foreground) !important;
+    text-transform: uppercase !important;
+  }
+  .profile-sheet .section-label > svg,
+  .profile-page
+    :is(
+      .own-photo-heading strong,
+      .passport-details-title > span,
+      .profile-tools-label
+    )
+    > svg {
+    color: color-mix(in srgb, var(--coral) 65%, var(--foreground)) !important;
+    flex-shrink: 0;
+  }
+  .profile-sheet .atelier-fact-group .full-passport-facts {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 14px 6px !important;
+    background: var(--card) !important;
+    border: 1px solid var(--ui-border) !important;
+    border-radius: 18px !important;
+    padding: 15px 8px !important;
+    margin: 0 !important;
+  }
+  .profile-sheet .atelier-fact-group .full-passport-facts > div {
+    grid-column: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: 5px !important;
+    min-width: 0;
+    border: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+  .profile-sheet
+    .atelier-fact-group
+    .full-passport-facts:has(> div:nth-child(2):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .profile-sheet .atelier-fact-group .full-passport-facts > div > svg {
+    color: var(--foreground) !important;
+    opacity: 0.84 !important;
+    width: 19px !important;
+    height: 19px !important;
+    margin: 0 !important;
+  }
+  .profile-sheet .atelier-fact-group .full-passport-facts small {
+    display: block !important;
+    font:
+      normal 400 11px/1.5 var(--font-inter),
+      Inter,
+      sans-serif !important;
+    color: var(--muted-foreground) !important;
+  }
+  .profile-sheet .atelier-fact-group .full-passport-facts strong {
+    display: block !important;
+    font:
+      normal 400 12px/1.6 var(--font-inter),
+      Inter,
+      sans-serif !important;
+    color: var(--foreground) !important;
+    overflow-wrap: anywhere;
+  }
+  .profile-sheet .profile-details section > p {
+    font:
+      normal 400 12.64px/1.75 var(--font-inter),
+      Inter,
+      sans-serif !important;
+    color: var(--foreground) !important;
+  }
+}

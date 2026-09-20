@@ -439,7 +439,8 @@ await record('send, deliver, and read a matched message', async () => {
     },
   );
   assert.equal(result.response.status, 201, JSON.stringify(result.body));
-  assert.ok(result.body.message.deliveredAt);
+  assert.equal(result.body.message.deliveredAt, null);
+  const messageId = result.body.message.id;
   result = await jsonRequest(
     '/api/conversations/' + conversationId + '/messages',
     {
@@ -451,6 +452,27 @@ await record('send, deliver, and read a matched message', async () => {
     result.body.messages.at(-1).body,
     'Would you like to meet for coffee?',
   );
+  result = await jsonRequest(
+    '/api/conversations/' + conversationId + '/messages',
+    {
+      method: 'PATCH',
+      headers: { cookie: secondCookie },
+      body: JSON.stringify({ deliveredIds: [messageId] }),
+    },
+  );
+  assert.equal(result.response.status, 200, JSON.stringify(result.body));
+  assert.ok(result.body.messages[0].delivered_at);
+  assert.equal(result.body.messages[0].read_at, null);
+  result = await jsonRequest(
+    '/api/conversations/' + conversationId + '/messages',
+    {
+      method: 'PATCH',
+      headers: { cookie: secondCookie },
+      body: JSON.stringify({ messageIds: [messageId] }),
+    },
+  );
+  assert.equal(result.response.status, 200, JSON.stringify(result.body));
+  assert.ok(result.body.messages[0].read_at);
 });
 
 await record('create a Galaxy plan for an active match', async () => {

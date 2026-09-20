@@ -1,0 +1,177 @@
+/* Inbox-only polish; no conversation, entitlement or presence changes. */
+@layer connections {
+  .phone-frame :is(.likes-screen, .chat-screen) {
+    font-family: var(--font-inter), Inter, sans-serif !important;
+    padding-inline: 16px !important;
+  }
+  .phone-frame :is(.likes-page-header, .chat-page-header) {
+    padding: 16px 48px 14px 0 !important;
+  }
+  .phone-frame :is(.likes-page-header, .chat-page-header) h1 {
+    font-family: var(--font-inter), Inter, sans-serif !important;
+    font-size: 27px !important;
+    font-weight: 500 !important;
+    letter-spacing: -0.04em !important;
+  }
+  .phone-frame .likes-page-header > p {
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+    color: var(--muted-foreground) !important;
+  }
+  .phone-frame .connections-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--ui-border);
+    border-radius: 14px;
+    background: var(--surface);
+    color: var(--muted-foreground);
+  }
+  .phone-frame .connections-search input {
+    min-width: 0;
+    width: 100%;
+    padding: 10px 0;
+    border: 0;
+    background: transparent;
+    color: var(--foreground);
+    font:
+      400 16px var(--font-inter),
+      Inter,
+      sans-serif;
+  }
+  .phone-frame .connections-search input::placeholder {
+    color: var(--muted-foreground);
+    opacity: 1;
+  }
+  .phone-frame .likes-tabs {
+    margin-top: 12px !important;
+    gap: 2px !important;
+    border-color: var(--ui-border) !important;
+    background: var(--surface) !important;
+  }
+  .phone-frame .likes-tabs button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-width: 0;
+    min-height: 52px !important;
+    padding: 7px 3px !important;
+    font-size: 11px !important;
+    font-weight: 400 !important;
+    color: var(--muted-foreground) !important;
+  }
+  .phone-frame .likes-tabs button.active {
+    background: color-mix(
+      in srgb,
+      var(--foreground) 8%,
+      var(--surface)
+    ) !important;
+    color: var(--foreground) !important;
+    box-shadow: none !important;
+  }
+  .phone-frame .likes-tabs button span {
+    margin: 0 !important;
+    font-weight: 300 !important;
+  }
+  .phone-frame :is(.incoming-filters, .chat-inbox-filters) button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px !important;
+    font-size: 12px !important;
+    font-weight: 400 !important;
+  }
+  .phone-frame .likes-screen :is(.incoming-row, .sent-like) {
+    grid-template-columns: 48px minmax(0, 1fr) !important;
+    padding: 14px 0 !important;
+    gap: 12px !important;
+    border-color: var(--ui-border) !important;
+  }
+  .phone-frame .likes-screen .sent-like {
+    grid-template-columns: 48px minmax(0, 1fr) auto !important;
+  }
+  .phone-frame .likes-screen .avatar {
+    width: 48px !important;
+    height: 48px !important;
+  }
+  .phone-frame .likes-screen .incoming-name-link {
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    min-height: 30px;
+    overflow-wrap: anywhere;
+  }
+  .phone-frame
+    .likes-screen
+    :is(.incoming-copy small, .sent-like small, .incoming-note) {
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    color: var(--muted-foreground) !important;
+    line-height: 1.5 !important;
+  }
+  .phone-frame .likes-screen .incoming-note {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .phone-frame .likes-screen .decision-actions {
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .phone-frame
+    .likes-screen
+    :is(.decision-actions button, .sent-message-button, .saved-remove-button) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 44px !important;
+    font-size: 11px !important;
+    font-weight: 400 !important;
+    padding-inline: 10px !important;
+  }
+  .phone-frame .likes-screen .decision-actions button:not(.accept-like) {
+    color: var(--muted-foreground) !important;
+    background: transparent !important;
+    border-color: var(--ui-border) !important;
+  }
+  .phone-frame .likes-screen .accept-like {
+    background: var(--coral) !important;
+    color: var(--action-foreground) !important;
+  }
+  .phone-frame .chat-screen .chat-row {
+    padding-block: 12px !important;
+    min-height: 80px !important;
+  }
+  .phone-frame .chat-screen .chat-name-link strong {
+    font-size: 14px !important;
+    font-weight: 500 !important;
+  }
+  .phone-frame .chat-screen .chat-meta {
+    max-width: 58px;
+  }
+  .phone-frame .chat-screen .chat-meta time {
+    overflow-wrap: anywhere;
+  }
+  .phone-frame .chat-screen :is(.chat-name-link, .chat-conversation) {
+    width: 100%;
+  }
+  .phone-frame .chat-screen .chat-name-link {
+    min-height: 28px;
+  }
+  .phone-frame .chat-screen .chat-conversation {
+    min-height: 32px;
+  }
+  .phone-frame .chat-screen .conversation-count {
+    color: var(--chat-muted) !important;
+  }
+  .phone-frame :is(.likes-screen, .chat-screen) button:focus-visible {
+    outline: 2px solid var(--coral);
+    outline-offset: 3px;
+  }
+}

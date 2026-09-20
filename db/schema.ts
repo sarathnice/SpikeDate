@@ -6,6 +6,7 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 
 const timestamps = {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
@@ -60,6 +61,27 @@ export const sessions = sqliteTable(
   ],
 );
 
+export const presencePreferences = sqliteTable('presence_preferences', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  showOnline: integer('show_online', { mode: 'boolean' })
+    .notNull()
+    .default(true),
+});
+
+export const livePresence = sqliteTable(
+  'live_presence',
+  {
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => sessions.id, { onDelete: 'cascade' }),
+    clientId: text('client_id').notNull(),
+    lastSeenAt: integer('last_seen_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.sessionId, table.clientId] })],
+);
+
 export const profiles = sqliteTable(
   'profiles',
   {
@@ -103,6 +125,21 @@ export const profiles = sqliteTable(
     index('idx_profiles_goal').on(table.relationshipGoal),
   ],
 );
+
+export const profileConnections = sqliteTable('profile_connections', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  relationshipStyle: text('relationship_style').notNull().default(''),
+  datingPace: text('dating_pace').notNull().default(''),
+  communicationPreference: text('communication_preference')
+    .notNull()
+    .default(''),
+  valuesJson: text('values_json').notNull().default('[]'),
+  rhythmJson: text('rhythm_json').notNull().default('[]'),
+  languagesJson: text('languages_json').notNull().default('[]'),
+  ...timestamps,
+});
 
 export const phoneVerificationChallenges = sqliteTable(
   'phone_verification_challenges',
@@ -374,6 +411,22 @@ export const messages = sqliteTable(
       table.createdAt,
     ),
   ],
+);
+
+export const messageMedia = sqliteTable(
+  'message_media',
+  {
+    messageId: text('message_id')
+      .primaryKey()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    objectKey: text('object_key').notNull(),
+    kind: text('kind', { enum: ['photo', 'voice'] }).notNull(),
+    mimeType: text('mime_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    durationMs: integer('duration_ms'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [index('idx_message_media_kind').on(table.kind)],
 );
 
 export const safetyActions = sqliteTable(
@@ -770,5 +823,50 @@ export const dataRequests = sqliteTable(
   },
   (table) => [
     index('idx_data_requests_status_due').on(table.status, table.dueAt),
+  ],
+);
+
+export const gameSessions = sqliteTable(
+  'game_sessions',
+  {
+    id: text('id').primaryKey(),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    inviterId: text('inviter_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    inviteeId: text('invitee_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    gameJson: text('game_json').notNull(),
+    status: text('status').notNull().default('waiting'),
+    expiresAt: integer('expires_at').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_one_active_game')
+      .on(table.conversationId)
+      .where(sql`${table.status} IN ('waiting','active')`),
+    index('idx_game_conversation').on(table.conversationId, table.createdAt),
+  ],
+);
+
+export const gameAnswers = sqliteTable(
+  'game_answers',
+  {
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => gameSessions.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    round: integer('round').notNull(),
+    answer: text('answer').notNull(),
+    guess: text('guess'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sessionId, table.userId, table.round] }),
   ],
 );

@@ -2,61 +2,11 @@ import { env } from 'cloudflare:workers';
 import { hashPassword } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { json } from '@/lib/server/http';
+import { syntheticProfiles } from '@/lib/synthetic-profiles';
 
 export const runtime = 'edge';
 
-const firstNames = [
-  'Maya',
-  'Lena',
-  'Imani',
-  'Ava',
-  'Noah',
-  'Mateo',
-  'Jordan',
-  'Elias',
-  'Sofia',
-  'Amara',
-  'Chloe',
-  'Nina',
-  'Zoe',
-  'Layla',
-  'Camila',
-  'Mei',
-  'Fatima',
-  'Grace',
-  'Elena',
-  'Tara',
-  'Jade',
-  'Rhea',
-  'Mila',
-  'Daniel',
-  'Arjun',
-  'Marcus',
-  'Theo',
-  'Liam',
-  'Omar',
-  'Kenji',
-  'Andre',
-  'Samuel',
-  'Rafael',
-  'Ethan',
-  'Dev',
-  'Isaac',
-  'Gabriel',
-  'Mason',
-  'Alexis',
-  'River',
-  'Quinn',
-  'Sage',
-  'Rowan',
-  'Avery',
-  'Jamie',
-  'Morgan',
-  'Taylor',
-  'Casey',
-  'Skyler',
-  'Reese',
-];
+const firstNames = syntheticProfiles.map((profile) => profile.name);
 
 function authorized(request: Request) {
   const runtimeEnv = env as unknown as {
@@ -86,8 +36,7 @@ export async function POST(request: Request) {
           const suffix = String(index).padStart(3, '0');
           const userId = 'test-' + suffix;
           const email = 'test' + suffix + '@spikedate.test';
-          const gender =
-            index % 3 === 0 ? 'nonbinary' : index % 2 ? 'woman' : 'man';
+          const gender = syntheticProfiles[index - 1].gender;
           const goals = ['Long-term', 'Marriage', 'Dating', 'Short-term'];
           const goal = goals[index % goals.length];
           const birthYear = 1986 + (index % 18);
@@ -101,7 +50,7 @@ export async function POST(request: Request) {
               .bind(
                 userId,
                 email,
-                `+1555000${suffix}`,
+                `+1202555${String(index).padStart(4, '0')}`,
                 now,
                 passwordHash,
                 'active',
@@ -128,7 +77,7 @@ export async function POST(request: Request) {
                 goal,
                 index % 2 ? 'Boston' : 'Cambridge',
                 'US',
-                index % 5 ? 'verified' : 'unverified',
+                'verified',
                 1,
                 1,
                 now,
@@ -249,7 +198,154 @@ export async function POST(request: Request) {
           );
       }),
     );
+    // Reuse only the synthetic fixture assets already provisioned in this bucket.
+    // Never create a media row for a missing object, or replace a tester's upload.
+    const bucket = (
+      env as unknown as { MEDIA?: { head: (key: string) => Promise<unknown> } }
+    ).MEDIA;
+    const fixtureAssets = [
+      'maya',
+      'lena',
+      'imani',
+      'ava',
+      'noah',
+      'mateo',
+      'jordan',
+      'elias',
+    ];
+    const availableAssets = new Set<string>();
+    if (bucket) {
+      await Promise.all(
+        fixtureAssets.map(async (asset) => {
+          if (await bucket.head(`qa-fixtures/v1/${asset}.png`))
+            availableAssets.add(asset);
+        }),
+      );
+      const statements = firstNames.flatMap((_, index) => {
+        const suffix = String(index + 1).padStart(3, '0');
+        const asset = syntheticProfiles[index].asset;
+        if (!availableAssets.has(asset)) return [];
+        return [
+          db
+            .prepare(
+              'INSERT OR IGNORE INTO profile_media (id, user_id, object_key, type, position, moderation_status, explicit, created_at, updated_at) ' +
+                "SELECT ?, ?, ?, 'photo', 0, 'approved', 0, ?, ? WHERE NOT EXISTS (SELECT 1 FROM profile_media WHERE user_id = ? AND type = 'photo')",
+            )
+            .bind(
+              `test-primary-${suffix}`,
+              `test-${suffix}`,
+              `qa-fixtures/v1/${asset}.png`,
+              now,
+              now,
+              `test-${suffix}`,
+            ),
+        ];
+      });
+      if (statements.length) await db.batch(statements);
+    }
     const adminId = 'test-001';
+    for (const [offset, fixture] of syntheticProfiles.entries()) {
+      const connection = fixture.connection;
+      const suffix = String(offset + 1).padStart(3, '0');
+      const interestLabels =
+        offset % 2
+          ? ['Cooking', 'Live music', 'Road trips']
+          : ['Coffee', 'Indie music', 'Nature trips'];
+      await db.batch([
+        db
+          .prepare(
+            'UPDATE profiles SET pronouns = ?, occupation = ?, education = ?, height_cm = ?, kids = ?, wants_kids = ?, drinking = ?, smoking = ?, pets = ? WHERE user_id = ?',
+          )
+          .bind(
+            fixture.gender === 'woman' ? 'she/her' : 'he/him',
+            offset % 2 ? 'Designer' : 'Engineer',
+            offset % 3 ? 'Bachelor’s degree' : 'Master’s degree',
+            160 + (offset % 30),
+            offset % 4 ? 'No kids' : 'Has kids',
+            offset % 3 ? 'Open to children' : 'Wants kids',
+            offset % 2 ? 'Socially' : 'Never',
+            'No',
+            offset % 2 ? 'Has a dog' : 'No pets',
+            fixture.id,
+          ),
+        db
+          .prepare(
+            'INSERT OR IGNORE INTO profile_connections (user_id, relationship_style, dating_pace, communication_preference, values_json, rhythm_json, languages_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          )
+          .bind(
+            fixture.id,
+            connection.relationshipStyle,
+            connection.datingPace,
+            connection.communicationPreference,
+            JSON.stringify(connection.values),
+            JSON.stringify(connection.rhythm),
+            JSON.stringify(connection.languages),
+            now,
+            now,
+          ),
+        ...[
+          {
+            prompt: 'Our first date starts with…',
+            answer:
+              offset % 2
+                ? 'Coffee and an easy conversation.'
+                : 'A walk somewhere new.',
+          },
+          {
+            prompt: 'A little thing that makes me feel cared for…',
+            answer:
+              offset % 2
+                ? 'Remembering the little things I share.'
+                : 'Making time for an unhurried conversation.',
+          },
+        ].map((prompt, position) =>
+          db
+            .prepare(
+              'INSERT OR IGNORE INTO profile_prompts (id, user_id, prompt, answer, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            )
+            .bind(
+              `test-prompt-${suffix}-${position}`,
+              fixture.id,
+              prompt.prompt,
+              prompt.answer,
+              position,
+              now,
+              now,
+            ),
+        ),
+        ...interestLabels.flatMap((label) => [
+          db
+            .prepare(
+              "INSERT OR IGNORE INTO interests (id, label, category) VALUES (?, ?, 'interest')",
+            )
+            .bind(
+              `fixture-interest-${label.toLowerCase().replaceAll(' ', '-')}`,
+              label,
+            ),
+          db
+            .prepare(
+              'INSERT OR IGNORE INTO user_interests (user_id, interest_id) VALUES (?, (SELECT id FROM interests WHERE label = ? LIMIT 1))',
+            )
+            .bind(fixture.id, label),
+        ]),
+        ...(availableAssets.has(fixture.asset)
+          ? [1, 2].map((position) =>
+              db
+                .prepare(
+                  "INSERT OR IGNORE INTO profile_media (id, user_id, object_key, type, position, moderation_status, explicit, created_at, updated_at) VALUES (?, ?, ?, 'photo', ?, 'approved', 0, ?, ?)",
+                )
+                .bind(
+                  `test-gallery-${suffix}-${position}`,
+                  fixture.id,
+                  `qa-fixtures/v1/${fixture.asset}.png`,
+                  position,
+                  now,
+                  now,
+                ),
+            )
+          : []),
+      ]);
+    }
     await db
       .prepare(
         'INSERT OR IGNORE INTO admin_users (user_id, role, created_at, updated_at) VALUES (?, ?, ?, ?)',
@@ -260,6 +356,7 @@ export async function POST(request: Request) {
       created: firstNames.length,
       password: 'SpikeDate2026!',
       firstAccount: 'test001@spikedate.test',
+      fixturePhotoAssetsAvailable: availableAssets.size,
     });
   });
 }

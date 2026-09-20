@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { identifier, json, readJson } from '@/lib/server/http';
 import { reconcileDiscoverability } from '@/lib/server/profile-readiness';
+import { cameraQualityMessage } from '@/lib/camera-quality';
 
 export const runtime = 'edge';
 
@@ -11,6 +12,10 @@ const requestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('start'),
     consent: z.literal(true),
+  }),
+  z.object({
+    action: z.literal('cancel'),
+    requestId: z.string().trim().min(8).max(100),
   }),
   z.object({
     action: z.literal('complete'),
@@ -31,7 +36,12 @@ function verificationMode(request: Request): VerificationMode {
   const configured = (
     env as unknown as { SPIKEDATE_FACE_VERIFICATION_MODE?: string }
   ).SPIKEDATE_FACE_VERIFICATION_MODE;
-  if (configured === 'mock' || configured === 'disabled') return configured;
+  if (configured === 'disabled') return configured;
+  // Never enable a test provider on a public hostname.
+  if (configured === 'mock') {
+    const host = new URL(request.url).hostname;
+    return host === 'localhost' || host === '127.0.0.1' ? 'mock' : 'manual';
+  }
   if (configured === 'manual') return 'manual';
   const hostname = new URL(request.url).hostname;
   return hostname === 'localhost' || hostname === '127.0.0.1'
@@ -46,6 +56,7 @@ function publicStatus(value: string | null) {
     value === 'identity_verified' ||
     value === 'pending' ||
     value === 'needs_review' ||
+    value === 'capture_ready' ||
     value === 'needs_retry'
   )
     return value;
@@ -79,7 +90,8 @@ export async function GET(request: Request) {
     return json({
       status: publicStatus(profile?.verification_status ?? null),
       request: latest ?? null,
-      testMode: latest?.provider === 'local-camera-test',
+      testMode: verificationMode(request) === 'mock',
+      identityVerificationConfigured: false,
     });
   });
 }
@@ -107,6 +119,27 @@ export async function POST(request: Request) {
     const now = Date.now();
 
     if (parsed.data.action === 'start') {
+      const profile = await db
+        .prepare('SELECT verification_status FROM profiles WHERE user_id = ?')
+        .bind(user.id)
+        .first<{ verification_status: string }>();
+      if (!profile)
+        return json(
+          { error: 'Save your profile before starting the camera check.' },
+          { status: 409 },
+        );
+      if (
+        ['verified', 'photo_verified', 'identity_verified'].includes(
+          profile.verification_status,
+        )
+      )
+        return json(
+          {
+            error:
+              'Your profile is already verified. Remove verification data first if you want to restart.',
+          },
+          { status: 409 },
+        );
       const attempts = await db
         .prepare(
           'SELECT COUNT(*) AS total FROM verification_requests WHERE user_id = ? AND submitted_at > ?',
@@ -122,7 +155,7 @@ export async function POST(request: Request) {
           { status: 429 },
         );
       const id = identifier('verify');
-      const provider = mode === 'mock' ? 'local-camera-test' : 'manual-review';
+      const provider = 'on-device-face-detection';
       await db.batch([
         db
           .prepare(
@@ -140,7 +173,7 @@ export async function POST(request: Request) {
             id,
             user.id,
             provider,
-            'consent-v1:' + crypto.randomUUID(),
+            'consent-v2-on-device:' + crypto.randomUUID(),
             'pending',
             now,
             null,
@@ -153,10 +186,12 @@ export async function POST(request: Request) {
           )
           .bind('pending', now, user.id),
       ]);
+      await reconcileDiscoverability(db, user.id);
       return json(
         {
           request: { id, status: 'pending', expiresAt: now + 5 * 60 * 1000 },
           testMode: mode === 'mock',
+          identityVerificationConfigured: false,
         },
         { status: 201 },
       );
@@ -178,6 +213,22 @@ export async function POST(request: Request) {
         { error: 'This camera-check session is no longer active.' },
         { status: 409 },
       );
+    if (parsed.data.action === 'cancel') {
+      await db.batch([
+        db
+          .prepare(
+            "UPDATE verification_requests SET status = 'cancelled', updated_at = ? WHERE id = ?",
+          )
+          .bind(now, pending.id),
+        db
+          .prepare(
+            "UPDATE profiles SET verification_status = 'unverified', updated_at = ? WHERE user_id = ? AND NOT EXISTS (SELECT 1 FROM verification_requests WHERE user_id = ? AND status = 'pending')",
+          )
+          .bind(now, user.id, user.id),
+      ]);
+      await reconcileDiscoverability(db, user.id);
+      return json({ status: 'unverified' });
+    }
     if (pending.submitted_at < now - 5 * 60 * 1000) {
       await db
         .prepare(
@@ -185,33 +236,33 @@ export async function POST(request: Request) {
         )
         .bind(now, now, pending.id)
         .run();
+      await db
+        .prepare(
+          "UPDATE profiles SET verification_status = 'needs_retry', updated_at = ? WHERE user_id = ?",
+        )
+        .bind(now, user.id)
+        .run();
+      await reconcileDiscoverability(db, user.id);
       return json(
         { error: 'The camera-check session expired. Start again.' },
         { status: 410 },
       );
     }
 
-    const { brightness, sharpness, faceCount } = parsed.data.metrics;
-    const qualityPassed =
-      brightness >= 42 &&
-      brightness <= 225 &&
-      sharpness >= 4.5 &&
-      faceCount !== 0 &&
-      (faceCount === null || faceCount === 1);
-    const status = !qualityPassed
-      ? 'needs_retry'
-      : pending.provider === 'local-camera-test'
-        ? 'photo_verified'
-        : 'needs_review';
+    const qualityPassed = !cameraQualityMessage(parsed.data.metrics);
+    // Client metrics are untrusted. Detection is not liveness/face matching.
+    // Only a future server-validated provider may issue a verified badge.
+    const status = qualityPassed ? 'capture_ready' : 'needs_retry';
     await db.batch([
       db
         .prepare(
           'UPDATE verification_requests SET provider_ref = ?, status = ?, reviewed_at = ?, updated_at = ? WHERE id = ?',
         )
         .bind(
-          'capture-sha256:' + parsed.data.metrics.captureDigest,
+          'consent-v2-on-device;capture-sha256:' +
+            parsed.data.metrics.captureDigest,
           status,
-          now,
+          null,
           now,
           pending.id,
         ),
@@ -224,7 +275,8 @@ export async function POST(request: Request) {
     const readiness = await reconcileDiscoverability(db, user.id);
     return json({
       status,
-      testMode: pending.provider === 'local-camera-test',
+      testMode: mode === 'mock',
+      identityVerificationConfigured: false,
       retainedImage: false,
       readiness,
     });

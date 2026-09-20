@@ -1,5 +1,7 @@
 # SpikeDate
 
+Matched chat now includes live **Arcade** (Four in a Row, Bubble Duel, Guess Next) alongside ten Conversation games. See [Arcade setup and controls](docs/ARCADE_GAMES.md) and [Conversation games](docs/DATING_GAMES.md). Arcade requires the built Worker / Durable Object gateway, not a standalone Vite demo preview.
+
 SpikeDate is a photo-first dating experience with profile discovery, Galaxy communities, matching, chat, preferences, registration, themes, and mobile-first layouts.
 
 ## Development website
@@ -49,6 +51,10 @@ npm run mobile:sync:ios
 Open the native projects with `npm run mobile:open:android` or `npm run mobile:open:ios`. Android Studio is required for Android builds. Xcode on macOS is required for iOS builds and signing.
 
 ## Validation
+
+For repeatable mobile QA with a timestamped HTML report, run `npm run qa:stage`
+or double-click `Run-SpikeDate-QA.cmd`. See [QA_SUITE.md](./QA_SUITE.md) for full
+regression, 50-profile photo audits, fixture requirements and coverage limits.
 
 ```bash
 npm run lint
@@ -113,16 +119,26 @@ The first-1,000-user infrastructure estimate is documented in
 
 ## Photo verification
 
-Profile → **Verify your photos** opens the mobile camera safety check. The user
+New registration → **Save profile** automatically opens the camera step.
+Profile → **Verify your photos** also opens the mobile camera check. The user
 must consent before camera access, place one face inside the guide, and pass
-lighting and focus checks. The captured frame is analyzed in memory and is not
+lighting and image-detail checks. A self-hosted MediaPipe detector requires exactly
+one centered face. The captured frame is analyzed in memory and is not
 saved or uploaded; the server stores only the check status and a one-way SHA-256
 digest in the existing `verification_requests` audit table.
 
 Set `SPIKEDATE_FACE_VERIFICATION_MODE=mock` only for local automated testing.
-Use `manual` in shared environments until a production liveness and
-profile-photo comparison provider is connected. Production approval must come
-from that provider or trained manual review, never from the local quality check.
+Use `manual` in shared environments. Both modes currently record only capture
+readiness (`capture_ready`), **never a verified badge**. `manual` is not an image
+review queue: no reviewable selfie is retained. Production approval must come
+from a connected provider or a properly implemented trained manual-review flow,
+never from the local quality check.
+
+Camera permission denial and **Finish later** preserve the saved profile, which
+remains private until phone verification, a completed profile, a real photo
+verification decision, and an approved photo are present. See
+`docs/REGISTRATION_FACE_CAPTURE.md` for research, test coverage, and the outstanding
+provider integration.
 
 GitHub Actions validates the web build and Docker image, then builds an Android debug APK and an unsigned iOS simulator app. Cloudflare production deployment is intentionally deferred.
 
