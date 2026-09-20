@@ -57,13 +57,13 @@ it('handles missing or malformed stored JSON without manufacturing details', () 
     }).values,
   ).toEqual(['Kindness']);
 });
-it('offers sixty valid synthetic profiles with balanced genders and unique accounts', () => {
-  expect(syntheticProfiles).toHaveLength(60);
-  expect(new Set(syntheticProfiles.map((x) => x.email)).size).toBe(60);
+it('offers fifty valid synthetic profiles with balanced genders and unique accounts', () => {
+  expect(syntheticProfiles).toHaveLength(50);
+  expect(new Set(syntheticProfiles.map((x) => x.email)).size).toBe(50);
   expect(syntheticProfiles.filter((x) => x.gender === 'woman')).toHaveLength(
-    30,
+    25,
   );
-  expect(syntheticProfiles.filter((x) => x.gender === 'man')).toHaveLength(30);
+  expect(syntheticProfiles.filter((x) => x.gender === 'man')).toHaveLength(25);
   for (const profile of syntheticProfiles)
     expect(connectionSchema.safeParse(profile.connection).success).toBe(true);
 });

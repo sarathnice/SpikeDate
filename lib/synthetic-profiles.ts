@@ -63,7 +63,7 @@ const men = [
   'David',
   'Hugo',
 ];
-export const syntheticProfiles = Array.from({ length: 60 }, (_, offset) => {
+export const syntheticProfiles = Array.from({ length: 50 }, (_, offset) => {
   const woman = offset % 2 === 0;
   const index = Math.floor(offset / 2);
   const suffix = String(offset + 1).padStart(3, '0');

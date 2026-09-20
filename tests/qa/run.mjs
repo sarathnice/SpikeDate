@@ -32,8 +32,8 @@ if (!['smoke', 'full', 'photos'].includes(options.mode))
 const profiles = Number(
   options.profiles ?? (options.mode === 'smoke' ? 3 : 50),
 );
-if (!Number.isInteger(profiles) || profiles < 1 || profiles > 60)
-  throw new Error('Profiles must be an integer from 1 to 60.');
+if (!Number.isInteger(profiles) || profiles < 1 || profiles > 50)
+  throw new Error('Profiles must be an integer from 1 to 50.');
 const startedAt = new Date().toISOString();
 const dir = path.join(
   root,
