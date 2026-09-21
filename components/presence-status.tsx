@@ -55,6 +55,7 @@ export function PresenceStatus({
   return (
     <p
       className="profile-presence"
+      data-presence={online ? 'online' : 'recent'}
       aria-label={description}
       title={description}
     >

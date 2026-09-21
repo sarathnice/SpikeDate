@@ -11408,11 +11408,50 @@ button > .lucide-calendar-check {
 .photo-first-room .card-story {
   display: none;
 }
+.photo-first-room .chips {
+  align-items: center;
+  gap: 0;
+  margin-top: 10px;
+}
 .photo-first-room .chips span {
-  padding: 5px 8px;
-  background: rgba(7, 8, 11, 0.2);
-  border-color: rgba(255, 255, 255, 0.34);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 0.71rem;
+  font-weight: 400;
+  line-height: 1.25;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.84);
+  backdrop-filter: none;
+}
+.photo-first-room .chips span:nth-child(2)::before {
+  content: '·';
+  margin: 0 8px;
+  color: rgba(255, 255, 255, 0.66);
+}
+.photo-first-room .chips .home-detail-icon {
+  color: white;
+}
+.photo-first-room .profile-presence {
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.86);
   font-size: 0.68rem;
+  font-weight: 400;
+}
+.photo-first-room .profile-presence > span {
+  width: 7px;
+  height: 7px;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+.photo-first-room .profile-presence[data-presence='online'] {
+  color: #92fa73;
+}
+.photo-first-room .profile-presence[data-presence='online'] > span {
+  box-shadow: 0 0 0 3px rgba(146, 250, 115, 0.16);
 }
 .photo-first-room .room-action-wrap {
   position: absolute;

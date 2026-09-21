@@ -22,6 +22,22 @@ test('Outdoors uses an edge-to-edge portrait with reachable overlay actions', as
     return Boolean(image?.complete && image.naturalWidth > 0);
   });
   await expect(portrait).toHaveCSS('object-fit', 'cover');
+  const visibleDetails = room.locator('.chips span:visible');
+  await expect(visibleDetails.first()).toHaveCSS(
+    'background-color',
+    'rgba(0, 0, 0, 0)',
+  );
+  await expect(visibleDetails.first()).toHaveCSS('border-top-style', 'none');
+  await expect(visibleDetails.first()).toHaveCSS('font-weight', '400');
+  if ((await visibleDetails.count()) > 1) {
+    expect(
+      await visibleDetails
+        .nth(1)
+        .evaluate((element) =>
+          getComputedStyle(element, '::before').content.replaceAll('"', ''),
+        ),
+    ).toBe('·');
+  }
 
   for (const { width, height } of [
     { width: 320, height: 700 },
@@ -107,6 +123,15 @@ test('every populated Galaxy Browse tile uses the photo-first room layout', asyn
       populatedRooms += 1;
       await expect(room).toHaveClass(/photo-first-room/);
       await expect(room.locator('.context-chip')).toHaveCount(0);
+      const visibleDetails = room.locator('.chips span:visible');
+      await expect(visibleDetails.first()).toHaveCSS(
+        'background-color',
+        'rgba(0, 0, 0, 0)',
+      );
+      await expect(visibleDetails.first()).toHaveCSS(
+        'border-top-style',
+        'none',
+      );
       const portrait = room.locator('.cinematic-photo-main');
       await expect(portrait).toHaveCSS('object-fit', 'cover');
       await page.waitForFunction(() => {

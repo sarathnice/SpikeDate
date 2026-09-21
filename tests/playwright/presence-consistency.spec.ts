@@ -80,6 +80,10 @@ for (const state of ['recent', 'expired', 'missing']) {
         'aria-label',
         'Presence Preview was active in the last 15 minutes',
       );
+      await expect(page.locator('.profile-presence')).toHaveAttribute(
+        'data-presence',
+        'recent',
+      );
     } else await expect(page.locator('.profile-presence')).toHaveCount(0);
     await page.getByRole('button', { name: 'Chat', exact: true }).click();
     const row = page
