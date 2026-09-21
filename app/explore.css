@@ -148,3 +148,114 @@
     flex-shrink: 0;
   }
 }
+
+/* Cosmic Accent: Galaxy keeps Midnight's quiet structure while a restrained
+   vermilion-to-orange spectrum gives rooms identity and warmth. */
+@layer quiet-precision {
+  .explore-hub {
+    --galaxy-cosmic-red: #ff4d3d;
+    --galaxy-cosmic-orange: #ff9d2e;
+    --galaxy-room-accent: var(--galaxy-cosmic-red);
+  }
+  .explore-hub .galaxy-page-header h1::after {
+    content: '';
+    display: block;
+    width: 30px;
+    height: 3px;
+    margin-top: 6px;
+    border-radius: 999px;
+    background: linear-gradient(
+      90deg,
+      var(--galaxy-cosmic-red),
+      var(--galaxy-cosmic-orange)
+    );
+    box-shadow: 0 0 18px
+      color-mix(in srgb, var(--galaxy-cosmic-red) 38%, transparent);
+  }
+  .explore-hub .explore-tabs button[aria-selected='true'] {
+    background: color-mix(
+      in srgb,
+      var(--galaxy-cosmic-red) 17%,
+      var(--surface)
+    );
+    color: color-mix(in srgb, var(--galaxy-cosmic-red) 42%, white);
+  }
+  .explore-hub .explore-tabs button[aria-selected='true'] svg,
+  .explore-hub .galaxy-browse-heading > span {
+    color: var(--galaxy-cosmic-orange);
+  }
+  .explore-hub .room-tile {
+    border: 1px solid
+      color-mix(in srgb, var(--galaxy-room-accent) 18%, transparent) !important;
+    background: color-mix(in srgb, var(--galaxy-room-accent) 10%, #16171d);
+  }
+  .explore-hub .room-tile:nth-child(1) {
+    --galaxy-room-accent: #ff4d3d;
+  }
+  .explore-hub .room-tile:nth-child(2) {
+    --galaxy-room-accent: #ff6f3d;
+  }
+  .explore-hub .room-tile:nth-child(3) {
+    --galaxy-room-accent: #ff9d2e;
+  }
+  .explore-hub .room-tile:nth-child(4) {
+    --galaxy-room-accent: #ff6248;
+  }
+  .explore-hub .room-tile:nth-child(5) {
+    --galaxy-room-accent: #ff7c3d;
+  }
+  .explore-hub .room-tile:nth-child(6) {
+    --galaxy-room-accent: #ffaf36;
+  }
+  .explore-hub .room-tile:nth-child(7) {
+    --galaxy-room-accent: #ff5a4f;
+  }
+  .explore-hub .room-tile:nth-child(8) {
+    --galaxy-room-accent: #ff8b35;
+  }
+  .explore-hub .room-tile .profile-photo {
+    filter: saturate(1.08) contrast(1.04);
+  }
+  .explore-hub .room-shade {
+    background:
+      linear-gradient(180deg, rgba(4, 5, 9, 0.03) 8%, rgba(4, 5, 9, 0.84) 100%),
+      radial-gradient(
+        circle at 88% 12%,
+        color-mix(in srgb, var(--galaxy-room-accent) 34%, transparent),
+        transparent 48%
+      );
+  }
+  .explore-hub .room-copy strong svg {
+    flex: 0 0 27px;
+    width: 27px;
+    height: 27px;
+    padding: 5px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--galaxy-room-accent) 24%, transparent);
+    color: color-mix(in srgb, var(--galaxy-room-accent) 68%, white);
+    filter: drop-shadow(
+      0 0 8px color-mix(in srgb, var(--galaxy-room-accent) 40%, transparent)
+    );
+  }
+  .explore-hub .room-copy em {
+    color: color-mix(in srgb, var(--galaxy-room-accent) 26%, white) !important;
+  }
+  .explore-hub .stand-note svg,
+  .explore-hub .galaxy-section-heading > span,
+  .explore-hub .galaxy-plan-tile.selected svg,
+  .explore-hub .explore-games-shortcut > svg {
+    color: var(--galaxy-cosmic-red);
+  }
+  .explore-hub .galaxy-plan-tile.selected {
+    border-color: color-mix(
+      in srgb,
+      var(--galaxy-cosmic-red) 56%,
+      var(--ui-border)
+    );
+    background: color-mix(
+      in srgb,
+      var(--galaxy-cosmic-red) 12%,
+      var(--surface)
+    );
+  }
+}

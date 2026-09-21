@@ -13,6 +13,21 @@ test('Galaxy tabs: mobile layout, category icons, keyboard access and working de
   await expect(hub.getByRole('tab')).toHaveCount(3);
   await expect(hub.locator('.room-tile')).toHaveCount(8);
   await expect(hub.locator('.room-copy strong svg')).toHaveCount(8);
+  const browseTab = hub.getByRole('tab', { name: 'Browse', exact: true });
+  await expect(browseTab).not.toHaveCSS('color', 'rgb(255, 255, 255)');
+  await expect(browseTab).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  const firstIcon = hub.locator('.room-copy strong svg').first();
+  await expect(firstIcon).toHaveCSS('width', '27px');
+  await expect(firstIcon).toHaveCSS('height', '27px');
+  await expect(firstIcon).not.toHaveCSS('color', 'rgb(255, 255, 255)');
+  const roomAccents = await hub
+    .locator('.room-tile')
+    .evaluateAll((tiles) =>
+      tiles.map((tile) =>
+        getComputedStyle(tile).getPropertyValue('--galaxy-room-accent').trim(),
+      ),
+    );
+  expect(new Set(roomAccents).size).toBeGreaterThan(4);
   for (const tile of await hub.locator('.room-tile').all()) {
     await expect(tile).toHaveCSS('height', '98px');
     await expect(tile).toHaveCSS('grid-column-start', 'auto');
