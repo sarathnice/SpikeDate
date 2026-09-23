@@ -28,7 +28,9 @@ const config: CapacitorConfig = {
   },
   ios: {
     backgroundColor: '#0b0c12',
-    contentInset: 'automatic',
+    // CSS owns the safe-area insets. Native automatic insetting plus env()
+    // creates a second inset and can expose a black strip while rubber-banding.
+    contentInset: 'never',
   },
 };
 

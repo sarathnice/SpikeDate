@@ -58,7 +58,7 @@ export default defineConfig({
     {
       name: 'ios-mobile',
       use: {
-        ...devices['iPhone 13'],
+        ...devices['iPhone 15'],
         browserName: 'chromium',
       },
     },

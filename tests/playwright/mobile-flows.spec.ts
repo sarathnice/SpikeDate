@@ -264,6 +264,58 @@ test('discovery actions and full profile remain usable', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: /^Like /i })).toHaveCount(0);
 });
 
+test('iPhone 15 home stays full screen and touch swipes profiles', async ({
+  page,
+}) => {
+  await signIn(page);
+  const viewport = page.viewportSize();
+  expect(viewport).toEqual({ width: 393, height: 659 });
+
+  const frame = page.locator('.phone-frame');
+  const card = page.locator('.discover-screen > .profile-card');
+  await expect(frame).toBeVisible();
+  await expect(card).toBeVisible();
+  const [frameBox, cardBox] = await Promise.all([
+    frame.boundingBox(),
+    card.boundingBox(),
+  ]);
+  expect(frameBox).not.toBeNull();
+  expect(cardBox).not.toBeNull();
+  expect(frameBox!.x).toBeGreaterThanOrEqual(-1);
+  expect(frameBox!.y).toBeGreaterThanOrEqual(-1);
+  expect(frameBox!.x + frameBox!.width).toBeLessThanOrEqual(viewport!.width + 1);
+  expect(frameBox!.y + frameBox!.height).toBeLessThanOrEqual(
+    viewport!.height + 1,
+  );
+  expect(
+    await page.evaluate(() => ({
+      scrollY: window.scrollY,
+      scrollHeight: document.documentElement.scrollHeight,
+      clientHeight: document.documentElement.clientHeight,
+    })),
+  ).toEqual({ scrollY: 0, scrollHeight: 659, clientHeight: 659 });
+
+  const firstProfile = await card.locator('.name-row h1').innerText();
+  const client = await page.context().newCDPSession(page);
+  const y = cardBox!.y + cardBox!.height * 0.48;
+  const startX = cardBox!.x + cardBox!.width * 0.78;
+  const endX = cardBox!.x + cardBox!.width * 0.2;
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: startX, y }],
+  });
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: [{ x: endX, y }],
+  });
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchEnd',
+    touchPoints: [],
+  });
+  await expect(card.locator('.name-row h1')).not.toHaveText(firstProfile);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
+
 test('Like advances immediately while Spike has one top-placement send action', async ({
   page,
 }) => {

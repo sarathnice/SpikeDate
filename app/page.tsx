@@ -7359,7 +7359,6 @@ function ProfileCard({
       onDragStart={(event) => event.preventDefault()}
       onPointerDown={(e) => {
         if (
-          e.pointerType === 'touch' ||
           (!onSwipeLeft && !onSwipeRight) ||
           (e.target as Element).closest(
             '.today-card-pill, .tonight-card-status',
@@ -7376,54 +7375,21 @@ function ProfileCard({
       }}
       onPointerMove={(e) => {
         const start = gesture.current;
-        if (
-          e.pointerType === 'touch' ||
-          !start ||
-          start.pointerId !== e.pointerId
-        )
-          return;
+        if (!start || start.pointerId !== e.pointerId) return;
         const dx = e.clientX - start.x;
         const dy = e.clientY - start.y;
         if (Math.abs(dx) > 7 && Math.abs(dx) > Math.abs(dy)) {
+          e.preventDefault();
           start.moved = true;
           setOffset(Math.max(-150, Math.min(150, dx)));
         }
       }}
       onPointerUp={(e) => {
-        if (e.pointerType !== 'touch') finishGesture(e.clientX, e.clientY);
-      }}
-      onMouseUp={(e) => {
-        if (gesture.current?.pointerId !== -1)
-          finishGesture(e.clientX, e.clientY);
+        finishGesture(e.clientX, e.clientY);
       }}
       onPointerCancel={() => {
         gesture.current = null;
         setOffset(0);
-      }}
-      onTouchStart={(e) => {
-        if (!onSwipeLeft && !onSwipeRight) return;
-        const touch = e.touches[0];
-        gesture.current = {
-          x: touch.clientX,
-          y: touch.clientY,
-          moved: false,
-          pointerId: -1,
-        };
-      }}
-      onTouchMove={(e) => {
-        const start = gesture.current;
-        const touch = e.touches[0];
-        if (!start || start.pointerId !== -1 || !touch) return;
-        const dx = touch.clientX - start.x;
-        const dy = touch.clientY - start.y;
-        if (Math.abs(dx) > 7 && Math.abs(dx) > Math.abs(dy)) {
-          start.moved = true;
-          setOffset(Math.max(-150, Math.min(150, dx)));
-        }
-      }}
-      onTouchEnd={(e) => {
-        const touch = e.changedTouches[0];
-        if (touch) finishGesture(touch.clientX, touch.clientY);
       }}
     >
       <CinematicPortrait
