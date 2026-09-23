@@ -116,7 +116,6 @@ import {
 } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { PhotoCropper, type CroppedPhoto } from '@/components/photo-cropper';
-import { ProfileCamera } from '@/components/profile-camera';
 import { ChatMediaActions } from '@/components/chat-media-actions';
 import {
   PhotoVerificationDialog,
@@ -3885,7 +3884,7 @@ export default function HomePage() {
       return [...existingPhotos, media, ...(video ? [video] : [])];
     });
     const qualityMessage = photo.lowResolution
-      ? 'Photo added. A higher-resolution original will look sharper.'
+      ? 'Photo added. Cloud Enhance will improve its display automatically; a larger original will still look sharper.'
       : (photo.qualityWarnings[0] ??
         'Photo cropped and saved with cinematic mobile variants');
     announce(qualityMessage);
@@ -7191,6 +7190,7 @@ function DiscoverScreen({
         onTonight={onTonight}
         onSwipeLeft={preview ? undefined : onPass}
         onSwipeRight={preview ? undefined : onLike}
+        onSwipeUp={preview ? undefined : onOpen}
       />
       <div
         className="home-action-rail"
@@ -7273,10 +7273,14 @@ function CinematicPortrait({
   priority?: boolean;
   variant?: 'card' | 'full';
 }) {
+  const [failed, setFailed] = useState(false);
   const unoptimized = src.startsWith('/') || src.startsWith('data:');
-  const imageSource = src.startsWith('/api/media/')
+  const imageSource = failed
+    ? '/profile-placeholder.svg'
+    : src.startsWith('/api/media/')
     ? `${src.split('?')[0]}?variant=${variant}`
     : src;
+  useEffect(() => setFailed(false), [src]);
   return (
     <div className="cinematic-photo-stack">
       <Image
@@ -7288,6 +7292,7 @@ function CinematicPortrait({
         sizes={sizes}
         quality={95}
         unoptimized={unoptimized}
+        onError={() => setFailed(true)}
         className="profile-photo cinematic-photo-main"
       />
       <span className="cinematic-photo-grade" aria-hidden="true" />
@@ -7306,6 +7311,7 @@ function ProfileCard({
   preview,
   onSwipeLeft,
   onSwipeRight,
+  onSwipeUp,
 }: {
   profile: Profile;
   connection?: 'like' | 'super_spike';
@@ -7317,18 +7323,28 @@ function ProfileCard({
   preview?: boolean;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
+  onSwipeUp?: () => void;
 }) {
   const tonight =
     profile.tonight &&
     new Date(profile.tonight.expiresAt).getTime() > Date.now()
       ? profile.tonight
       : undefined;
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [gesturePhase, setGesturePhase] = useState<
+    'idle' | 'dragging' | 'exiting'
+  >('idle');
   const gesture = useRef<{
     x: number;
     y: number;
     moved: boolean;
     pointerId: number;
+    lastX: number;
+    lastY: number;
+    lastAt: number;
+    velocityX: number;
+    velocityY: number;
+    axis: 'horizontal' | 'vertical' | null;
   } | null>(null);
   const suppressClick = useRef(false);
   const finishGesture = (clientX: number, clientY: number) => {
@@ -7336,23 +7352,54 @@ function ProfileCard({
     if (!start) return;
     const dx = clientX - start.x;
     const dy = clientY - start.y;
-    const isSwipe = Math.abs(dx) > 64 && Math.abs(dx) > Math.abs(dy) * 1.15;
+    const projectedX = dx + start.velocityX * 110;
+    const projectedY = dy + start.velocityY * 110;
+    const isHorizontal =
+      start.axis === 'horizontal' &&
+      (Math.abs(dx) > 44 || Math.abs(projectedX) > 72);
+    const isSwipeUp =
+      start.axis === 'vertical' &&
+      dy < 0 &&
+      (dy < -52 || projectedY < -82) &&
+      Boolean(onSwipeUp);
     gesture.current = null;
-    setOffset(0);
-    if (isSwipe) {
+    if (start.moved) {
       suppressClick.current = true;
       window.setTimeout(() => {
         suppressClick.current = false;
-      }, 300);
-      if (dx > 0) onSwipeRight?.();
-      else onSwipeLeft?.();
+      }, 320);
     }
+    if (isHorizontal || isSwipeUp) {
+      setGesturePhase('exiting');
+      setOffset(
+        isSwipeUp
+          ? { x: 0, y: -Math.max(window.innerHeight * 0.44, 320) }
+          : {
+              x:
+                Math.sign(projectedX || dx) *
+                Math.max(window.innerWidth * 1.18, 460),
+              y: Math.max(-24, Math.min(24, dy * 0.12)),
+            },
+      );
+      window.setTimeout(() => {
+        if (isSwipeUp) onSwipeUp?.();
+        else if (projectedX > 0) onSwipeRight?.();
+        else onSwipeLeft?.();
+        setGesturePhase('idle');
+        setOffset({ x: 0, y: 0 });
+      }, 190);
+      return;
+    }
+    setGesturePhase('idle');
+    setOffset({ x: 0, y: 0 });
   };
   return (
     <div
-      className={`profile-card ${offset > 18 ? 'swiping-right' : offset < -18 ? 'swiping-left' : ''}`}
+      className={`profile-card gesture-${gesturePhase} ${offset.x > 18 ? 'swiping-right' : offset.x < -18 ? 'swiping-left' : offset.y < -18 ? 'swiping-up' : ''}`}
       role="presentation"
-      style={{ transform: `translateX(${offset}px) rotate(${offset / 28}deg)` }}
+      style={{
+        transform: `translate3d(${offset.x}px, ${offset.y}px, 0) rotate(${offset.x / 28}deg)`,
+      }}
       onClick={() => {
         if (!suppressClick.current) onOpen?.();
       }}
@@ -7370,18 +7417,51 @@ function ProfileCard({
           y: e.clientY,
           moved: false,
           pointerId: e.pointerId,
+          lastX: e.clientX,
+          lastY: e.clientY,
+          lastAt: performance.now(),
+          velocityX: 0,
+          velocityY: 0,
+          axis: null,
         };
+        setGesturePhase('dragging');
         e.currentTarget.setPointerCapture(e.pointerId);
       }}
       onPointerMove={(e) => {
         const start = gesture.current;
         if (!start || start.pointerId !== e.pointerId) return;
-        const dx = e.clientX - start.x;
-        const dy = e.clientY - start.y;
-        if (Math.abs(dx) > 7 && Math.abs(dx) > Math.abs(dy)) {
+        const samples = e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent];
+        const sample = samples[samples.length - 1];
+        const clientX = sample.clientX;
+        const clientY = sample.clientY;
+        const now = performance.now();
+        const elapsed = Math.max(1, now - start.lastAt);
+        const instantVelocityX = (clientX - start.lastX) / elapsed;
+        const instantVelocityY = (clientY - start.lastY) / elapsed;
+        start.velocityX = start.velocityX * 0.55 + instantVelocityX * 0.45;
+        start.velocityY = start.velocityY * 0.55 + instantVelocityY * 0.45;
+        start.lastX = clientX;
+        start.lastY = clientY;
+        start.lastAt = now;
+        const dx = clientX - start.x;
+        const dy = clientY - start.y;
+        if (!start.axis && Math.hypot(dx, dy) > 5) {
+          start.axis = Math.abs(dx) >= Math.abs(dy)
+            ? 'horizontal'
+            : 'vertical';
+        }
+        if (start.axis === 'horizontal') {
           e.preventDefault();
           start.moved = true;
-          setOffset(Math.max(-150, Math.min(150, dx)));
+          setOffset({ x: dx, y: Math.max(-10, Math.min(10, dy * 0.08)) });
+        } else if (
+          start.axis === 'vertical' &&
+          dy < 0 &&
+          onSwipeUp
+        ) {
+          e.preventDefault();
+          start.moved = true;
+          setOffset({ x: dx * 0.06, y: dy * 0.72 });
         }
       }}
       onPointerUp={(e) => {
@@ -7389,7 +7469,8 @@ function ProfileCard({
       }}
       onPointerCancel={() => {
         gesture.current = null;
-        setOffset(0);
+        setGesturePhase('idle');
+        setOffset({ x: 0, y: 0 });
       }}
     >
       <CinematicPortrait
@@ -7431,7 +7512,7 @@ function ProfileCard({
               {connection === 'super_spike' ? 'Spike sent' : 'Liked'}
             </small>
           )}
-          {profile.verified !== false && (
+          {profile.verified === true && (
             <BadgeCheck
               size={22}
               fill="#FF4D6D"
@@ -8006,7 +8087,7 @@ function FullProfile({
                 >
                   <ChevronRight size={24} />
                 </button>
-                <span className="media-hint">Tap right for the next photo</span>
+                <span className="media-hint">Tap photo edges to browse</span>
               </>
             )}
             <div className="profile-title">
@@ -8026,7 +8107,7 @@ function FullProfile({
                       {connection === 'super_spike' ? 'Spike sent' : 'Liked'}
                     </small>
                   )}
-                  {profile.verified !== false && (
+                  {profile.verified === true && (
                     <BadgeCheck
                       size={21}
                       fill="#FF4D6D"
@@ -12256,7 +12337,6 @@ function RegistrationDialog({
   const [showOptionalAbout, setShowOptionalAbout] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
-  const [profileCameraOpen, setProfileCameraOpen] = useState(false);
   const registrationBody = useRef<HTMLDivElement>(null);
   const initializedForOpen = useRef(false);
   useEffect(() => {
@@ -12300,7 +12380,6 @@ function RegistrationDialog({
       setShowOptionalAbout(editing && initialStep === 1);
       setCropFile(null);
       setCropOpen(false);
-      setProfileCameraOpen(false);
     }
   }, [open, initialData, initialStep]);
   useEffect(() => {
@@ -12338,7 +12417,14 @@ function RegistrationDialog({
       detail: 'Review before sharing. Your camera safety check comes next.',
     },
   };
-  const item = onboarding ? vibeStepCopy[step] : registrationSteps[step];
+  // The registration dialog stays mounted while the camera handoff closes.
+  // At that instant `editing` can change before the onboarding-only review
+  // step (8) is reset, so keep a valid inactive-dialog description available.
+  const item =
+    (onboarding ? vibeStepCopy[step] : registrationSteps[step]) ??
+    registrationSteps[
+      Math.max(0, Math.min(registrationSteps.length - 1, step))
+    ];
   const photos = media.filter((item) => item.type === 'photo').slice(0, 6);
   const profileVideo = media.find((item) => item.type === 'video');
   const chooseProfilePhoto = (file?: File) => {
@@ -13369,27 +13455,61 @@ function RegistrationDialog({
                 </div>
               </div>
               <section
-                className="profile-media-editor"
+                className="profile-media-editor guided-photo-studio"
                 aria-label="Profile photos"
               >
                 <div className="profile-media-heading">
                   <span>
-                    <strong>Your photos</strong>
+                    <small className="guided-photo-kicker">
+                      GUIDED STUDIO · PROFILE PHOTO
+                    </small>
+                    <strong>Choose a photo you love</strong>
                     <small>
                       {photos.length} of 6 · first photo is your main photo
                     </small>
                   </span>
                   <Check size={17} />
                 </div>
-                {photos.length < 6 && (
-                  <button
-                    type="button"
-                    className="profile-take-photo"
-                    onClick={() => setProfileCameraOpen(true)}
-                  >
-                    <Camera size={17} aria-hidden="true" />
-                    Take a profile photo
-                  </button>
+                <div
+                  className="guided-photo-steps"
+                  aria-label="Photo setup steps"
+                >
+                  <span>
+                    <b>1</b> Upload
+                  </span>
+                  <span>
+                    <b>2</b> Auto frame
+                  </span>
+                  <span>
+                    <b>3</b> Review
+                  </span>
+                </div>
+                {photos.length === 0 && (
+                  <label className="guided-photo-upload">
+                    <span className="guided-photo-upload-icon">
+                      <ImagePlus size={27} aria-hidden="true" />
+                    </span>
+                    <strong>Add your first photo</strong>
+                    <small>
+                      Choose a clear, recent picture. We’ll frame your face
+                      automatically before it is saved.
+                    </small>
+                    <span className="guided-photo-upload-action">
+                      Choose from library
+                    </span>
+                    <span className="guided-photo-file-note">
+                      JPG, HEIC, PNG or WebP · original quality preserved
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                      aria-label="Add and crop profile photo"
+                      onChange={(event) => {
+                        chooseProfilePhoto(event.target.files?.[0]);
+                        event.currentTarget.value = '';
+                      }}
+                    />
+                  </label>
                 )}
                 <div className="profile-media-grid">
                   {photos.map((photo, index) => (
@@ -13432,11 +13552,11 @@ function RegistrationDialog({
                       )}
                     </div>
                   ))}
-                  {photos.length < 6 && (
+                  {photos.length > 0 && photos.length < 6 && (
                     <label className="profile-media-add">
                       <ImagePlus size={25} />
                       <strong>Add photo</strong>
-                      <small>Choose &amp; frame</small>
+                      <small>Choose from library</small>
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
@@ -13450,9 +13570,8 @@ function RegistrationDialog({
                   )}
                 </div>
                 <p className="profile-media-guidance">
-                  Use a clear original with your face in the safe area. Avoid
-                  screenshots, heavy filters, and re-uploaded social-media
-                  copies.
+                  Your selected photo is auto-framed on this device, then you
+                  approve the crop. Avoid screenshots and heavy filters.
                 </p>
                 <div className="profile-video-editor">
                   {profileVideo ? (
@@ -13532,11 +13651,6 @@ function RegistrationDialog({
                 open={cropOpen}
                 onOpenChange={setCropOpen}
                 onConfirm={onAddPhoto}
-              />
-              <ProfileCamera
-                open={profileCameraOpen}
-                onOpenChange={setProfileCameraOpen}
-                onPhoto={chooseProfilePhoto}
               />
             </>
           )}

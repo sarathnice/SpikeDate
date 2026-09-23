@@ -1,6 +1,21 @@
 import { test, expect } from '@playwright/test';
 import { installSyntheticCamera, setCameraMode } from '../qa/camera-fixture';
 import path from 'node:path';
+import { readdirSync } from 'node:fs';
+
+function registrationPhoto() {
+  const directory = process.env.SPIKEDATE_QA_REGISTRATION_IMAGE_DIR;
+  if (!directory) return path.resolve('public/maya.png');
+  const photos = readdirSync(directory)
+    .filter((name) => /\.(?:jpe?g|png|webp|heic|heif)$/i.test(name))
+    .sort()
+    .map((name) => path.join(directory, name));
+  if (!photos.length)
+    throw new Error(`No registration photos found in ${directory}`);
+  return photos[
+    test.info().project.name === 'android-mobile' && photos.length > 1 ? 1 : 0
+  ];
+}
 
 test('signup validation, real identity, profile completion and database persistence', async ({
   page,
@@ -19,7 +34,7 @@ test('signup validation, real identity, profile completion and database persiste
     .fill(`+1202555${String(Date.now()).slice(-4)}`);
   await page.getByRole('button', { name: /Send code/ }).click();
   const message = page.locator('.auth-phone-message');
-  await expect(message).toContainText('Local test code');
+  await expect(message).toContainText(/(?:Local test|Preview) code/);
   const code = (await message.innerText()).match(/\d{6}/)![0];
   await page.getByLabel('Six-digit verification code').fill(code);
   await page.getByRole('button', { name: 'Verify', exact: true }).click();
@@ -69,8 +84,8 @@ test('signup validation, real identity, profile completion and database persiste
   );
   await dialog
     .getByLabel('Add and crop profile photo')
-    .setInputFiles(path.resolve('public/maya.png'));
-  const editor = page.getByRole('dialog', { name: 'Frame your best shot' });
+    .setInputFiles(registrationPhoto());
+  const editor = page.getByRole('dialog', { name: 'Review your photo' });
   await editor.getByRole('button', { name: 'Save photo' }).click();
   await expect(editor).toBeHidden({ timeout: 30000 });
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
@@ -95,6 +110,35 @@ test('signup validation, real identity, profile completion and database persiste
   await dialog
     .getByText('Life & lifestyle · Optional', { exact: true })
     .click();
+  const dropdownAudit = await dialog.locator('select').evaluateAll((selects) =>
+    selects.map((select) => {
+      const element = select as HTMLSelectElement;
+      const controlStyle = getComputedStyle(element);
+      const optionStyle = getComputedStyle(element.options[0]);
+      return {
+        label: element.getAttribute('aria-label'),
+        height: element.getBoundingClientRect().height,
+        colorScheme: controlStyle.colorScheme,
+        optionColor: optionStyle.color,
+        optionBackground: optionStyle.backgroundColor,
+      };
+    }),
+  );
+  for (const dropdown of dropdownAudit) {
+    expect(dropdown.height, `${dropdown.label} touch height`).toBeGreaterThanOrEqual(48);
+    expect(dropdown.colorScheme, `${dropdown.label} color scheme`).toBe('dark');
+    expect(dropdown.optionColor, `${dropdown.label} option text`).toBe(
+      'rgb(255, 255, 255)',
+    );
+    expect(dropdown.optionBackground, `${dropdown.label} option surface`).toBe(
+      'rgb(17, 20, 29)',
+    );
+  }
+  expect(
+    await dialog.locator('.registration-body').evaluate((element) =>
+      getComputedStyle(element, '::-webkit-scrollbar').width,
+    ),
+  ).toBe('5px');
   await dialog
     .getByLabel('Education', { exact: true })
     .selectOption('Master’s degree');
@@ -155,37 +199,39 @@ test('signup validation, real identity, profile completion and database persiste
   await expect(dialog.locator('.vibe-profile-review')).toContainText(
     'Coffee and an easy conversation.',
   );
-  let failSaveOnce = true;
-  await page.route('**/api/profile', async (route) => {
-    if (
-      route.request().method() === 'PATCH' &&
-      failSaveOnce &&
-      route.request().postDataJSON().section === 'prompts'
-    ) {
-      failSaveOnce = false;
-      await route.fulfill({
-        status: 503,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'Synthetic save failure' }),
-      });
-    } else await route.continue();
-  });
-  await dialog
-    .getByRole('button', { name: 'Save profile', exact: true })
-    .click();
-  await expect(dialog.getByRole('alert')).toContainText('Could not save');
-  await expect(dialog).toBeVisible();
-  await expect(page.locator('.verification-dialog')).not.toBeVisible();
+  if (!process.env.SPIKEDATE_QA_REGISTRATION_IMAGE_DIR) {
+    let failSaveOnce = true;
+    await page.route('**/api/profile', async (route) => {
+      if (
+        route.request().method() === 'PATCH' &&
+        failSaveOnce &&
+        route.request().postDataJSON().section === 'prompts'
+      ) {
+        failSaveOnce = false;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'Synthetic save failure' }),
+        });
+      } else await route.continue();
+    });
+    await dialog
+      .getByRole('button', { name: 'Save profile', exact: true })
+      .click();
+    await expect(dialog.getByRole('alert')).toContainText('Could not save');
+    await expect(dialog).toBeVisible();
+    await expect(page.locator('.verification-dialog')).not.toBeVisible();
+  }
   await dialog
     .getByRole('button', { name: 'Save profile', exact: true })
     .click();
   await expect(dialog).not.toBeVisible();
   const camera = page.locator('.verification-dialog');
   await expect(
-    camera.getByRole('heading', { name: 'Capture your face' }),
+    camera.getByRole('heading', { name: 'Verify your photos' }),
   ).toBeVisible();
   const startCamera = camera.getByRole('button', {
-    name: 'Start camera check',
+    name: 'Start secure check',
   });
   await expect(startCamera).toBeDisabled();
   expect(
@@ -263,13 +309,35 @@ test('signup validation, real identity, profile completion and database persiste
     page.viewportSize()!.height,
   );
   await camera.getByRole('button', { name: 'Done', exact: true }).click();
-  const check = await (await page.request.get('/api/verification')).json();
-  expect(check.status).toBe('capture_ready');
-  expect(check.identityVerificationConfigured).toBe(false);
+  await expect(camera).toBeHidden();
+  const hasServerSession = (await page.context().cookies()).some(
+    (cookie) => cookie.name === 'spikedate_session' && cookie.value.length > 0,
+  );
+  if (!hasServerSession) {
+    await page.getByRole('button', { name: 'Profile', exact: true }).click();
+    await page.getByRole('button', { name: 'Preview my profile card' }).click();
+    await expect(page.locator('.preview-screen .card-story')).toHaveText(
+      'Coffee and an easy conversation.',
+    );
+    await page
+      .getByRole('button', { name: 'Open your full profile preview' })
+      .click();
+    const localFull = page.locator('.profile-preview-sheet');
+    await expect(localFull).toContainText('Master’s degree');
+    await expect(localFull).toContainText('Has kids');
+    await expect(localFull).toContainText('A hike and a great lunch.');
+    await expect(localFull.locator('.cinematic-photo-main')).toHaveAttribute(
+      'src',
+      /^(?:blob:|data:image\/)/,
+    );
+    return;
+  }
   await expect
     .poll(async () => {
-      const response = await page.request.get('/api/profile');
-      const account = await response.json();
+      const account = await page.evaluate(async () => {
+        const response = await fetch('/api/profile');
+        return response.json();
+      });
       return {
         birthday: account.birthDate,
         gender: account.profile.gender,

@@ -72,7 +72,7 @@ async function prepareAccount(page: Page) {
   await expect(
     page
       .locator('.verification-dialog')
-      .getByRole('heading', { name: 'Capture your face' }),
+      .getByRole('heading', { name: 'Verify your photos' }),
   ).toBeVisible();
 }
 async function streamsStopped(page: Page) {
@@ -87,7 +87,7 @@ async function streamsStopped(page: Page) {
 async function startCamera(page: Page) {
   const dialog = page.locator('.verification-dialog');
   await dialog.getByRole('checkbox').check();
-  await dialog.getByRole('button', { name: 'Start camera check' }).click();
+  await dialog.getByRole('button', { name: 'Start secure check' }).click();
   // The synthetic camera decodes a full-resolution portrait before yielding
   // its stream; a busy local image server can take longer than the default.
   await expect(dialog.locator('video')).toBeVisible({ timeout: 30000 });
@@ -130,7 +130,7 @@ test('model failure is actionable, close stops camera, late permission cannot re
   await page.getByRole('button', { name: /Verify your photos/ }).click();
   await setCameraMode(page, 'delayed');
   await dialog.getByRole('checkbox').check();
-  await dialog.getByRole('button', { name: 'Start camera check' }).click();
+  await dialog.getByRole('button', { name: 'Start secure check' }).click();
   await dialog
     .getByRole('button', { name: 'Close photo verification' })
     .click();
@@ -145,9 +145,12 @@ test('model failure is actionable, close stops camera, late permission cannot re
     .toBe(2);
   await expect.poll(() => streamsStopped(page)).toBe(true);
   await expect(dialog).not.toBeVisible();
-  expect(
-    (await (await page.request.get('/api/verification')).json()).status,
-  ).toBe('unverified');
+  await expect
+    .poll(
+      async () =>
+        (await (await page.request.get('/api/verification')).json()).status,
+    )
+    .toBe('unverified');
 });
 
 test('finish later, background pause, retry, real detector, persisted capture and withdrawal', async ({
@@ -186,7 +189,7 @@ test('finish later, background pause, retry, real detector, persisted capture an
   // A new session requires fresh consent after the cancellation status update.
   const consent = dialog.getByRole('checkbox');
   if (!(await consent.isChecked())) await consent.check();
-  await dialog.getByRole('button', { name: 'Start camera check' }).click();
+  await dialog.getByRole('button', { name: 'Start secure check' }).click();
   await expect
     .poll(() =>
       dialog
@@ -196,25 +199,46 @@ test('finish later, background pause, retry, real detector, persisted capture an
     .toBeGreaterThanOrEqual(2);
   // Global toasts must not cover the capture action inside this modal.
   await expect(page.locator('.toast.show')).not.toBeVisible();
-  const captureButton = dialog.getByRole('button', { name: 'Capture and check' });
+  const captureButton = dialog.getByRole('button', {
+    name: 'Capture and check',
+  });
   await expect(captureButton).toBeInViewport();
-  expect(await captureButton.evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    const front = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
-    return front === element || element.contains(front);
-  })).toBe(true);
+  expect(
+    await captureButton.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const front = document.elementFromPoint(
+        rect.x + rect.width / 2,
+        rect.y + rect.height / 2,
+      );
+      return front === element || element.contains(front);
+    }),
+  ).toBe(true);
   await page.screenshot({
     path: `outputs/qa/registration-face/examples/camera-${test.info().project.name}.png`,
   });
   await dialog.getByRole('button', { name: 'Capture and check' }).click();
-  await expect(dialog.getByRole('heading', { name: 'Is your face clear and centered?' })).toBeVisible({ timeout: 30000 });
-  await expect(dialog.getByRole('img', { name: 'Captured face for review' })).toBeVisible();
+  await expect(
+    dialog.getByRole('heading', { name: 'Is your face clear and centered?' }),
+  ).toBeVisible({ timeout: 30000 });
+  await expect(
+    dialog.getByRole('img', { name: 'Captured face for review' }),
+  ).toBeVisible();
   await dialog.getByRole('button', { name: 'Retake' }).click();
   await expect(dialog.locator('video')).toBeVisible();
-  await expect.poll(() => dialog.locator('video').evaluate((video) => (video as HTMLVideoElement).readyState)).toBeGreaterThanOrEqual(2);
+  await expect
+    .poll(() =>
+      dialog
+        .locator('video')
+        .evaluate((video) => (video as HTMLVideoElement).readyState),
+    )
+    .toBeGreaterThanOrEqual(2);
   await dialog.getByRole('button', { name: 'Capture and check' }).click();
-  await expect(dialog.getByRole('img', { name: 'Captured face for review' })).toBeVisible();
-  await page.screenshot({ path: `outputs/qa/registration-face/examples/review-${test.info().project.name}.png` });
+  await expect(
+    dialog.getByRole('img', { name: 'Captured face for review' }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: `outputs/qa/registration-face/examples/review-${test.info().project.name}.png`,
+  });
   const save = dialog.getByRole('button', { name: 'Save camera check' });
   await expect(save).toBeInViewport();
   await save.click();
@@ -242,7 +266,7 @@ test('finish later, background pause, retry, real detector, persisted capture an
     .getByRole('button', { name: 'Remove verification data' })
     .click();
   await expect(
-    dialog.getByRole('heading', { name: 'Capture your face' }),
+    dialog.getByRole('heading', { name: 'Verify your photos' }),
   ).toBeVisible();
   expect(
     (await (await page.request.get('/api/verification')).json()).status,

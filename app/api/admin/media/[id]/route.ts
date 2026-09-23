@@ -2,7 +2,10 @@ import { z } from 'zod';
 import { requireAdmin } from '@/lib/server/admin';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { identifier, json, readJson } from '@/lib/server/http';
-import { reconcileDiscoverability } from '@/lib/server/profile-readiness';
+import {
+  invalidatePhotoVerification,
+  reconcileDiscoverability,
+} from '@/lib/server/profile-readiness';
 
 export const runtime = 'edge';
 type Context = { params: Promise<{ id: string }> };
@@ -63,6 +66,10 @@ export async function PATCH(request: Request, context: Context) {
           now,
         ),
     ]);
+    // Approval preserves a valid face match made against this exact upload.
+    // Rejection removes trust because that image can no longer support the badge.
+    if (parsed.data.outcome === 'rejected')
+      await invalidatePhotoVerification(db, media.user_id);
     const readiness = await reconcileDiscoverability(db, media.user_id);
     return json({ media: { id, status: parsed.data.outcome }, readiness });
   });

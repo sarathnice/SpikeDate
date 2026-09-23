@@ -85,6 +85,10 @@
       sans-serif;
     color: var(--foreground);
   }
+  .photo-crop-quality.is-enhanced {
+    border-color: color-mix(in srgb, var(--coral) 42%, var(--ui-border));
+    background: color-mix(in srgb, var(--coral) 12%, var(--surface));
+  }
   .photo-face-assistance {
     margin: 10px 0;
     display: grid;

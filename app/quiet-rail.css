@@ -18,8 +18,8 @@
     box-shadow: none !important;
   }
   .phone-frame:has(> .quiet-rail-home) .topbar {
-    height: 76px !important;
-    padding: 0 !important;
+    height: calc(76px + env(safe-area-inset-top)) !important;
+    padding: env(safe-area-inset-top) 0 0 !important;
     background: transparent !important;
     backdrop-filter: none !important;
     border: 0 !important;
@@ -325,6 +325,36 @@
   }
   .phone-frame .preview-wrap .quiet-rail-home .home-action-rail {
     bottom: 22px !important;
+  }
+  html[data-native-platform='ios']
+    .phone-frame:has(> .quiet-rail-home)
+    .topbar {
+    height: calc(76px + var(--ios-safe-top)) !important;
+    padding-top: var(--ios-safe-top) !important;
+  }
+  html[data-native-platform='ios']
+    .phone-frame:has(> .quiet-rail-home)
+    .topbar
+    .wordmark {
+    top: calc(26px + var(--ios-safe-top)) !important;
+  }
+  html[data-native-platform='ios']
+    .phone-frame:has(> .quiet-rail-home)
+    :is(.filter-button, .global-boost-button),
+  html[data-native-platform='ios']
+    .phone-frame
+    .quiet-rail-home
+    .today-compose {
+    top: calc(20px + var(--ios-safe-top)) !important;
+  }
+  html[data-native-platform='ios']
+    .phone-frame:has(> .quiet-rail-home)
+    .voice-briefing-button,
+  html[data-native-platform='ios']
+    .phone-frame
+    .quiet-rail-home
+    .today-feed {
+    top: calc(98px + var(--ios-safe-top)) !important;
   }
   @media (max-width: 359px) {
     .phone-frame:has(> .quiet-rail-home) .topbar .wordmark {

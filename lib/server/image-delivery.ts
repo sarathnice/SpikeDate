@@ -1,6 +1,10 @@
 type ImageBinding = {
   input: (body: ReadableStream) => {
-    transform: (options: { width: number; fit: 'scale-down' }) => {
+    transform: (options: {
+      width: number;
+      fit: 'scale-down' | 'contain';
+      upscale?: 'generate';
+    }) => {
       output: (options: {
         format: string;
         quality: number;
@@ -24,6 +28,7 @@ export async function optimizeProfileImage(
   environment: ImageEnvironment,
   variant: 'full' | 'card' | 'avatar' | 'original',
   cache?: ImageCache,
+  options: { lowResolution?: boolean } = {},
 ) {
   if (
     environment.SPIKEDATE_IMAGES_ENABLED !== 'true' ||
@@ -40,6 +45,7 @@ export async function optimizeProfileImage(
       ? 'image/webp'
       : 'image/jpeg';
   const width = variant === 'avatar' ? 480 : variant === 'card' ? 1080 : 1440;
+  const aiUpscale = options.lowResolution === true;
   const keyUrl = new URL(request.url);
   keyUrl.pathname = '/__private-image-cache' + keyUrl.pathname;
   keyUrl.search = new URLSearchParams({
@@ -47,7 +53,7 @@ export async function optimizeProfileImage(
     format,
     width: String(width),
     revision: source.headers.get('etag') || 'uncached',
-    pipeline: 'natural-v1',
+    pipeline: aiUpscale ? 'ai-upscale-v2' : 'natural-v1',
   }).toString();
   const key = new Request(keyUrl, { method: 'GET' });
   // Without a source revision, do not risk reusing a stale image after an edit.
@@ -57,7 +63,15 @@ export async function optimizeProfileImage(
     let result = hit;
     if (!result) {
       const optimized = await environment.IMAGES.input(source.clone().body!)
-        .transform({ width, fit: 'scale-down' })
+        .transform(
+          aiUpscale
+            ? {
+                width,
+                fit: 'contain',
+                upscale: 'generate',
+              }
+            : { width, fit: 'scale-down' },
+        )
         .output({ format, quality: 90 });
       result = optimized.response();
       if (!result.ok || !result.body) return source;
@@ -84,9 +98,14 @@ export async function optimizeProfileImage(
       'x-spikedate-image-delivery',
       hit ? 'optimized-cache' : 'optimized',
     );
+    headers.set(
+      'x-spikedate-image-enhancement',
+      aiUpscale ? 'ai-upscaled' : 'natural',
+    );
     void source.body.cancel().catch(() => {});
     return new Response(result.body, { headers });
-  } catch {
+  } catch (error) {
+    console.warn('Profile image optimization unavailable; serving R2 source.', error);
     // Images is optional: retain working R2 delivery if disabled/unavailable.
     return source;
   }

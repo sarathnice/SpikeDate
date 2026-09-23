@@ -5,6 +5,11 @@ import { getDb, withDatabase } from '@/lib/server/db';
 import { identifier, json, readJson } from '@/lib/server/http';
 import { reconcileDiscoverability } from '@/lib/server/profile-readiness';
 import { cameraQualityMessage } from '@/lib/camera-quality';
+import {
+  awsPhotoVerificationConfiguration,
+  createAwsLivenessSession,
+  evaluateAwsPhotoVerification,
+} from '@/lib/server/aws-photo-verification';
 
 export const runtime = 'edge';
 
@@ -28,15 +33,20 @@ const requestSchema = z.discriminatedUnion('action', [
       captureDigest: z.string().regex(/^[a-f0-9]{64}$/),
     }),
   }),
+  z.object({
+    action: z.literal('provider_complete'),
+    requestId: z.string().trim().min(8).max(100),
+  }),
 ]);
 
-type VerificationMode = 'mock' | 'manual' | 'disabled';
+type VerificationMode = 'mock' | 'manual' | 'aws' | 'disabled';
 
 function verificationMode(request: Request): VerificationMode {
   const configured = (
     env as unknown as { SPIKEDATE_FACE_VERIFICATION_MODE?: string }
   ).SPIKEDATE_FACE_VERIFICATION_MODE;
   if (configured === 'disabled') return configured;
+  if (configured === 'aws') return configured;
   // Never enable a test provider on a public hostname.
   if (configured === 'mock') {
     const host = new URL(request.url).hostname;
@@ -87,10 +97,14 @@ export async function GET(request: Request) {
           reviewed_at: number | null;
         }>(),
     ]);
+    const mode = verificationMode(request);
+    const aws = awsPhotoVerificationConfiguration();
     return json({
       status: publicStatus(profile?.verification_status ?? null),
       request: latest ?? null,
-      testMode: verificationMode(request) === 'mock',
+      testMode: mode === 'mock',
+      provider: mode === 'aws' ? 'aws-rekognition' : 'on-device',
+      providerConfigured: mode !== 'aws' || aws.configured,
       identityVerificationConfigured: false,
     });
   });
@@ -155,7 +169,21 @@ export async function POST(request: Request) {
           { status: 429 },
         );
       const id = identifier('verify');
-      const provider = 'on-device-face-detection';
+      const aws = awsPhotoVerificationConfiguration();
+      if (mode === 'aws' && !aws.configured)
+        return json(
+          {
+            error:
+              'Photo verification is being configured. Try again after the staging AWS connection is enabled.',
+          },
+          { status: 503 },
+        );
+      const provider =
+        mode === 'aws' ? 'aws-rekognition' : 'on-device-face-detection';
+      const providerRef =
+        mode === 'aws'
+          ? await createAwsLivenessSession(id)
+          : 'consent-v2-on-device:' + crypto.randomUUID();
       await db.batch([
         db
           .prepare(
@@ -173,7 +201,7 @@ export async function POST(request: Request) {
             id,
             user.id,
             provider,
-            'consent-v2-on-device:' + crypto.randomUUID(),
+            providerRef,
             'pending',
             now,
             null,
@@ -189,7 +217,19 @@ export async function POST(request: Request) {
       await reconcileDiscoverability(db, user.id);
       return json(
         {
-          request: { id, status: 'pending', expiresAt: now + 5 * 60 * 1000 },
+          request: {
+            id,
+            status: 'pending',
+            expiresAt: now + (mode === 'aws' ? 3 : 5) * 60 * 1000,
+          },
+          provider,
+          ...(mode === 'aws'
+            ? {
+                sessionId: providerRef,
+                region: aws.region,
+                identityPoolId: aws.identityPoolId,
+              }
+            : {}),
           testMode: mode === 'mock',
           identityVerificationConfigured: false,
         },
@@ -199,12 +239,13 @@ export async function POST(request: Request) {
 
     const pending = await db
       .prepare(
-        'SELECT id, provider, submitted_at, status FROM verification_requests WHERE id = ? AND user_id = ? LIMIT 1',
+        'SELECT id, provider, provider_ref, submitted_at, status FROM verification_requests WHERE id = ? AND user_id = ? LIMIT 1',
       )
       .bind(parsed.data.requestId, user.id)
       .first<{
         id: string;
         provider: string;
+        provider_ref: string | null;
         submitted_at: number;
         status: string;
       }>();
@@ -229,7 +270,8 @@ export async function POST(request: Request) {
       await reconcileDiscoverability(db, user.id);
       return json({ status: 'unverified' });
     }
-    if (pending.submitted_at < now - 5 * 60 * 1000) {
+    const expiryMinutes = pending.provider === 'aws-rekognition' ? 3 : 5;
+    if (pending.submitted_at < now - expiryMinutes * 60 * 1000) {
       await db
         .prepare(
           "UPDATE verification_requests SET status = 'expired', reviewed_at = ?, updated_at = ? WHERE id = ?",
@@ -248,6 +290,69 @@ export async function POST(request: Request) {
         { status: 410 },
       );
     }
+
+    if (parsed.data.action === 'provider_complete') {
+      if (pending.provider !== 'aws-rekognition' || !pending.provider_ref)
+        return json(
+          { error: 'This verification session is not provider-backed.' },
+          { status: 409 },
+        );
+      const result = await evaluateAwsPhotoVerification(
+        db,
+        user.id,
+        pending.provider_ref,
+      );
+      const statements = [
+        db
+          .prepare(
+            'UPDATE verification_requests SET status = ?, reviewed_at = ?, updated_at = ? WHERE id = ?',
+          )
+          .bind(result.status, now, now, pending.id),
+        db
+          .prepare(
+            'UPDATE profiles SET verification_status = ?, updated_at = ? WHERE user_id = ?',
+          )
+          .bind(result.status, now, user.id),
+        db
+          .prepare(
+            'DELETE FROM verification_photo_matches WHERE request_id = ?',
+          )
+          .bind(pending.id),
+        ...result.matches.map((match) =>
+          db
+            .prepare(
+              'INSERT INTO verification_photo_matches ' +
+                '(request_id, media_id, similarity_bps, decision, created_at, updated_at) ' +
+                'VALUES (?, ?, ?, ?, ?, ?)',
+            )
+            .bind(
+              pending.id,
+              match.mediaId,
+              match.similarityBps,
+              match.decision,
+              now,
+              now,
+            ),
+        ),
+      ];
+      await db.batch(statements);
+      const readiness = await reconcileDiscoverability(db, user.id);
+      return json({
+        status: result.status,
+        reason: result.reason,
+        provider: pending.provider,
+        livenessConfidenceBps: result.livenessConfidenceBps,
+        comparedPhotos: result.matches.length,
+        retainedImage: false,
+        readiness,
+      });
+    }
+
+    if (pending.provider === 'aws-rekognition')
+      return json(
+        { error: 'Complete the live video check before submitting.' },
+        { status: 409 },
+      );
 
     const qualityPassed = !cameraQualityMessage(parsed.data.metrics);
     // Client metrics are untrusted. Detection is not liveness/face matching.

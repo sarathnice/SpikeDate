@@ -18,6 +18,7 @@ function navigateDeepLink(url: string) {
 export async function initializeMobileRuntime() {
   if (initialized || !Capacitor.isNativePlatform()) return;
   initialized = true;
+  document.documentElement.dataset.nativePlatform = Capacitor.getPlatform();
   const [{ App }, { Network }, { PushNotifications }] = await Promise.all([
     import('@capacitor/app'),
     import('@capacitor/network'),

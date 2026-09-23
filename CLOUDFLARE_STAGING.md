@@ -88,6 +88,50 @@ manual photo/media review, in-app notifications, mock billing, and test seeding.
 Voice commands and cloud transcription remain disabled. Secret values are
 stored in the hosting environment and are never committed to Git.
 
+## AWS Rekognition photo verification
+
+SpikeDate supports AWS Rekognition Face Liveness followed by `CompareFaces`.
+The flow is fail-closed: camera quality alone never issues a badge. A member is
+marked `photo_verified` only when the liveness score and primary profile photo
+both meet the configured thresholds. A questionable secondary photo is routed
+to review. Uploading, replacing, approving, rejecting, or deleting a profile
+photo removes the existing photo-verification state.
+
+AWS setup requires two narrowly scoped identities:
+
+1. Create a Cognito Identity Pool with unauthenticated identities enabled. Give
+   its guest role only `rekognition:StartFaceLivenessSession` in the selected
+   AWS region. This supplies short-lived browser credentials to the official
+   AWS liveness component.
+2. Create a dedicated Worker IAM principal with only
+   `rekognition:CreateFaceLivenessSession`,
+   `rekognition:GetFaceLivenessSessionResults`, and
+   `rekognition:CompareFaces`. Rekognition uses `Resource: "*"` for these
+   actions; do not reuse an administrator credential.
+3. Configure non-secret values `SPIKEDATE_AWS_REGION`,
+   `SPIKEDATE_AWS_COGNITO_IDENTITY_POOL_ID`,
+   `SPIKEDATE_LIVENESS_THRESHOLD=90`, and
+   `SPIKEDATE_FACE_MATCH_THRESHOLD=90`.
+4. Store `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` as encrypted Cloudflare
+   Worker secrets. Add `AWS_SESSION_TOKEN` only for temporary credentials.
+5. Apply Drizzle migration `0010_round_archangel.sql`, then set
+   `SPIKEDATE_FACE_VERIFICATION_MODE=aws` and deploy. Keep the mode `manual`
+   until every setting is present; the API deliberately returns 503 for a
+   partially configured AWS environment.
+
+Example for a direct Wrangler deployment:
+
+```powershell
+npx wrangler secret put AWS_ACCESS_KEY_ID --config wrangler.stage.jsonc
+npx wrangler secret put AWS_SECRET_ACCESS_KEY --config wrangler.stage.jsonc
+npm run db:migrate:staging
+npm run deploy:cloudflare:staging
+```
+
+The live capture is not published as a profile image. SpikeDate stores the
+liveness confidence, per-photo similarity decisions, provider/session audit
+reference, and final status—not the liveness video or AWS reference frame.
+
 ## Viewing the managed deployment
 
 The current staging URL is hosted on Cloudflare infrastructure through the

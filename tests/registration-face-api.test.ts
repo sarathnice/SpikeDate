@@ -7,6 +7,7 @@ const harness = vi.hoisted(() => ({
   user: 'alice',
   mode: 'mock',
   db: null as unknown as D1DatabaseLike,
+  awsConfigured: true,
 }));
 vi.mock('cloudflare:workers', () => ({
   env: {
@@ -23,23 +24,45 @@ vi.mock('@/lib/server/db', () => ({
   getDb: () => harness.db,
   withDatabase: async (run: () => Promise<unknown>) => run(),
 }));
+vi.mock('@/lib/server/aws-photo-verification', () => ({
+  awsPhotoVerificationConfiguration: () => ({
+    configured: harness.awsConfigured,
+    region: 'us-east-1',
+    identityPoolId: 'us-east-1:test-pool',
+  }),
+  createAwsLivenessSession: async () => 'aws-session-123',
+  evaluateAwsPhotoVerification: async () => ({
+    status: 'photo_verified',
+    livenessConfidenceBps: 9825,
+    matches: [
+      {
+        mediaId: 'photo-1',
+        position: 0,
+        similarityBps: 9710,
+        decision: 'matched',
+      },
+    ],
+  }),
+}));
 import { GET, POST, DELETE } from '@/app/api/verification/route';
 
 let sqlite: DatabaseSync;
 beforeEach(() => {
   harness.user = 'alice';
   harness.mode = 'mock';
+  harness.awsConfigured = true;
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-17T20:00:00Z'));
   sqlite = new DatabaseSync(':memory:');
   sqlite.exec(`
     CREATE TABLE users(id TEXT PRIMARY KEY, phone_verified_at INTEGER);
     CREATE TABLE profiles(user_id TEXT PRIMARY KEY,verification_status TEXT,completed_at INTEGER,discoverable_requested INTEGER,discoverable INTEGER,updated_at INTEGER);
-    CREATE TABLE profile_media(user_id TEXT,type TEXT,moderation_status TEXT);
+    CREATE TABLE profile_media(id TEXT,user_id TEXT,type TEXT,moderation_status TEXT);
     CREATE TABLE verification_requests(id TEXT PRIMARY KEY,user_id TEXT,provider TEXT,provider_ref TEXT,status TEXT,submitted_at INTEGER,reviewed_at INTEGER,created_at INTEGER,updated_at INTEGER);
+    CREATE TABLE verification_photo_matches(request_id TEXT,media_id TEXT,similarity_bps INTEGER,decision TEXT,created_at INTEGER,updated_at INTEGER);
     INSERT INTO users VALUES ('alice',1),('bob',1);
     INSERT INTO profiles VALUES ('alice','unverified',1,1,0,1),('bob','unverified',1,1,0,1);
-    INSERT INTO profile_media VALUES ('alice','photo','approved');
+    INSERT INTO profile_media VALUES ('photo-1','alice','photo','approved');
   `);
   harness.db = {
     prepare(sql) {
@@ -240,6 +263,60 @@ it('public hosts cannot use mock verification and disabled mode fails closed', a
   expect((await POST(request({ action: 'start', consent: true }))).status).toBe(
     503,
   );
+});
+it('uses AWS liveness and photo matching before issuing a badge', async () => {
+  harness.mode = 'aws';
+  const response = await POST(
+    request({ action: 'start', consent: true }, 'stage.example'),
+  );
+  expect(response.status).toBe(201);
+  const started = (await response.json()) as {
+    request: { id: string };
+    provider: string;
+    sessionId: string;
+    region: string;
+    identityPoolId: string;
+  };
+  expect(started).toMatchObject({
+    provider: 'aws-rekognition',
+    sessionId: 'aws-session-123',
+    region: 'us-east-1',
+    identityPoolId: 'us-east-1:test-pool',
+  });
+
+  const completed = await POST(
+    request(
+      { action: 'provider_complete', requestId: started.request.id },
+      'stage.example',
+    ),
+  );
+  expect(await completed.json()).toMatchObject({
+    status: 'photo_verified',
+    provider: 'aws-rekognition',
+    livenessConfidenceBps: 9825,
+    comparedPhotos: 1,
+    retainedImage: false,
+    readiness: { photoVerified: true, discoverable: true },
+  });
+  expect(profile()).toMatchObject({
+    verification_status: 'photo_verified',
+    discoverable: 1,
+  });
+  expect(
+    sqlite.prepare('SELECT * FROM verification_photo_matches').get(),
+  ).toMatchObject({
+    media_id: 'photo-1',
+    similarity_bps: 9710,
+    decision: 'matched',
+  });
+});
+it('fails closed when AWS is selected but not configured', async () => {
+  harness.mode = 'aws';
+  harness.awsConfigured = false;
+  expect(
+    (await POST(request({ action: 'start', consent: true }, 'stage.example')))
+      .status,
+  ).toBe(503);
 });
 it('withdrawal deletes only the signed-in account data and removes discoverability', async () => {
   await start();

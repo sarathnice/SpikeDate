@@ -475,6 +475,27 @@ export const verificationRequests = sqliteTable(
   ],
 );
 
+export const verificationPhotoMatches = sqliteTable(
+  'verification_photo_matches',
+  {
+    requestId: text('request_id')
+      .notNull()
+      .references(() => verificationRequests.id, { onDelete: 'cascade' }),
+    mediaId: text('media_id')
+      .notNull()
+      .references(() => profileMedia.id, { onDelete: 'cascade' }),
+    similarityBps: integer('similarity_bps'),
+    decision: text('decision', {
+      enum: ['matched', 'mismatched', 'not_comparable'],
+    }).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    primaryKey({ columns: [table.requestId, table.mediaId] }),
+    index('idx_verification_photo_matches_media').on(table.mediaId),
+  ],
+);
+
 export const subscriptions = sqliteTable(
   'subscriptions',
   {

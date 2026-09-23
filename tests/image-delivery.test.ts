@@ -50,6 +50,26 @@ it('uses bounded natural presets without re-cropping and serves private response
   expect(result.headers.get('etag')).toBeNull();
   expect(await result.text()).toBe('optimized');
 });
+it('uses cached AI upscaling only for a low-resolution crop', async () => {
+  const s = setup();
+  const result = await optimizeProfileImage(
+    request,
+    source(),
+    s.env,
+    'card',
+    undefined,
+    { lowResolution: true },
+  );
+  expect(s.transform).toHaveBeenCalledWith({
+    width: 1080,
+    fit: 'contain',
+    upscale: 'generate',
+  });
+  expect(result.headers.get('x-spikedate-image-enhancement')).toBe(
+    'ai-upscaled',
+  );
+  expect(await result.text()).toBe('optimized');
+});
 it('uses a revisioned internal cache and falls back on transformation failure', async () => {
   const s = setup();
   const cache = {

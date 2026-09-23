@@ -6,7 +6,6 @@ import { Check, LoaderCircle, Move, RotateCcw, X, ZoomIn } from 'lucide-react';
 import { detectFramingFaces } from '@/lib/face-capture';
 import { faceFramingFocus, type FramingFace } from '@/lib/face-framing';
 import {
-  applyGentleLight,
   photoCropGeometry,
   photoVariants,
 } from '@/lib/photo-framing';
@@ -35,6 +34,13 @@ export type CroppedPhoto = {
 
 const OUTPUT_WIDTH = 1440;
 const OUTPUT_HEIGHT = 1800;
+type PhotoLook = 'cinematic' | 'bright' | 'original';
+type PhotoRecipe = {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  label: string;
+};
 
 function canvasBlob(canvas: HTMLCanvasElement, quality: number) {
   return new Promise<Blob>((resolve, reject) => {
@@ -56,7 +62,7 @@ function drawFocusedCrop(
   focusX: number,
   focusY: number,
   zoom: number,
-  brightness = 1,
+  recipe: PhotoRecipe,
 ) {
   const geometry = photoCropGeometry(
     bitmap.width,
@@ -91,16 +97,55 @@ function drawFocusedCrop(
     geometry.width,
     geometry.height,
   );
-  if (brightness !== 1) {
-    // Canvas filter is not consistently supported on mobile browsers.
+  if (
+    recipe.brightness !== 1 ||
+    recipe.contrast !== 1 ||
+    recipe.saturation !== 1
+  ) {
+    // Pixel processing is deterministic across mobile browsers and is baked
+    // only into the prepared variants. The uploaded original stays untouched.
     const image = context.getImageData(0, 0, canvas.width, canvas.height);
-    applyGentleLight(image.data, brightness);
+    applyPhotoRecipe(image.data, recipe);
     context.putImageData(image, 0, 0);
   }
   return { canvas, context, geometry };
 }
 
-function assessPhoto(
+function clampChannel(value: number) {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function applyPhotoRecipe(pixels: Uint8ClampedArray, recipe: PhotoRecipe) {
+  for (let index = 0; index < pixels.length; index += 4) {
+    let red = pixels[index] * recipe.brightness;
+    let green = pixels[index + 1] * recipe.brightness;
+    let blue = pixels[index + 2] * recipe.brightness;
+    red = (red - 128) * recipe.contrast + 128;
+    green = (green - 128) * recipe.contrast + 128;
+    blue = (blue - 128) * recipe.contrast + 128;
+    const luminance = red * 0.2126 + green * 0.7152 + blue * 0.0722;
+    pixels[index] = clampChannel(
+      luminance + (red - luminance) * recipe.saturation,
+    );
+    pixels[index + 1] = clampChannel(
+      luminance + (green - luminance) * recipe.saturation,
+    );
+    pixels[index + 2] = clampChannel(
+      luminance + (blue - luminance) * recipe.saturation,
+    );
+  }
+}
+
+function neutralRecipe(): PhotoRecipe {
+  return {
+    brightness: 1,
+    contrast: 1,
+    saturation: 1,
+    label: 'Original',
+  };
+}
+
+function analyzeTone(
   context: CanvasRenderingContext2D,
   width: number,
   height: number,
@@ -111,7 +156,8 @@ function assessPhoto(
   sample.width = sampleWidth;
   sample.height = sampleHeight;
   const sampleContext = sample.getContext('2d', { willReadFrequently: true });
-  if (!sampleContext) return [];
+  if (!sampleContext)
+    return { average: 128, darkRatio: 0, brightRatio: 0 };
   sampleContext.drawImage(
     context.canvas,
     0,
@@ -142,13 +188,76 @@ function assessPhoto(
     if (value < 24) dark += 1;
     if (value > 242) bright += 1;
   }
-  const average = luminance / count;
+  return {
+    average: luminance / count,
+    darkRatio: dark / count,
+    brightRatio: bright / count,
+  };
+}
+
+function automaticRecipe(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  look: PhotoLook,
+): PhotoRecipe {
+  if (look === 'original') return neutralRecipe();
+  const tone = analyzeTone(context, width, height);
+  if (look === 'bright')
+    return {
+      brightness: tone.brightRatio > 0.38 ? 1.04 : 1.1,
+      contrast: tone.brightRatio > 0.38 ? 0.99 : 1.03,
+      saturation: 1.04,
+      label: 'Bright Social',
+    };
+  const brightness =
+    tone.average < 72 || tone.darkRatio > 0.48
+      ? 1.1
+      : tone.average < 112
+        ? 1.06
+        : tone.average > 205 || tone.brightRatio > 0.4
+          ? 0.97
+          : 1.02;
+  return {
+    brightness,
+    contrast:
+      tone.darkRatio > 0.48 || tone.brightRatio > 0.4 ? 0.99 : 1.035,
+    saturation: tone.brightRatio > 0.4 ? 1.01 : 1.025,
+    label: 'Natural Cinematic',
+  };
+}
+
+function resolveRecipe(
+  bitmap: ImageBitmap,
+  focusX: number,
+  focusY: number,
+  zoom: number,
+  look: PhotoLook,
+) {
+  const sample = drawFocusedCrop(
+    bitmap,
+    288,
+    360,
+    focusX,
+    focusY,
+    zoom,
+    neutralRecipe(),
+  );
+  return automaticRecipe(sample.context, sample.canvas.width, sample.canvas.height, look);
+}
+
+function assessPhoto(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+) {
+  const { average, darkRatio, brightRatio } = analyzeTone(context, width, height);
   const warnings: string[] = [];
-  if (average < 42 || dark / count > 0.58)
+  if (average < 42 || darkRatio > 0.58)
     warnings.push(
       'This photo is quite dark. A brighter original may show you better.',
     );
-  if (average > 224 || bright / count > 0.48)
+  if (average > 224 || brightRatio > 0.48)
     warnings.push('This photo has very bright areas with reduced detail.');
   return warnings;
 }
@@ -158,12 +267,13 @@ async function cropPhoto(
   focusX: number,
   focusY: number,
   zoom: number,
-  brightness: number,
+  look: PhotoLook,
 ): Promise<CroppedPhoto> {
   const bitmap = await createImageBitmap(file, {
     imageOrientation: 'from-image',
   });
   try {
+    const recipe = resolveRecipe(bitmap, focusX, focusY, zoom, look);
     const full = drawFocusedCrop(
       bitmap,
       OUTPUT_WIDTH,
@@ -171,7 +281,7 @@ async function cropPhoto(
       focusX,
       focusY,
       zoom,
-      brightness,
+      recipe,
     );
     const card = drawFocusedCrop(
       bitmap,
@@ -180,7 +290,7 @@ async function cropPhoto(
       focusX,
       focusY,
       zoom,
-      brightness,
+      recipe,
     );
     const avatar = drawFocusedCrop(
       bitmap,
@@ -189,7 +299,7 @@ async function cropPhoto(
       focusX,
       focusY,
       zoom,
-      brightness,
+      recipe,
     );
     const originalWidth = bitmap.width;
     const originalHeight = bitmap.height;
@@ -249,11 +359,12 @@ export function PhotoCropper({
   const [focusX, setFocusX] = useState(50);
   const [focusY, setFocusY] = useState(36);
   const [zoom, setZoom] = useState(1);
-  const [brightness, setBrightness] = useState(1);
+  const [photoLook, setPhotoLook] = useState<PhotoLook>('cinematic');
   const [previewVariant, setPreviewVariant] =
     useState<keyof typeof photoVariants>('full');
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
   const [qualityNotice, setQualityNotice] = useState('');
+  const [lowResolutionPreview, setLowResolutionPreview] = useState(false);
   const [faces, setFaces] = useState<FramingFace[]>([]);
   const [findingFaces, setFindingFaces] = useState(false);
   const [faceNotice, setFaceNotice] = useState('');
@@ -278,9 +389,10 @@ export function PhotoCropper({
     setFocusX(50);
     setFocusY(36);
     setZoom(1);
-    setBrightness(1);
+    setPhotoLook('cinematic');
     setPreviewVariant('full');
     setBitmap(null);
+    setLowResolutionPreview(false);
     setError('');
     setFaces([]);
     setFaceNotice('Preparing automatic framing…');
@@ -361,6 +473,7 @@ export function PhotoCropper({
   useEffect(() => {
     if (!bitmap || !previewCanvas.current || !open) return;
     const variant = photoVariants[previewVariant];
+    const recipe = resolveRecipe(bitmap, focusX, focusY, zoom, photoLook);
     const { canvas, context, geometry } = drawFocusedCrop(
       bitmap,
       variant.width,
@@ -368,27 +481,29 @@ export function PhotoCropper({
       focusX,
       focusY,
       zoom,
-      brightness,
+      recipe,
     );
     const preview = previewCanvas.current;
     preview.width = canvas.width;
     preview.height = canvas.height;
     preview.getContext('2d')?.drawImage(canvas, 0, 0);
     const warnings = assessPhoto(context, canvas.width, canvas.height);
+    setLowResolutionPreview(geometry.lowResolution);
     setQualityNotice(
       [
         geometry.lowResolution
-          ? 'Limited source detail at this framing. Zoom out or use a larger original; we won’t artificially upscale it.'
+          ? 'Low-resolution source. SpikeDate will apply Cloud Enhance after upload and preserve your original. A larger original will still look best.'
           : '',
         ...warnings,
       ]
         .filter(Boolean)
         .join(' '),
     );
-  }, [bitmap, open, focusX, focusY, zoom, brightness, previewVariant]);
+  }, [bitmap, open, focusX, focusY, zoom, photoLook, previewVariant]);
 
   useEffect(() => {
     if (!bitmap || !open) return;
+    const recipe = resolveRecipe(bitmap, focusX, focusY, zoom, photoLook);
     for (const [key, variant] of Object.entries(photoVariants)) {
       const preview = reviewCanvases.current[key];
       if (!preview) continue;
@@ -400,20 +515,20 @@ export function PhotoCropper({
         focusX,
         focusY,
         zoom,
-        brightness,
+        recipe,
       );
       preview.width = canvas.width;
       preview.height = canvas.height;
       preview.getContext('2d')?.drawImage(canvas, 0, 0);
     }
-  }, [bitmap, open, focusX, focusY, zoom, brightness]);
+  }, [bitmap, open, focusX, focusY, zoom, photoLook]);
 
   const reset = () => {
     userAdjusted.current = true;
     setFocusX(50);
     setFocusY(36);
     setZoom(1);
-    setBrightness(1);
+    setPhotoLook('cinematic');
   };
 
   const chooseFace = (face: FramingFace) => {
@@ -439,7 +554,7 @@ export function PhotoCropper({
     setSavePhase('Preparing photo…');
     setError('');
     try {
-      const photo = await cropPhoto(file, focusX, focusY, zoom, brightness);
+      const photo = await cropPhoto(file, focusX, focusY, zoom, photoLook);
       setSavePhase('Uploading photo…');
       await onConfirm(photo);
       onOpenChange(false);
@@ -474,11 +589,12 @@ export function PhotoCropper({
             <X size={20} />
           </button>
           <p className="photo-crop-kicker">
-            PROFILE PHOTO · {photoVariants[previewVariant].label}
+            GUIDED STUDIO · AUTO FRAME · {photoVariants[previewVariant].label}
           </p>
-          <DialogTitle>Frame your best shot</DialogTitle>
+          <DialogTitle>Review your photo</DialogTitle>
           <DialogDescription>
-            We suggest a face crop on your device. Review the three saved views, then adjust if needed.
+            We centered your face automatically. Review how it appears across
+            SpikeDate, then adjust only if needed.
           </DialogDescription>
         </div>
         <div className="photo-crop-body">
@@ -554,7 +670,7 @@ export function PhotoCropper({
               <Move size={14} /> Drag to reposition
             </span>
           </div>
-          <p className="photo-crop-review-title">Review your three crops</p>
+          <p className="photo-crop-review-title">Preview every placement</p>
           <div className="photo-preview-variants" aria-label="Preview saved framing">
             {Object.entries(photoVariants).map(([key, variant]) => (
               <button
@@ -581,10 +697,11 @@ export function PhotoCropper({
               disabled={!bitmap || saving || findingFaces}
               onClick={findFaces}
             >
-              {findingFaces ? 'Auto framing…' : 'Find faces for framing'}
+              {findingFaces ? 'Auto framing…' : 'Run auto frame again'}
             </button>
             <small>
-              Auto framing runs on this device only. It does not verify identity or upload a face scan.
+              Face-aware framing runs on this device only. It does not verify
+              identity or upload a face scan.
             </small>
             {faceNotice && <p role="status">{faceNotice}</p>}
             {faces.length > 1 && bitmap && (
@@ -640,13 +757,20 @@ export function PhotoCropper({
             Photo look
             <select
               aria-label="Photo look"
-              value={brightness}
+              value={photoLook}
               disabled={saving}
-              onChange={(event) => setBrightness(Number(event.target.value))}
+              onChange={(event) =>
+                setPhotoLook(event.target.value as PhotoLook)
+              }
             >
-              <option value={1}>Natural · Recommended</option>
-              <option value={1.06}>Gentle light · +6% brightness</option>
+              <option value="cinematic">Natural Cinematic · Recommended</option>
+              <option value="bright">Bright Social</option>
+              <option value="original">Original</option>
             </select>
+            <small>
+              Natural Cinematic adapts light and color to this photo. No skin
+              smoothing or face reshaping.
+            </small>
           </label>
           {qualityNotice && (
             <p className="photo-quality-notice" role="status">
@@ -655,13 +779,20 @@ export function PhotoCropper({
           )}
           <details className="photo-quality-details">
             <summary>Quality &amp; crop details</summary>
-            <div className="photo-crop-quality">
+            <div
+              className={`photo-crop-quality${lowResolutionPreview ? ' is-enhanced' : ''}`}
+            >
               <Check size={16} />
               <span>
-                <strong>High-quality export</strong>
+                <strong>
+                  {lowResolutionPreview
+                    ? 'Cloud Enhance will be applied'
+                    : 'High-quality export'}
+                </strong>
                 <small>
-                  Original preserved · full, discovery and avatar crops
-                  generated
+                  {lowResolutionPreview
+                    ? 'AI upscale · natural detail · original preserved'
+                    : 'Original preserved · Home, Galaxy, full-profile and avatar placements prepared'}
                 </small>
               </span>
             </div>

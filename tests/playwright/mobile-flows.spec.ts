@@ -268,6 +268,9 @@ test('iPhone 15 home stays full screen and touch swipes profiles', async ({
   page,
 }) => {
   await signIn(page);
+  await page.evaluate(() => {
+    document.documentElement.dataset.nativePlatform = 'ios';
+  });
   const viewport = page.viewportSize();
   expect(viewport).toEqual({ width: 393, height: 659 });
 
@@ -304,16 +307,119 @@ test('iPhone 15 home stays full screen and touch swipes profiles', async ({
     type: 'touchStart',
     touchPoints: [{ x: startX, y }],
   });
-  await client.send('Input.dispatchTouchEvent', {
-    type: 'touchMove',
-    touchPoints: [{ x: endX, y }],
-  });
+  for (let step = 1; step <= 5; step += 1) {
+    await client.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [
+        { x: startX + ((endX - startX) * step) / 5, y },
+      ],
+    });
+    await page.waitForTimeout(16);
+  }
+  await expect(card).toHaveClass(/gesture-dragging/);
+  expect(
+    await card.evaluate((element) =>
+      getComputedStyle(element).transitionDuration,
+    ),
+  ).toBe('0s');
+  await expect(card).toHaveAttribute('style', /translate3d\(-/);
   await client.send('Input.dispatchTouchEvent', {
     type: 'touchEnd',
     touchPoints: [],
   });
   await expect(card.locator('.name-row h1')).not.toHaveText(firstProfile);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  const secondProfile = await card.locator('.name-row h1').innerText();
+  const rightCardBox = await card.boundingBox();
+  const rightY = rightCardBox!.y + rightCardBox!.height * 0.48;
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [
+      {
+        x: rightCardBox!.x + rightCardBox!.width * 0.2,
+        y: rightY,
+      },
+    ],
+  });
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: [
+      {
+        x: rightCardBox!.x + rightCardBox!.width * 0.8,
+        y: rightY,
+      },
+    ],
+  });
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchEnd',
+    touchPoints: [],
+  });
+  await expect(card.locator('.name-row h1')).not.toHaveText(secondProfile);
+
+  const [filterBox, liftBox] = await Promise.all([
+    page.getByRole('button', { name: 'Filter profiles' }).boundingBox(),
+    page.getByRole('button', { name: /Lift my profile/i }).boundingBox(),
+  ]);
+  expect(filterBox!.y).toBeGreaterThanOrEqual(50);
+  expect(liftBox!.y).toBeGreaterThanOrEqual(50);
+  await page.screenshot({
+    path: 'outputs/qa/ios15-safe-area-home.png',
+    fullPage: false,
+  });
+
+  const lateDismiss = page.getByRole('button', { name: /^Dismiss /i });
+  if (await lateDismiss.first().isVisible().catch(() => false))
+    await lateDismiss.first().click();
+
+  const nextCardBox = await card.boundingBox();
+  const centerX = nextCardBox!.x + nextCardBox!.width * 0.46;
+  const startY = nextCardBox!.y + nextCardBox!.height * 0.68;
+  const endY = nextCardBox!.y + nextCardBox!.height * 0.3;
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: centerX, y: startY }],
+  });
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: [{ x: centerX, y: endY }],
+  });
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchEnd',
+    touchPoints: [],
+  });
+  await expect(
+    page.getByRole('dialog', { name: /full profile/i }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: 'outputs/qa/ios15-full-profile.png',
+    fullPage: false,
+  });
+
+  await page.getByRole('button', { name: 'Close full profile' }).click();
+  for (const tab of ['Galaxy', 'Likes', 'Chat'] as const) {
+    await page.getByRole('button', { name: tab, exact: true }).click();
+    const header = page.locator(`.phone-frame[data-active-tab='${tab}'] .page-header`);
+    await expect(header).toBeVisible();
+    expect((await header.boundingBox())!.y).toBeGreaterThanOrEqual(59);
+  }
+
+  await page.getByRole('button', { name: 'Profile', exact: true }).click();
+  const previewButton = page.getByRole('button', {
+    name: 'Preview my profile card',
+  });
+  await expect(previewButton).toBeVisible();
+  expect((await previewButton.boundingBox())!.y).toBeGreaterThanOrEqual(59);
+  await page
+    .getByRole('button', { name: 'Edit profile', exact: true })
+    .click();
+  const registration = page.locator('.registration-dialog');
+  await expect(registration).toBeVisible();
+  const registrationBox = await registration.boundingBox();
+  expect(registrationBox!.y).toBeGreaterThanOrEqual(59);
+  expect(registrationBox!.y + registrationBox!.height).toBeLessThanOrEqual(
+    viewport!.height - 33,
+  );
 });
 
 test('Like advances immediately while Spike has one top-placement send action', async ({
@@ -779,7 +885,7 @@ test('photo safety check is accessible and fits the mobile viewport', async ({
     .getByRole('button', { name: /Photo Verified|Verify your photos/i })
     .click();
   const verification = page.getByRole('dialog', {
-    name: /Your photos are verified|Capture your face/i,
+    name: /Your photos are verified|Verify your photos/i,
   });
   await expect(verification).toBeVisible();
   await expect(
@@ -926,7 +1032,7 @@ test('profile photo crop, upload, display, and cleanup work on mobile', async ({
     .getByLabel('Add and crop profile photo')
     .setInputFiles(path.resolve('public/maya.png'));
 
-  const cropper = page.getByRole('dialog', { name: 'Frame your best shot' });
+  const cropper = page.getByRole('dialog', { name: 'Review your photo' });
   await expect(cropper).toBeVisible();
   const cropBounds = await cropper.locator('.photo-crop-stage').boundingBox();
   expect(cropBounds).not.toBeNull();

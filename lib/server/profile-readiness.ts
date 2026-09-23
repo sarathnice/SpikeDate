@@ -65,6 +65,19 @@ export async function reconcileDiscoverability(
   return { ...readiness, discoverable };
 }
 
+export async function invalidatePhotoVerification(
+  db: D1DatabaseLike,
+  userId: string,
+) {
+  await db
+    .prepare(
+      "UPDATE profiles SET verification_status = 'unverified', discoverable = 0, updated_at = ? " +
+        "WHERE user_id = ? AND verification_status IN ('verified', 'photo_verified')",
+    )
+    .bind(Date.now(), userId)
+    .run();
+}
+
 export async function requireConnectionReady(
   db: D1DatabaseLike,
   userId: string,

@@ -2,7 +2,10 @@ import { env } from 'cloudflare:workers';
 import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { json } from '@/lib/server/http';
-import { reconcileDiscoverability } from '@/lib/server/profile-readiness';
+import {
+  invalidatePhotoVerification,
+  reconcileDiscoverability,
+} from '@/lib/server/profile-readiness';
 import { mediaResponseBody } from '@/lib/media-response';
 import { optimizeProfileImage } from '@/lib/server/image-delivery';
 
@@ -64,7 +67,7 @@ export async function GET(request: Request, context: Context) {
     const { id } = await context.params;
     const media = await db
       .prepare(
-        'SELECT user_id, object_key, original_object_key, card_object_key, avatar_object_key, moderation_status, explicit FROM profile_media WHERE id = ? LIMIT 1',
+        'SELECT user_id, object_key, original_object_key, card_object_key, avatar_object_key, width, height, moderation_status, explicit FROM profile_media WHERE id = ? LIMIT 1',
       )
       .bind(id)
       .first<{
@@ -73,6 +76,8 @@ export async function GET(request: Request, context: Context) {
         original_object_key: string | null;
         card_object_key: string | null;
         avatar_object_key: string | null;
+        width: number | null;
+        height: number | null;
         moderation_status: string;
         explicit: number;
       }>();
@@ -143,6 +148,12 @@ export async function GET(request: Request, context: Context) {
       env as unknown as Parameters<typeof optimizeProfileImage>[2],
       variant,
       imageCache,
+      {
+        lowResolution:
+          media.width !== null &&
+          media.height !== null &&
+          (media.width < 900 || media.height < 1125),
+      },
     );
   });
 }
@@ -242,6 +253,10 @@ export async function PUT(request: Request, context: Context) {
       )
       .bind(objectKey, Date.now(), id, user.id)
       .run();
+    if (variant === 'original') {
+      await invalidatePhotoVerification(db, user.id);
+      await reconcileDiscoverability(db, user.id);
+    }
     if (previousKey && previousKey !== objectKey)
       await bucket.delete(previousKey);
     return json({ ok: true, id, variant });
@@ -270,6 +285,7 @@ export async function DELETE(request: Request, context: Context) {
       .prepare('DELETE FROM profile_media WHERE id = ? AND user_id = ?')
       .bind(id, user.id)
       .run();
+    await invalidatePhotoVerification(db, user.id);
     const remaining = await db
       .prepare(
         'SELECT id FROM profile_media WHERE user_id = ? ORDER BY position, created_at',

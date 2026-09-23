@@ -1114,7 +1114,13 @@ button:focus-visible {
   padding: 0;
   border: 1px solid color-mix(in srgb, white 20%, var(--ui-border));
   border-radius: 28px;
-  background: var(--background);
+  background:
+    radial-gradient(
+      circle at 50% 5%,
+      color-mix(in srgb, var(--coral) 9%, transparent),
+      transparent 24%
+    ),
+    var(--background);
   color: var(--foreground);
   font-family: var(--font-inter), Inter, Arial, sans-serif;
   scrollbar-width: none;
@@ -1178,8 +1184,8 @@ button:focus-visible {
   margin: 0 48px 7px 0;
   color: var(--coral);
   font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
+  font-weight: 500;
+  letter-spacing: 0.12em;
 }
 .photo-crop-dialog [data-slot='dialog-title'] {
   margin: 0;
@@ -9282,6 +9288,109 @@ button > .lucide-calendar-check {
   gap: 10px;
   margin-top: 17px;
 }
+.guided-photo-studio {
+  padding: 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: 22px;
+  background:
+    radial-gradient(
+      circle at 50% 18%,
+      color-mix(in srgb, var(--coral) 10%, transparent),
+      transparent 36%
+    ),
+    var(--surface);
+}
+.guided-photo-kicker {
+  color: var(--coral) !important;
+  font-size: 0.62rem !important;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+.guided-photo-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.guided-photo-steps span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted-foreground);
+  font-size: 0.64rem;
+  white-space: nowrap;
+}
+.guided-photo-steps b {
+  width: 21px;
+  height: 21px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--coral) 15%, var(--surface));
+  font-size: 0.62rem;
+  font-weight: 500;
+}
+.guided-photo-upload {
+  min-height: 292px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  border: 1px dashed color-mix(in srgb, var(--foreground) 23%, transparent);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  text-align: center;
+  cursor: pointer;
+}
+.guided-photo-upload-icon {
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 5px;
+  border: 1px solid color-mix(in srgb, var(--coral) 30%, transparent);
+  border-radius: 22px;
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 12%, transparent);
+}
+.guided-photo-upload > strong {
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 500;
+}
+.guided-photo-upload > small {
+  max-width: 270px;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+.guided-photo-upload-action {
+  width: min(100%, 260px);
+  min-height: 46px;
+  display: grid;
+  place-items: center;
+  margin-top: 6px;
+  border-radius: 15px;
+  color: white;
+  background: var(--coral);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+.guided-photo-file-note {
+  color: var(--muted-foreground);
+  font-size: 0.61rem;
+}
+.guided-photo-upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
 .profile-media-heading {
   display: flex;
   align-items: center;
@@ -9476,6 +9585,30 @@ button > .lucide-calendar-check {
   display: grid;
   place-items: center;
   overscroll-behavior: contain;
+}
+
+.verification-liveness-body {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #090a0d;
+}
+
+.aws-liveness-shell {
+  width: 100%;
+  min-height: min(470px, calc(100dvh - 255px));
+  overflow: hidden;
+  border-radius: inherit;
+  color: white;
+  background: #090a0d;
+}
+
+.aws-liveness-shell > div {
+  min-height: inherit;
+}
+
+.aws-liveness-shell button {
+  font-family: inherit;
 }
 
 .verification-capture-actions {
@@ -11364,6 +11497,135 @@ button > .lucide-calendar-check {
 }
 :root .profile-page .passport-details-list .setting-heading strong {
   font-size: var(--profile-body-size) !important;
+}
+
+/* iOS edge-to-edge layout: media can extend behind the system chrome, while
+   every interactive/header surface remains inside the visible safe area. */
+.topbar {
+  height: calc(74px + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+}
+.filter-button,
+.incoming-button,
+.voice-briefing-button {
+  top: calc(15px + env(safe-area-inset-top));
+}
+.screen,
+.likes-screen {
+  padding-top: calc(26px + env(safe-area-inset-top)) !important;
+}
+.tabbar {
+  height: calc(66px + env(safe-area-inset-bottom));
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+}
+.profile-passport-hero {
+  height: calc(274px + env(safe-area-inset-top));
+  margin-top: calc(-24px - env(safe-area-inset-top));
+}
+.profile-passport-topbar {
+  min-height: calc(72px + env(safe-area-inset-top));
+  padding-top: calc(15px + env(safe-area-inset-top));
+}
+.discover-screen > .profile-card {
+  touch-action: none;
+  will-change: transform;
+  transform-origin: 50% 92%;
+  backface-visibility: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 210ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.discover-screen > .profile-card.gesture-dragging {
+  transition: none;
+}
+.discover-screen > .profile-card.gesture-exiting {
+  pointer-events: none;
+  transition: transform 190ms cubic-bezier(0.32, 0, 0.67, 0);
+}
+.profile-card.swiping-up::before {
+  content: 'VIEW PROFILE';
+  position: absolute;
+  z-index: 8;
+  top: calc(96px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 999px;
+  color: white;
+  background: rgba(5, 6, 10, 0.42);
+  font-size: 0.68rem;
+  letter-spacing: 0.09em;
+}
+.profile-sheet .media-hint {
+  top: 102px;
+  left: 16px;
+  max-width: calc(100% - 96px);
+  transform: none;
+}
+
+/* Capacitor reports the real inset with viewport-fit=cover. Keep a defensive
+   native fallback for an older WKWebView during its first layout frame. */
+html[data-native-platform='ios'] {
+  --ios-safe-top: 59px;
+  --ios-safe-bottom: 34px;
+}
+html[data-native-platform='ios'] .topbar {
+  height: calc(74px + var(--ios-safe-top)) !important;
+  padding-top: var(--ios-safe-top) !important;
+}
+html[data-native-platform='ios']
+  :is(.filter-button, .incoming-button, .voice-briefing-button) {
+  top: calc(15px + var(--ios-safe-top)) !important;
+}
+html[data-native-platform='ios'] .global-boost-button {
+  top: calc(15px + var(--ios-safe-top)) !important;
+}
+html[data-native-platform='ios'] :is(.screen, .likes-screen) {
+  padding-top: calc(26px + var(--ios-safe-top)) !important;
+}
+html[data-native-platform='ios'] .tabbar {
+  height: calc(66px + var(--ios-safe-bottom));
+  padding-bottom: calc(8px + var(--ios-safe-bottom));
+}
+html[data-native-platform='ios']
+  :is(.registration-dialog, .verification-dialog, .filter-dialog) {
+  top: calc(var(--ios-safe-top) + 8px) !important;
+  max-height: calc(100dvh - var(--ios-safe-top) - var(--ios-safe-bottom) - 16px) !important;
+  translate: -50% 0 !important;
+  transform: none !important;
+}
+html[data-native-platform='ios'] .profile-passport-hero {
+  height: calc(274px + var(--ios-safe-top));
+  margin-top: calc(-24px - var(--ios-safe-top));
+}
+html[data-native-platform='ios'] .profile-passport-topbar {
+  min-height: calc(72px + var(--ios-safe-top));
+  padding-top: calc(15px + var(--ios-safe-top));
+}
+html[data-native-platform='ios']
+  .phone-frame:has(> .quiet-rail-home)
+  .topbar
+  .wordmark {
+  top: calc(26px + var(--ios-safe-top)) !important;
+}
+html[data-native-platform='ios']
+  .phone-frame:has(> .quiet-rail-home)
+  :is(.filter-button, .global-boost-button),
+html[data-native-platform='ios']
+  .phone-frame
+  .quiet-rail-home
+  .today-compose {
+  top: calc(20px + var(--ios-safe-top)) !important;
+}
+html[data-native-platform='ios']
+  .phone-frame:has(> .quiet-rail-home)
+  .voice-briefing-button,
+html[data-native-platform='ios']
+  .phone-frame
+  .quiet-rail-home
+  .today-feed {
+  top: calc(98px + var(--ios-safe-top)) !important;
 }
 
 /* Galaxy Browse rooms use the photo-first layout whenever a profile is shown:

@@ -83,11 +83,11 @@ for (const layout of ['compact mobile', 'computer gallery'] as const) {
       await registration
         .getByLabel('Add and crop profile photo')
         .setInputFiles(path.resolve('public/maya.png'));
-      const editor = page.getByRole('dialog', { name: 'Frame your best shot' });
+      const editor = page.getByRole('dialog', { name: 'Review your photo' });
       await expect(editor).toBeVisible();
       await expect(
         editor.getByLabel('Photo look', { exact: true }),
-      ).toHaveValue('1');
+      ).toHaveValue('cinematic');
       const exactPreview = editor.locator('canvas.photo-crop-exact-preview');
       await expect(exactPreview).toBeVisible();
       for (const [label, ratio] of [
@@ -116,11 +116,13 @@ for (const layout of ['compact mobile', 'computer gallery'] as const) {
             sum += pixels[index] + pixels[index + 1] + pixels[index + 2];
           return sum / (pixels.length / 4);
         });
-      const naturalLight = await measureLight();
+      const cinematicLight = await measureLight();
       await editor
         .getByLabel('Photo look', { exact: true })
-        .selectOption('1.06');
-      await expect.poll(measureLight).toBeGreaterThan(naturalLight);
+        .selectOption('bright');
+      await expect
+        .poll(async () => Math.abs((await measureLight()) - cinematicLight))
+        .toBeGreaterThan(0.05);
       const save = editor.getByRole('button', { name: 'Save photo' });
       await expectUncovered(page, save);
       await expectUncovered(

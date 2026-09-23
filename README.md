@@ -42,10 +42,13 @@ The checked-in Capacitor projects load the configured staging website so the sam
 npm run build
 npm run mobile:sync:android
 npm run mobile:sync:ios
+npm run mobile:sync:stage
 ```
 
 - Android emulator defaults to `http://10.0.2.2:3000`.
 - iOS simulator defaults to `http://localhost:3000`.
+- `npm run mobile:sync:stage` prepares both native projects against the live
+  Cloudflare staging Worker.
 - For a shared staging host, set `SPIKEDATE_STAGING_URL=https://your-staging-host.example` before running `npm run mobile:sync`.
 
 Open the native projects with `npm run mobile:open:android` or `npm run mobile:open:ios`. Android Studio is required for Android builds. Xcode on macOS is required for iOS builds and signing.

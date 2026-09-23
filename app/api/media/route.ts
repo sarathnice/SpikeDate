@@ -2,7 +2,10 @@ import { env } from 'cloudflare:workers';
 import { requireUser } from '@/lib/server/auth';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { identifier, json, readJson } from '@/lib/server/http';
-import { reconcileDiscoverability } from '@/lib/server/profile-readiness';
+import {
+  invalidatePhotoVerification,
+  reconcileDiscoverability,
+} from '@/lib/server/profile-readiness';
 
 export const runtime = 'edge';
 
@@ -233,6 +236,7 @@ export async function POST(request: Request) {
           now,
         )
         .run();
+      if (type === 'photo') await invalidatePhotoVerification(db, user.id);
       await reconcileDiscoverability(db, user.id);
     } catch (error) {
       await bucket.delete(objectKey);
