@@ -5,6 +5,8 @@ const stagingUrl =
   process.env.PULSE_STAGING_URL ??
   'http://localhost:3000';
 
+const stagingHost = new URL(stagingUrl).hostname;
+
 const config: CapacitorConfig = {
   appId: 'com.sarathnice.spikedate',
   appName: 'SpikeDate',
@@ -12,7 +14,13 @@ const config: CapacitorConfig = {
   server: {
     url: stagingUrl,
     cleartext: stagingUrl.startsWith('http://'),
-    allowNavigation: ['localhost', '10.0.2.2', '*.sarathnice.chatgpt.site'],
+    allowNavigation: [
+      stagingHost,
+      'localhost',
+      '10.0.2.2',
+      '*.sarathnice.chatgpt.site',
+      '*.sarathnice.workers.dev',
+    ],
   },
   android: {
     allowMixedContent: stagingUrl.startsWith('http://'),

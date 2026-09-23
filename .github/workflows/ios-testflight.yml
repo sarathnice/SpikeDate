@@ -1,0 +1,88 @@
+name: SpikeDate iOS TestFlight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spikedate-ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  build-and-upload:
+    runs-on: macos-15
+    environment: staging
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22.14.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync the Cloudflare staging app into iOS
+        env:
+          SPIKEDATE_STAGING_URL: https://spikedate-stage.sarathnice.workers.dev
+        run: npx cap sync ios
+
+      - name: Import Apple distribution certificate
+        uses: apple-actions/import-codesign-certs@v7
+        with:
+          p12-file-base64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+
+      - name: Install App Store provisioning profile
+        env:
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$HOME/Library/MobileDevice/Provisioning Profiles/SpikeDate.mobileprovision"
+
+      - name: Prepare TestFlight export options
+        env:
+          IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
+        run: sed -i '' "s/SPIKEDATE_PROFILE_NAME/$IOS_PROVISIONING_PROFILE_NAME/g" ios/ExportOptions-TestFlight.plist
+
+      - name: Archive SpikeDate
+        run: |
+          xcodebuild archive \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/SpikeDate.xcarchive" \
+            DEVELOPMENT_TEAM=GZ9DN4PC7X \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}"
+
+      - name: Export signed IPA
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/SpikeDate.xcarchive" \
+            -exportPath "$RUNNER_TEMP/SpikeDate-export" \
+            -exportOptionsPlist ios/ExportOptions-TestFlight.plist
+          exported_ipa="$(find "$RUNNER_TEMP/SpikeDate-export" -maxdepth 1 -name '*.ipa' -print -quit)"
+          test -n "$exported_ipa"
+          mv "$exported_ipa" "$RUNNER_TEMP/SpikeDate-export/SpikeDate.ipa"
+
+      - name: Upload signed IPA artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: spikedate-ios-testflight-${{ github.run_number }}
+          path: ${{ runner.temp }}/SpikeDate-export/*.ipa
+
+      - name: Upload to TestFlight
+        uses: apple-actions/upload-testflight-build@v4
+        with:
+          app-path: ${{ runner.temp }}/SpikeDate-export/SpikeDate.ipa
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+          uses-non-exempt-encryption: 'false'
+          wait-for-processing: 'true'

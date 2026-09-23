@@ -35,10 +35,14 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>SpikeDate uses your front camera, with your consent, to check that one clear face is visible during profile setup. This check does not upload or save your selfie.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>SpikeDate uses the microphone only while you use Voice to navigate profiles and prepare dating actions.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SpikeDate lets you choose profile photos from your library and review the crop before saving.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>SpikeDate converts your spoken Voice requests into app commands and always confirms before sending or purchasing.</string>
 	<key>UILaunchStoryboardName</key>
