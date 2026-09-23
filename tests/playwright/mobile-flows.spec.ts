@@ -299,6 +299,14 @@ test('iPhone 15 home stays full screen and touch swipes profiles', async ({
   ).toEqual({ scrollY: 0, scrollHeight: 659, clientHeight: 659 });
 
   const firstProfile = await card.locator('.name-row h1').innerText();
+  let interactionPosts = 0;
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === '/api/interactions'
+    )
+      interactionPosts += 1;
+  });
   const client = await page.context().newCDPSession(page);
   const y = cardBox!.y + cardBox!.height * 0.48;
   const startX = cardBox!.x + cardBox!.width * 0.78;
@@ -356,6 +364,7 @@ test('iPhone 15 home stays full screen and touch swipes profiles', async ({
     touchPoints: [],
   });
   await expect(card.locator('.name-row h1')).not.toHaveText(secondProfile);
+  expect(interactionPosts).toBe(0);
 
   const [filterBox, liftBox] = await Promise.all([
     page.getByRole('button', { name: 'Filter profiles' }).boundingBox(),

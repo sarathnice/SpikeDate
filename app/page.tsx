@@ -7189,7 +7189,7 @@ function DiscoverScreen({
         onOpenStory={onOpenStory}
         onTonight={onTonight}
         onSwipeLeft={preview ? undefined : onPass}
-        onSwipeRight={preview ? undefined : onLike}
+        onSwipeRight={preview ? undefined : onPass}
         onSwipeUp={preview ? undefined : onOpen}
       />
       <div
@@ -7480,8 +7480,8 @@ function ProfileCard({
         variant="card"
         sizes="(max-width: 480px) 100vw, 390px"
       />
-      <span className="swipe-label pass-label">PASS</span>
-      <span className="swipe-label like-label">LIKE</span>
+      <span className="swipe-label pass-label">NEXT</span>
+      <span className="swipe-label like-label">NEXT</span>
       <div className="photo-scrim" />
       <button
         type="button"
@@ -9691,7 +9691,7 @@ function RoomStack({
               room={room}
               onOpen={onOpen}
               onSwipeLeft={onPass}
-              onSwipeRight={onLike}
+              onSwipeRight={onPass}
             />
           </div>
           <div className="room-action-wrap">
