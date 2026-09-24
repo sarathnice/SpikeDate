@@ -2,6 +2,9 @@ import { expect, type Page } from '@playwright/test';
 
 export async function loginSynthetic(page: Page, number: number) {
   await page.goto('/');
+  const welcomeLogin = page.getByRole('button', { name: 'Login', exact: true });
+  await welcomeLogin.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+  if (await welcomeLogin.isVisible().catch(() => false)) await welcomeLogin.click();
   await page
     .getByLabel('Test profile')
     .selectOption(`test${String(number).padStart(3, '0')}@spikedate.test`);

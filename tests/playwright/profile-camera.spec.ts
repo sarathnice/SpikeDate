@@ -6,11 +6,13 @@ test.skip(
   'Synthetic photo writes are local only.',
 );
 
-test('Guided Studio uses library-only profile photos', async ({ page }, info) => {
+test('Guided Studio uses library-only profile photos', async ({
+  page,
+}, info) => {
   await page.setViewportSize({ width: 360, height: 640 });
   await loginSynthetic(page, info.project.name === 'android-mobile' ? 23 : 22);
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
-  await page.getByRole('button', { name: /Edit preferences & media/i }).click();
+  await page.getByRole('button', { name: 'Edit photos' }).click();
 
   const studio = page.getByRole('region', { name: 'Profile photos' });
   await expect(studio.getByText('GUIDED STUDIO · PROFILE PHOTO')).toBeVisible();
@@ -41,14 +43,16 @@ test('photo framing: select a face in a group, or keep manual framing when no fa
     return canvas.toDataURL('image/png').split(',')[1];
   });
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
-  await page.getByRole('button', { name: /Edit preferences & media/i }).click();
+  await page.getByRole('button', { name: 'Edit photos' }).click();
   await page.getByLabel('Add and crop profile photo').setInputFiles({
     name: 'qa-group.png',
     mimeType: 'image/png',
     buffer: Buffer.from(group, 'base64'),
   });
   const crop = page.locator('.photo-crop-dialog');
-  await expect(crop.getByText('GUIDED STUDIO · AUTO FRAME', { exact: false })).toBeVisible();
+  await expect(
+    crop.getByText('GUIDED STUDIO · AUTO FRAME', { exact: false }),
+  ).toBeVisible();
   await expect(
     crop.locator('.photo-face-assistance [role="status"]'),
   ).toContainText('Tap your face below', { timeout: 30000 });
@@ -67,7 +71,9 @@ test('photo framing: select a face in a group, or keep manual framing when no fa
         .evaluate((el) => (el as HTMLCanvasElement).toDataURL()),
     )
     .not.toBe(first);
-  await crop.getByRole('button', { name: 'Close photo editor', exact: true }).click();
+  await crop
+    .getByRole('button', { name: 'Close photo editor', exact: true })
+    .click();
 
   const blank = await page.evaluate(() => {
     const canvas = document.createElement('canvas');
@@ -85,6 +91,10 @@ test('photo framing: select a face in a group, or keep manual framing when no fa
   await expect(
     crop.locator('.photo-face-assistance [role="status"]'),
   ).toContainText('No clear face found', { timeout: 30000 });
-  await expect(crop.getByRole('button', { name: 'Save photo', exact: true })).toBeEnabled();
-  await crop.getByRole('button', { name: 'Close photo editor', exact: true }).click();
+  await expect(
+    crop.getByRole('button', { name: 'Save photo', exact: true }),
+  ).toBeEnabled();
+  await crop
+    .getByRole('button', { name: 'Close photo editor', exact: true })
+    .click();
 });

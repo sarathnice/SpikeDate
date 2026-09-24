@@ -1,0 +1,1 @@
+CREATE INDEX `idx_profiles_discoverable_location` ON `profiles` (`discoverable`,`latitude_e6`,`longitude_e6`);

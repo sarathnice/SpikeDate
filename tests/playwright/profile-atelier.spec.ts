@@ -14,7 +14,7 @@ test('Quiet Atelier A: eight editable icon rows and grouped full details fit eve
     'Edit relationship goals',
     'Edit interests',
     'Edit prompts',
-    'Edit preferences & media',
+    'Edit discovery preferences',
   ];
   for (const theme of [
     'default',
@@ -82,17 +82,53 @@ test('Quiet Atelier A: eight editable icon rows and grouped full details fit eve
       ).toBe(true);
     }
     if (theme === 'default') {
-      for (const [index, label] of edits.entries()) {
+      for (const label of edits) {
         await page.getByRole('button', { name: label, exact: true }).click();
-        const editor = page.locator('.registration-dialog');
+        const editor = page.locator('.profile-section-dialog');
         await expect(editor).toBeVisible();
-        await expect(editor.locator('.flow-kicker')).toContainText(
-          `${index + 1} OF 8`,
+        await expect(editor.locator('.flow-kicker')).toHaveText('EDIT PROFILE');
+        await expect(editor.locator('.flow-progress')).toHaveCount(0);
+        await expect(editor.getByRole('button', { name: 'Back' })).toHaveCount(
+          0,
         );
-        await editor
-          .getByRole('button', { name: 'Close registration' })
-          .click();
+        await expect(
+          editor.getByRole('button', { name: 'Save changes' }),
+        ).toBeVisible();
+        const bounds = await editor.evaluate((element) => {
+          const dialog = element.getBoundingClientRect();
+          const close = element
+            .querySelector<HTMLElement>('.match-close')!
+            .getBoundingClientRect();
+          const actions = element
+            .querySelector<HTMLElement>('.flow-actions')!
+            .getBoundingClientRect();
+          return {
+            dialogTop: dialog.top,
+            dialogBottom: dialog.bottom,
+            closeTop: close.top,
+            closeRight: close.right,
+            actionsBottom: actions.bottom,
+            viewportWidth: innerWidth,
+            viewportHeight: innerHeight,
+          };
+        });
+        expect(bounds.dialogTop).toBeGreaterThanOrEqual(0);
+        expect(bounds.closeTop).toBeGreaterThanOrEqual(bounds.dialogTop);
+        expect(bounds.closeRight).toBeLessThanOrEqual(bounds.viewportWidth);
+        expect(bounds.dialogBottom).toBeLessThanOrEqual(bounds.viewportHeight);
+        expect(bounds.actionsBottom).toBeLessThanOrEqual(bounds.viewportHeight);
+        await editor.getByRole('button', { name: /^Close .+ editor$/ }).click();
       }
+      await page.getByRole('button', { name: 'Edit photos' }).click();
+      const photoEditor = page.locator('.profile-section-dialog');
+      await expect(photoEditor.getByRole('heading')).toHaveText('Your photos');
+      await expect(
+        photoEditor.getByRole('region', { name: 'Profile photos' }),
+      ).toBeVisible();
+      await expect(photoEditor.getByText('Show me · Required')).toBeHidden();
+      await photoEditor
+        .getByRole('button', { name: 'Close Your photos editor' })
+        .click();
       await info.attach('quiet-atelier-editable-categories', {
         body: await categories.screenshot(),
         contentType: 'image/png',

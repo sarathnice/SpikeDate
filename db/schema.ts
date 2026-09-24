@@ -104,6 +104,11 @@ export const profiles = sqliteTable(
     pets: text('pets'),
     latitudeE6: integer('latitude_e6'),
     longitudeE6: integer('longitude_e6'),
+    discoveryLocationMode: text('discovery_location_mode')
+      .notNull()
+      .default('unset'),
+    discoveryCity: text('discovery_city'),
+    discoveryLocationUpdatedAt: integer('discovery_location_updated_at'),
     city: text('city'),
     country: text('country'),
     verificationStatus: text('verification_status')
@@ -122,6 +127,11 @@ export const profiles = sqliteTable(
   },
   (table) => [
     index('idx_profiles_discoverable_city').on(table.discoverable, table.city),
+    index('idx_profiles_discoverable_location').on(
+      table.discoverable,
+      table.latitudeE6,
+      table.longitudeE6,
+    ),
     index('idx_profiles_goal').on(table.relationshipGoal),
   ],
 );

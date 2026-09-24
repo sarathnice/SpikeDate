@@ -1,0 +1,62 @@
+/* The identity mark is one consistent Vermilion across every theme and surface. */
+:root .brand-wordmark .brand-symbol,
+:root .tabbar .tab-brand-symbol,
+:root .profile-spike-badge .brand-heart-mark,
+:root .profile-photo-brand .brand-heart-mark {
+  color: #ff4b32 !important;
+  filter: none !important;
+}
+:root .tabbar .tab-brand-symbol {
+  opacity: 1 !important;
+}
+:root .tabbar button.active .tab-brand-symbol {
+  filter: drop-shadow(0 0 7px rgba(255, 75, 50, 0.4)) !important;
+}
+:root .profile-spike-badge {
+  filter: none !important;
+}
+:root[data-pulse-theme='default'][data-pulse-accent='vermilion']
+  .brand-wordmark .brand-date {
+  color: #ff4b32;
+}
+:root[data-pulse-theme='default'][data-pulse-accent='vermilion']
+  .brand-wordmark .brand-spike-i > span {
+  background: #ff4b32;
+}
+
+.profile-photo-brand {
+  position: absolute;
+  z-index: 4;
+  top: 16px;
+  left: 16px;
+  display: grid;
+  width: 29px;
+  height: 29px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 50%;
+  background: rgba(9, 10, 15, 0.56);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.profile-card > .profile-photo-brand {
+  top: 148px;
+}
+.profile-photo-brand-film {
+  top: 52px;
+  left: 17px;
+  width: 27px;
+  height: 27px;
+}
+.profile-photo-brand-self {
+  z-index: 2;
+  top: calc(73px + env(safe-area-inset-top));
+  left: 16px;
+  width: 27px;
+  height: 27px;
+}
+html[data-native-platform='ios'] .profile-photo-brand-self {
+  top: calc(73px + var(--ios-safe-top));
+}

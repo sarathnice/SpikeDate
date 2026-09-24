@@ -11589,9 +11589,11 @@ html[data-native-platform='ios'] .tabbar {
   padding-bottom: calc(8px + var(--ios-safe-bottom));
 }
 html[data-native-platform='ios']
-  :is(.registration-dialog, .verification-dialog, .filter-dialog) {
+  :is(.registration-dialog:not(.profile-section-dialog), .verification-dialog, .filter-dialog) {
   top: calc(var(--ios-safe-top) + 8px) !important;
-  max-height: calc(100dvh - var(--ios-safe-top) - var(--ios-safe-bottom) - 16px) !important;
+  max-height: calc(
+    100dvh - var(--ios-safe-top) - var(--ios-safe-bottom) - 16px
+  ) !important;
   translate: -50% 0 !important;
   transform: none !important;
 }
@@ -11612,19 +11614,13 @@ html[data-native-platform='ios']
 html[data-native-platform='ios']
   .phone-frame:has(> .quiet-rail-home)
   :is(.filter-button, .global-boost-button),
-html[data-native-platform='ios']
-  .phone-frame
-  .quiet-rail-home
-  .today-compose {
+html[data-native-platform='ios'] .phone-frame .quiet-rail-home .today-compose {
   top: calc(20px + var(--ios-safe-top)) !important;
 }
 html[data-native-platform='ios']
   .phone-frame:has(> .quiet-rail-home)
   .voice-briefing-button,
-html[data-native-platform='ios']
-  .phone-frame
-  .quiet-rail-home
-  .today-feed {
+html[data-native-platform='ios'] .phone-frame .quiet-rail-home .today-feed {
   top: calc(98px + var(--ios-safe-top)) !important;
 }
 
@@ -11781,3 +11777,158 @@ html[data-native-platform='ios']
     bottom: calc(var(--room-nav-height) + 22px);
   }
 }
+
+/* Quiet identity keeps Profile photo-first and gives each edit section its own
+   keyboard-safe workspace instead of reopening the registration journey. */
+.profile-passport-topbar .profile-icon-trigger {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  justify-content: center;
+}
+.profile-section-nav button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.profile-section-nav button small {
+  color: color-mix(in srgb, var(--coral) 78%, var(--foreground));
+  font-size: 0.62rem;
+  font-weight: 400;
+}
+.profile-section-dialog {
+  --profile-editor-height: 100dvh;
+  --profile-editor-top: 0px;
+  top: calc(
+    var(--profile-editor-top) + max(8px, env(safe-area-inset-top))
+  ) !important;
+  left: 50% !important;
+  width: min(calc(100vw - 16px), 430px) !important;
+  height: calc(
+    var(--profile-editor-height) - max(8px, env(safe-area-inset-top)) -
+      max(8px, env(safe-area-inset-bottom)) - 10px
+  ) !important;
+  max-height: none !important;
+  padding: 0 !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0 !important;
+  overflow: hidden !important;
+  translate: -50% 0 !important;
+  transform: none !important;
+  overscroll-behavior: contain;
+}
+/* Section editors follow the visual viewport. This selector deliberately
+   outranks the native dialog fallback above so WKWebView cannot pan the
+   editor header behind the iOS status bar while focusing a field. */
+html[data-native-platform='ios'] .profile-section-dialog {
+  top: calc(var(--profile-editor-top) + var(--ios-safe-top)) !important;
+  height: calc(
+    var(--profile-editor-height) - var(--ios-safe-top) -
+      var(--ios-safe-bottom)
+  ) !important;
+  max-height: none !important;
+  translate: -50% 0 !important;
+  transform: none !important;
+}
+.profile-section-dialog .registration-header {
+  position: relative;
+  z-index: 3;
+  padding: 18px 60px 15px 18px;
+  border-bottom: 1px solid var(--ui-border);
+  background: color-mix(in srgb, var(--background) 96%, transparent);
+}
+.profile-section-dialog .registration-header .match-close {
+  top: 14px;
+  right: 14px;
+  width: 42px;
+  height: 42px;
+}
+.profile-section-dialog .registration-header [data-slot='dialog-title'] {
+  margin-top: 7px;
+}
+.profile-section-dialog .registration-header [data-slot='dialog-description'] {
+  margin-top: 5px;
+}
+.profile-section-dialog .registration-body {
+  min-height: 0;
+  margin: 0;
+  padding: 14px 18px 20px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scroll-padding-block: 12px 84px;
+}
+.profile-section-dialog .flow-actions {
+  position: relative;
+  inset: auto !important;
+  z-index: 3;
+  margin: 0;
+  padding: 10px 18px max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--ui-border);
+  background: color-mix(in srgb, var(--background) 97%, transparent);
+  box-shadow: 0 -14px 34px
+    color-mix(in srgb, var(--background) 72%, transparent);
+}
+.profile-section-dialog .flow-actions .primary-button {
+  width: 100%;
+}
+.profile-section-dialog :is(input, select, textarea) {
+  scroll-margin-block: 78px;
+}
+@media (max-height: 620px) {
+  .profile-section-dialog .registration-header {
+    padding-top: 12px;
+    padding-bottom: 11px;
+  }
+  .profile-section-dialog .registration-header .match-close {
+    top: 8px;
+  }
+  .profile-section-dialog
+    .registration-header
+    [data-slot='dialog-description'] {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .profile-section-dialog {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0 !important;
+  }
+  html[data-native-platform='ios'] .profile-section-dialog {
+    width: 100vw !important;
+    max-width: 100vw !important;
+  }
+}
+.welcome-cinema { position: relative; isolation: isolate; width: 100%; min-height: 100svh; height: 100dvh; overflow: hidden; color: #fff; background: #090b13; }
+.welcome-cinema-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 48%; animation: welcome-drift 18s ease-in-out infinite alternate; }
+.welcome-cinema-shade { position: absolute; inset: 0; background: linear-gradient(180deg,rgba(7,9,16,.65),transparent 36%,rgba(7,9,16,.12) 50%,rgba(7,9,16,.86)); }
+.welcome-cinema-header { position: absolute; top: 0; left: 0; right: 0; padding: calc(env(safe-area-inset-top, 0px) + 24px) 24px 0; display: grid; justify-items: center; gap: 22px; }
+.welcome-cinema-header nav { display: flex; gap: 12px; }
+.welcome-cinema-header button { min-height: 46px; padding: 10px 24px; border-radius: 24px; border: 1px solid #ffffff80; background: #0b0e19aa; color: #fff; font-size: 14px; font-weight: 400; }
+.welcome-cinema-header button:last-child { background: #e74328; border-color: #e74328; }
+.welcome-cinema-copy { position: absolute; bottom: 0; left: 0; right: 0; padding: 24px 24px calc(env(safe-area-inset-bottom, 0px) + 20px); max-width: 620px; margin: auto; }
+.welcome-cinema-copy h1 { color: #fff; font-size: clamp(32px,7vw,52px); font-weight: 400; line-height: 1.08; letter-spacing: -.04em; margin: 0 0 14px; }
+.welcome-cinema-copy p { color: #f0eeee; font-size: 15px; line-height: 1.5; margin: 0 0 22px; }
+.welcome-cinema-moment { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid #ffffff40; border-radius: 18px; background: #10131c99; font-size: 13px; }
+.welcome-cinema-moment small { display: block; margin-top: 4px; font-size: 12px; color: #e3dedc; }
+.welcome-motion-toggle,.welcome-back { min-height: 44px; border: 0; background: transparent; color: inherit; font-size: 12px; padding: 8px; }
+.welcome-paused .welcome-cinema-photo { animation-play-state: paused; }
+@keyframes welcome-drift { from { transform: scale(1); } to { transform: scale(1.06); } }
+@media(prefers-reduced-motion:reduce) { .welcome-cinema-photo { animation: none; } }
+@media(max-height:600px) { .welcome-cinema-copy h1 { font-size: 28px; }.welcome-cinema-copy p,.welcome-cinema-moment { display: none; } }
+.welcome-stories .welcome-cinema-photo { opacity: 0; transition: opacity 250ms ease; animation: none; }
+.welcome-stories .welcome-cinema-photo.is-current { opacity: 1; }
+.welcome-story-label { display: flex; align-items: center; gap: 9px; margin-bottom: 16px; color: #fff; font-size: 14px; }
+.welcome-story-controls { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.welcome-story-controls button { width: 44px; height: 44px; display: grid; place-items: center; color: #fff; background: #10131c99; border: 1px solid #ffffff66; border-radius: 50%; }
+.welcome-story-controls span { font-size: 12px; min-width: 38px; text-align: center; }
+.welcome-stories .welcome-cinema-copy h1 { min-height: 2.16em; }
+@media(prefers-reduced-motion:reduce) { .welcome-stories .welcome-cinema-photo { transition: none; } }

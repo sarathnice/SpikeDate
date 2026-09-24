@@ -11,12 +11,14 @@ test('low-quality upload is identified, enhanced for delivery and remains editab
 }) => {
   await loginSynthetic(page, 49);
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
-  await page.getByRole('button', { name: /Edit preferences & media/i }).click();
+  await page.getByRole('button', { name: 'Edit photos' }).click();
   const registration = page.getByRole('dialog', {
-    name: 'Preferences & media',
+    name: 'Your photos',
   });
   const profileResponse = await page.request.get('/api/profile');
-  const profilePayload = profileResponse.ok() ? await profileResponse.json() : {};
+  const profilePayload = profileResponse.ok()
+    ? await profileResponse.json()
+    : {};
   const before = (profilePayload.media ?? []) as { id: string }[];
   const originalIds = new Set(before.map((item) => item.id));
   const hasServerSession = (await page.context().cookies()).some(
@@ -83,9 +85,9 @@ test('low-quality upload is identified, enhanced for delivery and remains editab
       }, `/api/media/${uploadedId}?variant=card`);
       expect(dimensions.width).toBe(1080);
       expect(dimensions.height).toBeGreaterThanOrEqual(1900);
-      expect(Math.abs(dimensions.width / dimensions.height - 9 / 16)).toBeLessThan(
-        0.005,
-      );
+      expect(
+        Math.abs(dimensions.width / dimensions.height - 9 / 16),
+      ).toBeLessThan(0.005);
     }
   } finally {
     const current = await page.request.get('/api/profile');

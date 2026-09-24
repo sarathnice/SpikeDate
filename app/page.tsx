@@ -2,7 +2,11 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import Image from 'next/image';
+import { App } from '@capacitor/app';
+import { Geolocation } from '@capacitor/geolocation';
+import type { DiscoveryLocation } from '@/lib/discovery-location';
 import { PresenceStatus } from '@/components/presence-status';
+import { WelcomeStories } from '@/components/welcome-stories';
 import { syntheticProfiles } from '@/lib/synthetic-profiles';
 import {
   LivePresenceProvider,
@@ -521,36 +525,44 @@ function BrandHeartMark({
 }: {
   size?: number;
   className?: string;
-  fill?: string;
 }) {
-  const maskId = `spikedate-heart-${useId().replace(/:/g, '')}`;
+  const keyId = `spikedate-solid-${useId().replace(/:/g, '')}`;
+  const maskId = `${keyId}-mask`;
   return (
     <svg
       className={`brand-heart-mark ${className}`}
       width={size}
       height={size}
-      viewBox="0 0 1024 1024"
+      viewBox="150 140 725 745"
       aria-hidden="true"
       focusable="false"
     >
       <defs>
-        <mask id={maskId}>
-          <rect width="1024" height="1024" fill="white" />
-          <path
-            d="M555 197C540 300 456 330 500 417c35 70 151 69 186 146 38 84-55 170-169 270"
-            fill="none"
-            stroke="black"
-            strokeWidth="112"
-            strokeLinecap="round"
+        <filter id={keyId} colorInterpolationFilters="sRGB">
+          <feColorMatrix
+            type="matrix"
+            values="0 0 0 0 1  0 0 0 0 0.29412  0 0 0 0 0.19608  1.06695 0 0 0 -0.06695"
+          />
+          <feMorphology operator="dilate" radius="12" />
+        </filter>
+        <mask
+          id={maskId}
+          maskUnits="userSpaceOnUse"
+          x="0"
+          y="0"
+          width="1024"
+          height="1024"
+          style={{ maskType: 'alpha' }}
+        >
+          <image
+            href="/brand/icon-options/vermilion-1024.png"
+            width="1024"
+            height="1024"
+            filter={`url(#${keyId})`}
           />
         </mask>
       </defs>
-      <path
-        d="M512 873C452 813 183 628 183 377c0-150 113-236 241-197 40 12 68 35 88 69 20-34 48-57 88-69 128-39 241 47 241 197 0 251-269 436-329 496Z"
-        fill="currentColor"
-        mask={`url(#${maskId})`}
-      />
-      <path d="m557 70 72 216-143-38Z" fill="currentColor" />
+      <rect width="1024" height="1024" fill="currentColor" mask={`url(#${maskId})`} />
     </svg>
   );
 }
@@ -1918,6 +1930,7 @@ export default function HomePage() {
   const [registrationStep, setRegistrationStep] = useState(0);
   const [registrationSingleSection, setRegistrationSingleSection] =
     useState(false);
+  const [registrationPhotoOnly, setRegistrationPhotoOnly] = useState(false);
   const [boostsRemaining, setBoostsRemaining] = useState(0);
   const [purchasedBoosts, setPurchasedBoosts] = useState(0);
   const [activeBoosts, setActiveBoosts] = useState<ActiveBoosts>({});
@@ -1953,6 +1966,12 @@ export default function HomePage() {
   const [serverGalaxyProfiles, setServerGalaxyProfiles] = useState<Profile[]>(
     [],
   );
+  const [discoveryLocation, setDiscoveryLocation] =
+    useState<DiscoveryLocation>({ mode: 'unset', city: null, updatedAt: null });
+  const [locationReady, setLocationReady] = useState(false);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const lastLocationRequestAt = useRef(0);
   const [serverIncomingRows, setServerIncomingRows] = useState<IncomingRow[]>(
     [],
   );
@@ -4756,7 +4775,11 @@ export default function HomePage() {
     }
   };
 
-  const openRegistrationAt = (step: number, singleSection = true) => {
+  const openRegistrationAt = (
+    step: number,
+    singleSection = true,
+    photoOnly = false,
+  ) => {
     if (!singleSection && authEmail) {
       try {
         if (localStorage.getItem(`spikedate-setup-draft:${authEmail}`))
@@ -4767,6 +4790,7 @@ export default function HomePage() {
     }
     setRegistrationStep(step);
     setRegistrationSingleSection(singleSection);
+    setRegistrationPhotoOnly(photoOnly);
     setRegistrationOpen(true);
   };
 
@@ -4951,6 +4975,9 @@ export default function HomePage() {
     allowanceOwner.current = null;
     boostOwner.current = null;
     setAuthEmail(null);
+    setDiscoveryLocation({ mode: 'unset', city: null, updatedAt: null });
+    setLocationReady(false);
+    setLocationError('');
     setVerificationStatus('unverified');
     setVerificationOpen(false);
     setPurchasedBoosts(0);
@@ -4964,6 +4991,172 @@ export default function HomePage() {
     setTodayComposerOpen(false);
     setViewedDailyStory(null);
   };
+
+  const saveDiscoveryLocation = async (
+    choice:
+      | { mode: 'device'; latitude: number; longitude: number }
+      | { mode: 'city'; city: string }
+      | { mode: 'denied' },
+  ) => {
+    if (!authEmail) return;
+    let location: DiscoveryLocation;
+    if (serverDataEnabled) {
+      const response = await serverJson<{ location: DiscoveryLocation }>(
+        '/api/discovery-location',
+        { method: 'PUT', body: JSON.stringify(choice) },
+      );
+      location = response.location;
+    } else {
+      location = {
+        mode: choice.mode,
+        city: choice.mode === 'city' ? choice.city.trim() : null,
+        updatedAt: Date.now(),
+      };
+      window.localStorage.setItem(
+        `spikedate-discovery-location:${authEmail}`,
+        JSON.stringify(location),
+      );
+    }
+    setDiscoveryLocation(location);
+    setLocationReady(true);
+    setLocationError('');
+    if (serverDataEnabled) {
+      setGalaxyRefresh((value) => value + 1);
+      try {
+        const response = await serverJson<{ profiles: DiscoverCandidate[] }>(
+          '/api/discover?limit=50',
+        );
+        setServerProfiles(response.profiles.map(profileFromDiscovery));
+        setProfileIndex(0);
+      } catch {
+        setLocationError('Area saved, but profiles could not refresh. Try again.');
+      }
+    }
+  };
+
+  const refreshCurrentLocation = async () => {
+    if (!authEmail || locationBusy) return;
+    lastLocationRequestAt.current = Date.now();
+    setLocationBusy(true);
+    setLocationError('');
+    try {
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: false,
+        maximumAge: 60_000,
+        timeout: 10_000,
+      });
+      if (position.coords.accuracy > 20_000)
+        throw new Error('Location is too imprecise. Choose a city instead.');
+      await saveDiscoveryLocation({
+        mode: 'device',
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+    } catch (error) {
+      const detail = error as { code?: number | string; message?: string };
+      if (
+        detail.code === 1 ||
+        detail.code === 'OS-PLUG-GLOC-0003' ||
+        /permission|denied/i.test(detail.message ?? '')
+      ) {
+        try {
+          await saveDiscoveryLocation({ mode: 'denied' });
+        } catch {
+          setLocationError('Location permission is off. Choose a city instead.');
+        }
+      } else {
+        setLocationError('Could not get your current area. Try again or choose a city.');
+      }
+    } finally {
+      setLocationBusy(false);
+    }
+  };
+
+  const chooseDiscoveryCity = async (city: string) => {
+    if (city.trim().length < 2) {
+      setLocationError('Enter a city to explore.');
+      return;
+    }
+    setLocationBusy(true);
+    try {
+      await saveDiscoveryLocation({ mode: 'city', city: city.trim() });
+    } catch {
+      setLocationError('Could not save your city. Try again.');
+    } finally {
+      setLocationBusy(false);
+    }
+  };
+
+  const declineDiscoveryLocation = async () => {
+    setLocationBusy(true);
+    try {
+      await saveDiscoveryLocation({ mode: 'denied' });
+    } catch {
+      setLocationError('Could not update your location choice.');
+    } finally {
+      setLocationBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!authEmail) return;
+    let cancelled = false;
+    setLocationReady(false);
+    const load = async () => {
+      try {
+        const location = serverDataEnabled
+          ? (
+              await serverJson<{ location: DiscoveryLocation }>(
+                '/api/discovery-location',
+              )
+            ).location
+          : (JSON.parse(
+              window.localStorage.getItem(
+                `spikedate-discovery-location:${authEmail}`,
+              ) || 'null',
+            ) as DiscoveryLocation | null) ?? {
+              mode: 'unset' as const,
+              city: null,
+              updatedAt: null,
+            };
+        if (cancelled) return;
+        setDiscoveryLocation(location);
+        setLocationReady(true);
+        if (location.mode === 'device') void refreshCurrentLocation();
+      } catch {
+        if (cancelled) return;
+        setDiscoveryLocation({ mode: 'unset', city: null, updatedAt: null });
+        setLocationReady(true);
+        setLocationError('Could not load your discovery area. Try again.');
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [authEmail]);
+
+  useEffect(() => {
+    if (!authEmail || discoveryLocation.mode !== 'device') return;
+    const onResume = () => {
+      if (
+        document.visibilityState === 'visible' &&
+        Date.now() - lastLocationRequestAt.current > 10 * 60_000
+      )
+        void refreshCurrentLocation();
+    };
+    let nativeListener: { remove: () => Promise<void> } | undefined;
+    void App.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) onResume();
+    }).then((listener) => {
+      nativeListener = listener;
+    });
+    document.addEventListener('visibilitychange', onResume);
+    return () => {
+      document.removeEventListener('visibilitychange', onResume);
+      void nativeListener?.remove();
+    };
+  }, [authEmail, discoveryLocation.mode]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('pulse-theme');
@@ -6047,7 +6240,21 @@ export default function HomePage() {
             />
           )}
           {tab === 'Pulse' &&
-            (filteredProfiles.length ? (
+            (!locationReady ||
+            (discoveryLocation.mode !== 'device' &&
+              discoveryLocation.mode !== 'city') ? (
+              <section className="screen scroll-screen pulse-location-gate">
+                <GalaxyLocationCard
+                  location={discoveryLocation}
+                  ready={locationReady}
+                  busy={locationBusy}
+                  error={locationError}
+                  onUseCurrentLocation={() => void refreshCurrentLocation()}
+                  onChooseCity={(city) => void chooseDiscoveryCity(city)}
+                  onDecline={() => void declineDiscoveryLocation()}
+                />
+              </section>
+            ) : filteredProfiles.length ? (
               <DiscoverScreen
                 profile={current}
                 connection={connectionState(current)}
@@ -6095,6 +6302,13 @@ export default function HomePage() {
             ))}
           {tab === 'Galaxy' && !room && (
             <RoomsHub
+              discoveryLocation={discoveryLocation}
+              locationReady={locationReady}
+              locationBusy={locationBusy}
+              locationError={locationError}
+              onUseCurrentLocation={() => void refreshCurrentLocation()}
+              onChooseCity={(city) => void chooseDiscoveryCity(city)}
+              onDeclineLocation={() => void declineDiscoveryLocation()}
               onGames={() => handleTab('Chat')}
               astrology={
                 <AstrologyDiscovery
@@ -6308,7 +6522,6 @@ export default function HomePage() {
           {tab === 'Profile' && !previewCard && (
             <YourProfile
               name={selfName}
-              email={authEmail}
               image={ownProfileImage}
               media={effectiveOwnMedia}
               details={registrationData}
@@ -6321,6 +6534,7 @@ export default function HomePage() {
               }}
               onRegistration={() => openRegistrationAt(0, false)}
               onEditSection={openRegistrationAt}
+              onEditPhotos={() => openRegistrationAt(7, true, true)}
               onTheme={() => setThemeOpen(true)}
               onSubscription={() => setSubscriptionOpen(true)}
               verificationStatus={verificationStatus}
@@ -6487,6 +6701,7 @@ export default function HomePage() {
           initialStep={registrationStep}
           editing={registered && !registrationCameraCheck}
           singleSection={registrationSingleSection}
+          photoOnly={registrationPhotoOnly}
           media={effectiveOwnMedia}
           onAddPhoto={addProfilePhoto}
           onAddVideo={addProfileVideo}
@@ -7278,8 +7493,8 @@ function CinematicPortrait({
   const imageSource = failed
     ? '/profile-placeholder.svg'
     : src.startsWith('/api/media/')
-    ? `${src.split('?')[0]}?variant=${variant}`
-    : src;
+      ? `${src.split('?')[0]}?variant=${variant}`
+      : src;
   useEffect(() => setFailed(false), [src]);
   return (
     <div className="cinematic-photo-stack">
@@ -7446,19 +7661,13 @@ function ProfileCard({
         const dx = clientX - start.x;
         const dy = clientY - start.y;
         if (!start.axis && Math.hypot(dx, dy) > 5) {
-          start.axis = Math.abs(dx) >= Math.abs(dy)
-            ? 'horizontal'
-            : 'vertical';
+          start.axis = Math.abs(dx) >= Math.abs(dy) ? 'horizontal' : 'vertical';
         }
         if (start.axis === 'horizontal') {
           e.preventDefault();
           start.moved = true;
           setOffset({ x: dx, y: Math.max(-10, Math.min(10, dy * 0.08)) });
-        } else if (
-          start.axis === 'vertical' &&
-          dy < 0 &&
-          onSwipeUp
-        ) {
+        } else if (start.axis === 'vertical' && dy < 0 && onSwipeUp) {
           e.preventDefault();
           start.moved = true;
           setOffset({ x: dx * 0.06, y: dy * 0.72 });
@@ -7483,6 +7692,9 @@ function ProfileCard({
       <span className="swipe-label pass-label">NEXT</span>
       <span className="swipe-label like-label">NEXT</span>
       <div className="photo-scrim" />
+      <span className="profile-photo-brand" aria-hidden="true">
+        <BrandHeartMark size={18} />
+      </span>
       <button
         type="button"
         className="profile-card-open"
@@ -8065,6 +8277,9 @@ function FullProfile({
                 />
               ))}
             </div>
+            <span className="profile-photo-brand profile-photo-brand-film" aria-hidden="true">
+              <BrandHeartMark size={16} />
+            </span>
             <span className="film-count">
               {active.type === 'video' && (
                 <Play size={12} fill="currentColor" />
@@ -8525,6 +8740,13 @@ function NoteDialog({
 }
 
 function RoomsHub({
+  discoveryLocation,
+  locationReady,
+  locationBusy,
+  locationError,
+  onUseCurrentLocation,
+  onChooseCity,
+  onDeclineLocation,
   astrology,
   onGames,
   onOpenRoom,
@@ -8548,6 +8770,13 @@ function RoomsHub({
   onMarkSafe,
   onSafetyOptions,
 }: {
+  discoveryLocation: DiscoveryLocation;
+  locationReady: boolean;
+  locationBusy: boolean;
+  locationError: string;
+  onUseCurrentLocation: () => void;
+  onChooseCity: (city: string) => void;
+  onDeclineLocation: () => void;
   astrology: React.ReactNode;
   onGames: () => void;
   onOpenRoom: (name: GalaxyRoomName) => void;
@@ -9007,6 +9236,18 @@ function RoomsHub({
         aria-labelledby="explore-tab-browse"
         hidden={exploreSection !== 'browse'}
       >
+        <GalaxyLocationCard
+          location={discoveryLocation}
+          ready={locationReady}
+          busy={locationBusy}
+          error={locationError}
+          onUseCurrentLocation={onUseCurrentLocation}
+          onChooseCity={onChooseCity}
+          onDecline={onDeclineLocation}
+        />
+        {(discoveryLocation.mode === 'device' ||
+          discoveryLocation.mode === 'city') && (
+          <>
         <div className="galaxy-browse-heading">
           <div>
             <h2>Find your kind of connection</h2>
@@ -9065,7 +9306,74 @@ function RoomsHub({
           <Radio size={16} fill="currentColor" /> Spaces reflect shared
           interests. You may appear in more than one.
         </p>
+          </>
+        )}
       </div>
+    </section>
+  );
+}
+
+function GalaxyLocationCard({
+  location,
+  ready,
+  busy,
+  error,
+  onUseCurrentLocation,
+  onChooseCity,
+  onDecline,
+}: {
+  location: DiscoveryLocation;
+  ready: boolean;
+  busy: boolean;
+  error: string;
+  onUseCurrentLocation: () => void;
+  onChooseCity: (city: string) => void;
+  onDecline: () => void;
+}) {
+  const [city, setCity] = useState('');
+  const [showCity, setShowCity] = useState(false);
+  const [showChoices, setShowChoices] = useState(false);
+  const chosen = location.mode === 'device' || location.mode === 'city';
+  useEffect(() => {
+    if (chosen) setShowChoices(false);
+  }, [chosen, location.updatedAt]);
+  return (
+    <section className={`galaxy-location-card ${chosen && !showChoices ? 'compact' : ''}`} aria-label="Discovery area">
+      {chosen && !showChoices ? (
+        <div className="galaxy-location-current">
+          <span className="galaxy-location-symbol"><MapPin size={18} aria-hidden="true" /></span>
+          <span>
+            <strong>{location.mode === 'device' ? 'Near your current area' : `Near ${location.city}`}</strong>
+            <small>{location.updatedAt ? `Updated ${new Date(location.updatedAt).toLocaleDateString()}` : 'Nearby discovery is on'} · Exact location stays private</small>
+          </span>
+          <button type="button" onClick={() => setShowChoices(true)} aria-label="Change discovery area">Change</button>
+        </div>
+      ) : (
+        <>
+          <span className="galaxy-location-kicker"><MapPin size={15} aria-hidden="true" /> Discover near you</span>
+          <h2>{!ready ? 'Finding your area…' : location.mode === 'denied' ? 'Choose where to explore' : 'Good connections start nearby.'}</h2>
+          <p>{location.mode === 'denied' ? 'Location is off. Choose a city to discover people, or enable location in your device settings.' : 'Use your current area to meet people nearby. Your exact location is never shown.'}</p>
+          <div className="galaxy-location-actions">
+            <button type="button" className="primary-button" disabled={busy || !ready} onClick={onUseCurrentLocation}>
+              <MapPin size={17} aria-hidden="true" /> {busy ? 'Finding your area…' : location.mode === 'denied' ? 'Try current location' : 'Use current location'}
+            </button>
+            <button type="button" className="galaxy-location-secondary" disabled={busy || !ready} onClick={() => setShowCity((value) => !value)}>Choose a city instead</button>
+          </div>
+          {showCity && (
+            <form className="galaxy-location-city" onSubmit={(event) => { event.preventDefault(); onChooseCity(city); setShowChoices(false); }}>
+              <label htmlFor="galaxy-discovery-city">City to explore</label>
+              <div><input id="galaxy-discovery-city" value={city} onChange={(event) => setCity(event.target.value)} placeholder="e.g. Boston" autoComplete="address-level2" maxLength={100} /><button type="submit" disabled={busy || city.trim().length < 2}>Show people</button></div>
+            </form>
+          )}
+          {location.mode !== 'denied' && !chosen && <button type="button" className="galaxy-location-later" disabled={busy || !ready} onClick={onDecline}>Not now</button>}
+          {chosen && <>
+            <button type="button" className="galaxy-location-later" onClick={() => setShowChoices(false)}>Keep current area</button>
+            <button type="button" className="galaxy-location-later" disabled={busy} onClick={() => { onDecline(); setShowChoices(false); }}>Turn off location discovery</button>
+          </>}
+          <small className="galaxy-location-privacy">Only while using SpikeDate · Change this anytime</small>
+        </>
+      )}
+      {error && <p className="galaxy-location-error" role="alert">{error}</p>}
     </section>
   );
 }
@@ -10855,6 +11163,7 @@ function AuthScreen({
   ) => Promise<string | null>;
 }) {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [welcomeVisible, setWelcomeVisible] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -11005,6 +11314,13 @@ function AuthScreen({
     setPassword(testPassword);
     setError('');
   };
+  if (welcomeVisible) {
+    return (
+      <WelcomeStories brand={<SpikeDateWordmark context="auth" />}
+        onLogin={() => { chooseMode('signin'); setWelcomeVisible(false); }}
+        onCreate={() => { chooseMode('signup'); setWelcomeVisible(false); }} />
+    );
+  }
   return (
     <main className="auth-shell">
       <section
@@ -11012,6 +11328,7 @@ function AuthScreen({
         data-auth-mode={mode}
         aria-label="SpikeDate account access"
       >
+        <button type="button" className="welcome-back" onClick={() => setWelcomeVisible(true)}>← Back to welcome</button>
         <div className="auth-brand">
           <SpikeDateWordmark context="auth" />
         </div>
@@ -11302,7 +11619,6 @@ function AuthScreen({
 
 function YourProfile({
   name,
-  email,
   image,
   media,
   details,
@@ -11312,6 +11628,7 @@ function YourProfile({
   onPreview,
   onRegistration,
   onEditSection,
+  onEditPhotos,
   onTheme,
   onSubscription,
   verificationStatus,
@@ -11336,7 +11653,6 @@ function YourProfile({
   onEditToday,
 }: {
   name: string;
-  email: string;
   image: string;
   media: MediaItem[];
   details: RegistrationData;
@@ -11346,6 +11662,7 @@ function YourProfile({
   onPreview: () => void;
   onRegistration: () => void;
   onEditSection: (step: number) => void;
+  onEditPhotos: () => void;
   onTheme: () => void;
   onSubscription: () => void;
   verificationStatus: PhotoVerificationStatus;
@@ -11481,14 +11798,17 @@ function YourProfile({
           unoptimized={image.startsWith('/') || image.startsWith('data:')}
           className="profile-passport-photo"
         />
+        <span className="profile-photo-brand profile-photo-brand-self" aria-hidden="true">
+          <BrandHeartMark size={16} />
+        </span>
         <div className="profile-passport-topbar">
           <button
             type="button"
-            className="profile-preview-trigger"
+            className="profile-preview-trigger profile-icon-trigger"
             onClick={onPreview}
             aria-label="Preview my profile card"
           >
-            <UserRound size={15} /> Profile preview
+            <Eye size={18} aria-hidden="true" />
           </button>
           <button
             type="button"
@@ -11514,7 +11834,6 @@ function YourProfile({
               {details.city}
               {details.occupation ? ` · ${details.occupation}` : ''}
             </p>
-            <p>{email}</p>
           </div>
           <button aria-label="Edit profile" onClick={onRegistration}>
             <Edit3 size={19} />
@@ -11530,7 +11849,8 @@ function YourProfile({
               ?.scrollIntoView({ behavior: 'smooth' })
           }
         >
-          <UserRound size={15} aria-hidden="true" /> My profile
+          <UserRound size={15} aria-hidden="true" /> Profile
+          <small>{profileDepth}%</small>
         </button>
         <button
           type="button"
@@ -11550,7 +11870,7 @@ function YourProfile({
               ?.scrollIntoView({ behavior: 'smooth' })
           }
         >
-          <Star size={15} aria-hidden="true" /> Subscription
+          <Star size={15} aria-hidden="true" /> Plan
         </button>
       </nav>
       <button className="profile-intent-card" onClick={() => onEditSection(4)}>
@@ -11617,11 +11937,7 @@ function YourProfile({
               {media.filter((item) => item.type === 'photo').length} of 6 photos
             </small>
           </span>
-          <button
-            type="button"
-            className="section-edit"
-            onClick={() => onEditSection(7)}
-          >
+          <button type="button" className="section-edit" onClick={onEditPhotos}>
             <Edit3 size={15} /> Edit photos
           </button>
         </div>
@@ -11637,7 +11953,7 @@ function YourProfile({
               <button
                 key={photo.id ?? photo.src}
                 type="button"
-                onClick={() => onEditSection(7)}
+                onClick={onEditPhotos}
                 aria-label={`Edit profile photo ${index + 1}`}
               >
                 <Image
@@ -11653,7 +11969,7 @@ function YourProfile({
           {!media.some((item) => item.type === 'photo') && (
             <button
               type="button"
-              onClick={() => onEditSection(7)}
+              onClick={onEditPhotos}
               aria-label="Add your first profile photo"
             >
               <ImagePlus size={24} /> Add photo
@@ -11663,7 +11979,7 @@ function YourProfile({
       </section>
       <p className="passport-details-title" id="profile-details">
         <span>
-          <UserRound size={17} aria-hidden="true" /> My profile
+          <UserRound size={17} aria-hidden="true" /> Profile details
         </span>
         <small>
           {registered
@@ -11749,7 +12065,7 @@ function YourProfile({
             title: 'Discovery preferences',
             description: `${details.preferredGenders.join(', ')} · Ages ${details.minAge}–${details.maxAge} · ${details.maxDistance} mi · Private`,
             Icon: SlidersHorizontal,
-            edit: 'Edit preferences & media',
+            edit: 'Edit discovery preferences',
           },
         ].map(({ title, description, Icon, edit }, index) => (
           <button
@@ -12310,6 +12626,7 @@ function RegistrationDialog({
   initialStep,
   editing,
   singleSection,
+  photoOnly,
   media,
   onAddPhoto,
   onAddVideo,
@@ -12324,6 +12641,7 @@ function RegistrationDialog({
   initialStep: number;
   editing: boolean;
   singleSection: boolean;
+  photoOnly: boolean;
   media: MediaItem[];
   onAddPhoto: (photo: CroppedPhoto) => Promise<void>;
   onAddVideo: (file: File) => Promise<void>;
@@ -12337,15 +12655,18 @@ function RegistrationDialog({
   const [showOptionalAbout, setShowOptionalAbout] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
+  const dialogContent = useRef<HTMLDivElement>(null);
   const registrationBody = useRef<HTMLDivElement>(null);
   const initializedForOpen = useRef(false);
   useEffect(() => {
     if (registrationBody.current) registrationBody.current.scrollTop = 0;
   }, [step]);
   const onboarding = !editing && !singleSection;
-  const flowSteps: readonly number[] = onboarding
-    ? vibeSetupSteps
-    : registrationSteps.map((_, index) => index);
+  const flowSteps: readonly number[] = singleSection
+    ? [step]
+    : onboarding
+      ? vibeSetupSteps
+      : registrationSteps.map((_, index) => index);
   const position = Math.max(0, flowSteps.indexOf(step));
   useEffect(() => {
     if (!open) {
@@ -12382,6 +12703,31 @@ function RegistrationDialog({
       setCropOpen(false);
     }
   }, [open, initialData, initialStep]);
+  useEffect(() => {
+    if (!open || !singleSection) return;
+    const viewport = window.visualViewport;
+    const fitProfileEditor = () => {
+      const dialog = dialogContent.current;
+      if (!dialog) return;
+      dialog.style.setProperty(
+        '--profile-editor-height',
+        `${viewport?.height ?? window.innerHeight}px`,
+      );
+      dialog.style.setProperty(
+        '--profile-editor-top',
+        `${viewport?.offsetTop ?? 0}px`,
+      );
+    };
+    fitProfileEditor();
+    window.addEventListener('resize', fitProfileEditor);
+    viewport?.addEventListener('resize', fitProfileEditor);
+    viewport?.addEventListener('scroll', fitProfileEditor);
+    return () => {
+      window.removeEventListener('resize', fitProfileEditor);
+      viewport?.removeEventListener('resize', fitProfileEditor);
+      viewport?.removeEventListener('scroll', fitProfileEditor);
+    };
+  }, [open, singleSection]);
   useEffect(() => {
     if (!open || !onboarding || !draftKey || saving) return;
     try {
@@ -12425,6 +12771,19 @@ function RegistrationDialog({
     registrationSteps[
       Math.max(0, Math.min(registrationSteps.length - 1, step))
     ];
+  const editorItem =
+    singleSection && step === 7
+      ? photoOnly
+        ? {
+            title: 'Your photos',
+            detail:
+              'Choose, frame, reorder, or remove up to six profile photos.',
+          }
+        : {
+            title: 'Discovery preferences',
+            detail: 'Choose who you want to meet and how far you want to look.',
+          }
+      : item;
   const photos = media.filter((item) => item.type === 'photo').slice(0, 6);
   const profileVideo = media.find((item) => item.type === 'video');
   const chooseProfilePhoto = (file?: File) => {
@@ -12492,7 +12851,10 @@ function RegistrationDialog({
         !data.intents.length)
     )
       return 'Check your name, city, adult birthday, gender and relationship goal.';
-    if (step === 7 || (onboarding && (step === 4 || step === 8))) {
+    if (
+      (step === 7 && !photoOnly) ||
+      (onboarding && (step === 4 || step === 8))
+    ) {
       if (data.preferredGenders.length === 0)
         return 'Choose at least one gender preference.';
       if (data.minAge > data.maxAge)
@@ -12542,33 +12904,47 @@ function RegistrationDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        ref={dialogContent}
         showCloseButton={false}
-        className={`flow-dialog registration-dialog ${onboarding ? 'vibe-registration' : ''}`}
+        style={singleSection ? { translate: '-50% 0' } : undefined}
+        className={`flow-dialog registration-dialog ${singleSection ? 'profile-section-dialog' : ''} ${onboarding ? 'vibe-registration' : ''}`}
       >
-        <button
-          className="match-close"
-          onClick={() => onOpenChange(false)}
-          aria-label="Close registration"
-        >
-          <X size={19} />
-        </button>
-        <div className="flow-kicker">
-          {onboarding ? 'YOUR PROFILE' : 'REGISTRATION'} · {position + 1} OF{' '}
-          {flowSteps.length}
-        </div>
-        <div className="flow-progress">
-          {flowSteps.map((_, index) => (
-            <span key={index} className={index <= position ? 'active' : ''} />
-          ))}
-        </div>
-        <DialogTitle>{item.title}</DialogTitle>
-        <DialogDescription>{item.detail}</DialogDescription>
-        <div className="field-policy" hidden={onboarding}>
-          <ShieldCheck size={15} />
-          <span>
-            Only fields marked Required block setup. Skip anything else and add
-            it later.
-          </span>
+        <div className="registration-header">
+          <button
+            className="match-close"
+            onClick={() => onOpenChange(false)}
+            aria-label={
+              singleSection
+                ? `Close ${editorItem.title} editor`
+                : 'Close registration'
+            }
+          >
+            <X size={19} />
+          </button>
+          <div className="flow-kicker">
+            {singleSection
+              ? 'EDIT PROFILE'
+              : `${onboarding ? 'YOUR PROFILE' : 'REGISTRATION'} · ${position + 1} OF ${flowSteps.length}`}
+          </div>
+          {!singleSection && (
+            <div className="flow-progress">
+              {flowSteps.map((_, index) => (
+                <span
+                  key={index}
+                  className={index <= position ? 'active' : ''}
+                />
+              ))}
+            </div>
+          )}
+          <DialogTitle>{editorItem.title}</DialogTitle>
+          <DialogDescription>{editorItem.detail}</DialogDescription>
+          <div className="field-policy" hidden={onboarding || singleSection}>
+            <ShieldCheck size={15} />
+            <span>
+              Only fields marked Required block setup. Skip anything else and
+              add it later.
+            </span>
+          </div>
         </div>
         <div className="registration-body" ref={registrationBody}>
           {step === 0 && (
@@ -13405,7 +13781,7 @@ function RegistrationDialog({
           )}
           {step === 7 && (
             <>
-              <div hidden={onboarding}>
+              <div hidden={onboarding || photoOnly}>
                 <ChoiceGroup
                   label="Show me · Required"
                   options={['Woman', 'Man', 'Nonbinary']}
@@ -13454,204 +13830,212 @@ function RegistrationDialog({
                   </label>
                 </div>
               </div>
-              <section
-                className="profile-media-editor guided-photo-studio"
-                aria-label="Profile photos"
-              >
-                <div className="profile-media-heading">
-                  <span>
-                    <small className="guided-photo-kicker">
-                      GUIDED STUDIO · PROFILE PHOTO
-                    </small>
-                    <strong>Choose a photo you love</strong>
-                    <small>
-                      {photos.length} of 6 · first photo is your main photo
-                    </small>
-                  </span>
-                  <Check size={17} />
-                </div>
-                <div
-                  className="guided-photo-steps"
-                  aria-label="Photo setup steps"
-                >
-                  <span>
-                    <b>1</b> Upload
-                  </span>
-                  <span>
-                    <b>2</b> Auto frame
-                  </span>
-                  <span>
-                    <b>3</b> Review
-                  </span>
-                </div>
-                {photos.length === 0 && (
-                  <label className="guided-photo-upload">
-                    <span className="guided-photo-upload-icon">
-                      <ImagePlus size={27} aria-hidden="true" />
-                    </span>
-                    <strong>Add your first photo</strong>
-                    <small>
-                      Choose a clear, recent picture. We’ll frame your face
-                      automatically before it is saved.
-                    </small>
-                    <span className="guided-photo-upload-action">
-                      Choose from library
-                    </span>
-                    <span className="guided-photo-file-note">
-                      JPG, HEIC, PNG or WebP · original quality preserved
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                      aria-label="Add and crop profile photo"
-                      onChange={(event) => {
-                        chooseProfilePhoto(event.target.files?.[0]);
-                        event.currentTarget.value = '';
-                      }}
-                    />
-                  </label>
-                )}
-                <div className="profile-media-grid">
-                  {photos.map((photo, index) => (
-                    <div
-                      className="profile-media-tile"
-                      key={photo.id ?? photo.src}
-                    >
-                      <Image
-                        src={photo.src}
-                        alt={`Profile photo ${index + 1}`}
-                        fill
-                        sizes="112px"
-                        quality={90}
-                        unoptimized={
-                          photo.src.startsWith('/') ||
-                          photo.src.startsWith('data:')
-                        }
-                      />
-                      <span className="profile-media-number">{index + 1}</span>
-                      {index === 0 ? (
-                        <span className="profile-media-main">Main</span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="profile-media-main-action"
-                          onClick={() => onMakeMainPhoto(photo)}
-                        >
-                          Make main
-                        </button>
-                      )}
-                      {photo.id && (
-                        <button
-                          type="button"
-                          className="profile-media-remove"
-                          aria-label={`Remove profile photo ${index + 1}`}
-                          onClick={() => onRemovePhoto(photo)}
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {photos.length > 0 && photos.length < 6 && (
-                    <label className="profile-media-add">
-                      <ImagePlus size={25} />
-                      <strong>Add photo</strong>
-                      <small>Choose from library</small>
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                        aria-label="Add and crop profile photo"
-                        onChange={(event) => {
-                          chooseProfilePhoto(event.target.files?.[0]);
-                          event.currentTarget.value = '';
-                        }}
-                      />
-                    </label>
-                  )}
-                </div>
-                <p className="profile-media-guidance">
-                  Your selected photo is auto-framed on this device, then you
-                  approve the crop. Avoid screenshots and heavy filters.
-                </p>
-                <div className="profile-video-editor">
-                  {profileVideo ? (
-                    <>
-                      <video
-                        src={profileVideo.src}
-                        muted
-                        playsInline
-                        controls
-                        preload="metadata"
-                        aria-label="Your profile video"
-                      />
+              {(!singleSection || photoOnly) && (
+                <>
+                  <section
+                    className="profile-media-editor guided-photo-studio"
+                    aria-label="Profile photos"
+                  >
+                    <div className="profile-media-heading">
                       <span>
-                        <strong>Profile video ready</strong>
+                        <small className="guided-photo-kicker">
+                          GUIDED STUDIO · PROFILE PHOTO
+                        </small>
+                        <strong>Choose a photo you love</strong>
                         <small>
-                          Shown after your photos · maximum 15 seconds
+                          {photos.length} of 6 · first photo is your main photo
                         </small>
                       </span>
-                      <button
-                        type="button"
-                        aria-label="Remove profile video"
-                        onClick={() => onRemovePhoto(profileVideo)}
-                      >
-                        <Trash2 size={15} /> Remove
-                      </button>
-                    </>
-                  ) : (
-                    <label>
-                      <Play size={21} />
+                      <Check size={17} />
+                    </div>
+                    <div
+                      className="guided-photo-steps"
+                      aria-label="Photo setup steps"
+                    >
                       <span>
-                        <strong>Add profile video</strong>
-                        <small>MP4, MOV, or WebM · 15 sec · 30 MB max</small>
+                        <b>1</b> Upload
                       </span>
-                      <Plus size={18} />
-                      <input
-                        type="file"
-                        accept="video/mp4,video/quicktime,video/webm"
-                        aria-label="Add 15-second profile video"
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          if (file) void onAddVideo(file);
-                          event.currentTarget.value = '';
-                        }}
-                      />
-                    </label>
-                  )}
-                </div>
-              </section>
-              <div className="media-rules" hidden={onboarding}>
-                <div>
-                  <Camera size={20} />
-                  <span>
-                    <strong>Main photo</strong>
-                    <small>One cinematic portrait on Spike</small>
-                  </span>
-                  <Check size={17} />
-                </div>
-                <div>
-                  <Camera size={20} />
-                  <span>
-                    <strong>Full profile</strong>
-                    <small>Up to 6 photos · tap to advance</small>
-                  </span>
-                  <Check size={17} />
-                </div>
-                <div>
-                  <Play size={20} />
-                  <span>
-                    <strong>Profile video</strong>
-                    <small>One video · maximum 15 seconds</small>
-                  </span>
-                  <Check size={17} />
-                </div>
-              </div>
-              <PhotoCropper
-                file={cropFile}
-                open={cropOpen}
-                onOpenChange={setCropOpen}
-                onConfirm={onAddPhoto}
-              />
+                      <span>
+                        <b>2</b> Auto frame
+                      </span>
+                      <span>
+                        <b>3</b> Review
+                      </span>
+                    </div>
+                    {photos.length === 0 && (
+                      <label className="guided-photo-upload">
+                        <span className="guided-photo-upload-icon">
+                          <ImagePlus size={27} aria-hidden="true" />
+                        </span>
+                        <strong>Add your first photo</strong>
+                        <small>
+                          Choose a clear, recent picture. We’ll frame your face
+                          automatically before it is saved.
+                        </small>
+                        <span className="guided-photo-upload-action">
+                          Choose from library
+                        </span>
+                        <span className="guided-photo-file-note">
+                          JPG, HEIC, PNG or WebP · original quality preserved
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                          aria-label="Add and crop profile photo"
+                          onChange={(event) => {
+                            chooseProfilePhoto(event.target.files?.[0]);
+                            event.currentTarget.value = '';
+                          }}
+                        />
+                      </label>
+                    )}
+                    <div className="profile-media-grid">
+                      {photos.map((photo, index) => (
+                        <div
+                          className="profile-media-tile"
+                          key={photo.id ?? photo.src}
+                        >
+                          <Image
+                            src={photo.src}
+                            alt={`Profile photo ${index + 1}`}
+                            fill
+                            sizes="112px"
+                            quality={90}
+                            unoptimized={
+                              photo.src.startsWith('/') ||
+                              photo.src.startsWith('data:')
+                            }
+                          />
+                          <span className="profile-media-number">
+                            {index + 1}
+                          </span>
+                          {index === 0 ? (
+                            <span className="profile-media-main">Main</span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="profile-media-main-action"
+                              onClick={() => onMakeMainPhoto(photo)}
+                            >
+                              Make main
+                            </button>
+                          )}
+                          {photo.id && (
+                            <button
+                              type="button"
+                              className="profile-media-remove"
+                              aria-label={`Remove profile photo ${index + 1}`}
+                              onClick={() => onRemovePhoto(photo)}
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {photos.length > 0 && photos.length < 6 && (
+                        <label className="profile-media-add">
+                          <ImagePlus size={25} />
+                          <strong>Add photo</strong>
+                          <small>Choose from library</small>
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                            aria-label="Add and crop profile photo"
+                            onChange={(event) => {
+                              chooseProfilePhoto(event.target.files?.[0]);
+                              event.currentTarget.value = '';
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
+                    <p className="profile-media-guidance">
+                      Your selected photo is auto-framed on this device, then
+                      you approve the crop. Avoid screenshots and heavy filters.
+                    </p>
+                    <div className="profile-video-editor">
+                      {profileVideo ? (
+                        <>
+                          <video
+                            src={profileVideo.src}
+                            muted
+                            playsInline
+                            controls
+                            preload="metadata"
+                            aria-label="Your profile video"
+                          />
+                          <span>
+                            <strong>Profile video ready</strong>
+                            <small>
+                              Shown after your photos · maximum 15 seconds
+                            </small>
+                          </span>
+                          <button
+                            type="button"
+                            aria-label="Remove profile video"
+                            onClick={() => onRemovePhoto(profileVideo)}
+                          >
+                            <Trash2 size={15} /> Remove
+                          </button>
+                        </>
+                      ) : (
+                        <label>
+                          <Play size={21} />
+                          <span>
+                            <strong>Add profile video</strong>
+                            <small>
+                              MP4, MOV, or WebM · 15 sec · 30 MB max
+                            </small>
+                          </span>
+                          <Plus size={18} />
+                          <input
+                            type="file"
+                            accept="video/mp4,video/quicktime,video/webm"
+                            aria-label="Add 15-second profile video"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (file) void onAddVideo(file);
+                              event.currentTarget.value = '';
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </section>
+                  <div className="media-rules" hidden={onboarding}>
+                    <div>
+                      <Camera size={20} />
+                      <span>
+                        <strong>Main photo</strong>
+                        <small>One cinematic portrait on Spike</small>
+                      </span>
+                      <Check size={17} />
+                    </div>
+                    <div>
+                      <Camera size={20} />
+                      <span>
+                        <strong>Full profile</strong>
+                        <small>Up to 6 photos · tap to advance</small>
+                      </span>
+                      <Check size={17} />
+                    </div>
+                    <div>
+                      <Play size={20} />
+                      <span>
+                        <strong>Profile video</strong>
+                        <small>One video · maximum 15 seconds</small>
+                      </span>
+                      <Check size={17} />
+                    </div>
+                  </div>
+                  <PhotoCropper
+                    file={cropFile}
+                    open={cropOpen}
+                    onOpenChange={setCropOpen}
+                    onConfirm={onAddPhoto}
+                  />
+                </>
+              )}
             </>
           )}
           {step === 8 && onboarding && (

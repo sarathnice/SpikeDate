@@ -86,6 +86,15 @@ export async function POST(request: Request) {
               ),
             db
               .prepare(
+                "UPDATE profiles SET latitude_e6 = ?, longitude_e6 = ? WHERE user_id = ? AND latitude_e6 IS NULL AND discovery_location_mode = 'unset'",
+              )
+              .bind(
+                index % 2 ? 42_360_000 : 42_370_000,
+                index % 2 ? -71_060_000 : -71_110_000,
+                userId,
+              ),
+            db
+              .prepare(
                 'INSERT OR IGNORE INTO preferences ' +
                   '(user_id, genders_json, min_age, max_age, max_distance_km, relationship_goals_json, dealbreakers_json, created_at, updated_at) ' +
                   'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',

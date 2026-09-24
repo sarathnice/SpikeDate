@@ -78,6 +78,20 @@
       "when": 1790024983154,
       "tag": "0010_round_archangel",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1790279660944,
+      "tag": "0011_living_blackheart",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790280744422,
+      "tag": "0012_flaky_skaar",
+      "breakpoints": true
     }
   ]
 }

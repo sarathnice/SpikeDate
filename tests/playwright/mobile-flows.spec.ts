@@ -286,7 +286,9 @@ test('iPhone 15 home stays full screen and touch swipes profiles', async ({
   expect(cardBox).not.toBeNull();
   expect(frameBox!.x).toBeGreaterThanOrEqual(-1);
   expect(frameBox!.y).toBeGreaterThanOrEqual(-1);
-  expect(frameBox!.x + frameBox!.width).toBeLessThanOrEqual(viewport!.width + 1);
+  expect(frameBox!.x + frameBox!.width).toBeLessThanOrEqual(
+    viewport!.width + 1,
+  );
   expect(frameBox!.y + frameBox!.height).toBeLessThanOrEqual(
     viewport!.height + 1,
   );
@@ -318,16 +320,14 @@ test('iPhone 15 home stays full screen and touch swipes profiles', async ({
   for (let step = 1; step <= 5; step += 1) {
     await client.send('Input.dispatchTouchEvent', {
       type: 'touchMove',
-      touchPoints: [
-        { x: startX + ((endX - startX) * step) / 5, y },
-      ],
+      touchPoints: [{ x: startX + ((endX - startX) * step) / 5, y }],
     });
     await page.waitForTimeout(16);
   }
   await expect(card).toHaveClass(/gesture-dragging/);
   expect(
-    await card.evaluate((element) =>
-      getComputedStyle(element).transitionDuration,
+    await card.evaluate(
+      (element) => getComputedStyle(element).transitionDuration,
     ),
   ).toBe('0s');
   await expect(card).toHaveAttribute('style', /translate3d\(-/);
@@ -378,7 +378,12 @@ test('iPhone 15 home stays full screen and touch swipes profiles', async ({
   });
 
   const lateDismiss = page.getByRole('button', { name: /^Dismiss /i });
-  if (await lateDismiss.first().isVisible().catch(() => false))
+  if (
+    await lateDismiss
+      .first()
+      .isVisible()
+      .catch(() => false)
+  )
     await lateDismiss.first().click();
 
   const nextCardBox = await card.boundingBox();
@@ -408,7 +413,9 @@ test('iPhone 15 home stays full screen and touch swipes profiles', async ({
   await page.getByRole('button', { name: 'Close full profile' }).click();
   for (const tab of ['Galaxy', 'Likes', 'Chat'] as const) {
     await page.getByRole('button', { name: tab, exact: true }).click();
-    const header = page.locator(`.phone-frame[data-active-tab='${tab}'] .page-header`);
+    const header = page.locator(
+      `.phone-frame[data-active-tab='${tab}'] .page-header`,
+    );
     await expect(header).toBeVisible();
     expect((await header.boundingBox())!.y).toBeGreaterThanOrEqual(59);
   }
@@ -419,9 +426,7 @@ test('iPhone 15 home stays full screen and touch swipes profiles', async ({
   });
   await expect(previewButton).toBeVisible();
   expect((await previewButton.boundingBox())!.y).toBeGreaterThanOrEqual(59);
-  await page
-    .getByRole('button', { name: 'Edit profile', exact: true })
-    .click();
+  await page.getByRole('button', { name: 'Edit profile', exact: true }).click();
   const registration = page.locator('.registration-dialog');
   await expect(registration).toBeVisible();
   const registrationBox = await registration.boundingBox();
@@ -494,12 +499,13 @@ test('Like advances immediately while Spike has one top-placement send action', 
   await expect(dialog).not.toBeVisible();
   const upgrade = page.getByRole('heading', { name: 'Send another Spike' });
   await expect
-    .poll(async () =>
-      (await upgrade.isVisible()) ||
-      (await page
-        .getByRole('button', { name: /^Like [A-Za-z]/ })
-        .first()
-        .getAttribute('aria-label')) !== firstSpikeLabel,
+    .poll(
+      async () =>
+        (await upgrade.isVisible()) ||
+        (await page
+          .getByRole('button', { name: /^Like [A-Za-z]/ })
+          .first()
+          .getAttribute('aria-label')) !== firstSpikeLabel,
     )
     .toBe(true);
   if (await upgrade.isVisible()) {
@@ -541,7 +547,10 @@ test('Send Spike focused composer keeps context and action visible on mobile', a
   await expect(dialog.locator('.spike-context-quote')).toContainText(
     'THEIR PHOTO',
   );
-  const interest = dialog.getByRole('button', { name: 'Interest', exact: true });
+  const interest = dialog.getByRole('button', {
+    name: 'Interest',
+    exact: true,
+  });
   const hasSharedInterest = await interest.isVisible();
   if (hasSharedInterest) {
     await interest.click();
@@ -600,7 +609,9 @@ test('Send Spike focused composer keeps context and action visible on mobile', a
     targetRef: string;
   };
   expect(payload.targetType).toBe(hasSharedInterest ? 'profile' : 'photo');
-  expect(payload.targetRef).toContain(hasSharedInterest ? 'Interest ·' : 'Photo 1');
+  expect(payload.targetRef).toContain(
+    hasSharedInterest ? 'Interest ·' : 'Photo 1',
+  );
   await expect(dialog).not.toBeVisible();
 });
 
@@ -940,7 +951,9 @@ test('Profile Lift and subscription sheets fit between safe areas', async ({
   await page.screenshot({ path: test.info().outputPath('lift-editorial.png') });
   await lift.getByText('How Profile Lift works', { exact: true }).click();
   await lift.getByText('Get more Profile Lifts', { exact: true }).click();
-  const liftAction = lift.getByRole('button', { name: /Start .* Profile Lift/i });
+  const liftAction = lift.getByRole('button', {
+    name: /Start .* Profile Lift/i,
+  });
   if (await liftAction.isVisible()) {
     const actionBounds = await liftAction.boundingBox();
     expect(actionBounds).not.toBeNull();
@@ -1021,9 +1034,9 @@ test('profile photo crop, upload, display, and cleanup work on mobile', async ({
     type: string;
   }[];
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
-  await page.getByRole('button', { name: /Edit preferences & media/i }).click();
+  await page.getByRole('button', { name: 'Edit photos' }).click();
   const registration = page.getByRole('dialog', {
-    name: 'Preferences & media',
+    name: 'Your photos',
   });
   await expect(registration).toBeVisible();
   const firstPhoto = originalMedia.find((item) => item.type === 'photo');

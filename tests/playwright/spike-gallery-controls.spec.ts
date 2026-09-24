@@ -51,7 +51,7 @@ test('mobile: Spike star, contained availability switch, own photos and full gal
     .click();
   await expect(page.locator('.registration-dialog')).toBeVisible();
   await expect(page.locator('.profile-media-tile')).toHaveCount(photoCount);
-  await page.getByRole('button', { name: 'Close registration' }).click();
+  await page.getByRole('button', { name: 'Close Your photos editor' }).click();
   await page.getByRole('button', { name: 'Preview my profile card' }).click();
   await page
     .getByRole('button', { name: 'Open your full profile preview' })
@@ -65,12 +65,16 @@ test('mobile: Spike star, contained availability switch, own photos and full gal
   if (photoCount > 1) {
     const initial = await image.getAttribute('src');
     await full.getByRole('button', { name: 'Next profile photo' }).click();
-    await expect(full.locator('.film-count')).toContainText(`2 / ${photoCount}`);
+    await expect(full.locator('.film-count')).toContainText(
+      `2 / ${photoCount}`,
+    );
     await expect(image).not.toHaveAttribute('src', initial!);
   }
   if (photoCount > 2) {
     await full.getByRole('button', { name: 'View profile photo 3' }).click();
-    await expect(full.locator('.film-count')).toContainText(`3 / ${photoCount}`);
+    await expect(full.locator('.film-count')).toContainText(
+      `3 / ${photoCount}`,
+    );
   }
   await expect
     .poll(() => image.evaluate((el) => (el as HTMLImageElement).naturalWidth))

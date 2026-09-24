@@ -4,6 +4,11 @@ import { isRecentlyActive } from '@/lib/presence';
 import { getDb, withDatabase } from '@/lib/server/db';
 import { json } from '@/lib/server/http';
 import { zodiacFromBirthDate } from '@/lib/astrology';
+import {
+  matchesDiscoveryLocation,
+  normalizeCity,
+  type ViewerLocation,
+} from '@/lib/discovery-location';
 
 export const runtime = 'edge';
 
@@ -28,6 +33,9 @@ type Candidate = {
   drinking: string | null;
   bio: string;
   city: string | null;
+  discovery_city: string | null;
+  latitude_e6: number | null;
+  longitude_e6: number | null;
   relationship_goal: string;
   verification_status: string;
   lift_ends_at: number | null;
@@ -66,6 +74,30 @@ export async function GET(request: Request) {
         genders_json: string;
         relationship_goals_json: string;
       }>();
+    const locationRow = await db
+      .prepare(
+        'SELECT discovery_location_mode, discovery_city, latitude_e6, longitude_e6, discovery_location_updated_at FROM profiles WHERE user_id = ?',
+      )
+      .bind(user.id)
+      .first<{
+        discovery_location_mode: string;
+        discovery_city: string | null;
+        latitude_e6: number | null;
+        longitude_e6: number | null;
+        discovery_location_updated_at: number | null;
+      }>();
+    const location: ViewerLocation = {
+      mode:
+        locationRow?.discovery_location_mode === 'device' ||
+        locationRow?.discovery_location_mode === 'city' ||
+        locationRow?.discovery_location_mode === 'denied'
+          ? locationRow.discovery_location_mode
+          : 'unset',
+      city: locationRow?.discovery_city ?? null,
+      latitudeE6: locationRow?.latitude_e6 ?? null,
+      longitudeE6: locationRow?.longitude_e6 ?? null,
+      updatedAt: locationRow?.discovery_location_updated_at ?? null,
+    };
     const genders: string[] = preferences
       ? (JSON.parse(preferences.genders_json) as string[]).map((gender) =>
           gender.toLowerCase(),
@@ -74,9 +106,36 @@ export async function GET(request: Request) {
     const goals = preferences
       ? JSON.parse(preferences.relationship_goals_json)
       : [];
+    const maxDistanceKm = preferences?.max_distance_km ?? 50;
+    let locationSql = '';
+    let locationParams: Array<string | number> = [];
+    if (
+      location.mode === 'device' &&
+      location.latitudeE6 !== null &&
+      location.longitudeE6 !== null
+    ) {
+      const latitude = location.latitudeE6 / 1_000_000;
+      const longitude = location.longitudeE6 / 1_000_000;
+      const latitudeSpan = maxDistanceKm / 110.574;
+      const longitudeSpan =
+        maxDistanceKm /
+        Math.max(10, 111.32 * Math.abs(Math.cos((latitude * Math.PI) / 180)));
+      locationSql =
+        'AND profiles.latitude_e6 BETWEEN ? AND ? AND profiles.longitude_e6 BETWEEN ? AND ? ';
+      locationParams = [
+        Math.round((latitude - latitudeSpan) * 1_000_000),
+        Math.round((latitude + latitudeSpan) * 1_000_000),
+        Math.round((longitude - longitudeSpan) * 1_000_000),
+        Math.round((longitude + longitudeSpan) * 1_000_000),
+      ];
+    } else if (location.mode === 'city' && location.city) {
+      locationSql =
+        'AND LOWER(TRIM(COALESCE(profiles.discovery_city, profiles.city))) = ? ';
+      locationParams = [normalizeCity(location.city)];
+    }
     const result = await db
       .prepare(
-        'SELECT profiles.user_id, profiles.display_name, users.birth_date, profiles.bio, profiles.city, profiles.gender, ' +
+        'SELECT profiles.user_id, profiles.display_name, users.birth_date, profiles.bio, profiles.city, profiles.discovery_city, profiles.latitude_e6, profiles.longitude_e6, profiles.gender, ' +
           'profiles.height_cm, profiles.occupation, profiles.kids, profiles.wants_kids, profiles.smoking, profiles.drinking, profiles.education, profiles.pets, ' +
           'connections.relationship_style, connections.dating_pace, connections.communication_preference, connections.values_json, connections.rhythm_json, connections.languages_json, ' +
           'profiles.relationship_goal, profiles.verification_status, users.last_active_at, presence_pref.show_online, lifts.ends_at AS lift_ends_at, ' +
@@ -99,6 +158,7 @@ export async function GET(request: Request) {
           'LEFT JOIN daily_availability availability ON availability.user_id = profiles.user_id AND availability.end_at > ? ' +
           "AND EXISTS (SELECT 1 FROM matches availability_match WHERE availability_match.status = 'active' AND ((availability_match.user_a_id = ? AND availability_match.user_b_id = profiles.user_id) OR (availability_match.user_b_id = ? AND availability_match.user_a_id = profiles.user_id))) " +
           "WHERE profiles.user_id != ? AND profiles.discoverable = 1 AND users.status = 'active' " +
+          locationSql +
           'AND NOT EXISTS (SELECT 1 FROM safety_actions blocked WHERE blocked.kind = ? AND ' +
           '((blocked.reporter_id = ? AND blocked.subject_id = profiles.user_id) OR ' +
           '(blocked.reporter_id = profiles.user_id AND blocked.subject_id = ?))) ' +
@@ -123,12 +183,13 @@ export async function GET(request: Request) {
         user.id,
         user.id,
         user.id,
+        ...locationParams,
         'block',
         user.id,
         user.id,
         user.id,
         ...(includeMatches ? [user.id, user.id] : []),
-        limit,
+        500,
       )
       .all<Candidate>();
     const interestsByUser = new Map<string, string[]>();
@@ -190,6 +251,20 @@ export async function GET(request: Request) {
     }
     const now = new Date();
     const profiles = result.results.flatMap((candidate) => {
+      if (
+        (location.mode === 'device' || location.mode === 'city') &&
+        !matchesDiscoveryLocation(
+          location,
+          {
+            latitudeE6: candidate.latitude_e6,
+            longitudeE6: candidate.longitude_e6,
+            city: candidate.city,
+            discoveryCity: candidate.discovery_city,
+          },
+          maxDistanceKm,
+        )
+      )
+        return [];
       const birthDate = new Date(candidate.birth_date + 'T00:00:00Z');
       let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
       if (
@@ -277,6 +352,6 @@ export async function GET(request: Request) {
         },
       ];
     });
-    return json({ profiles, count: profiles.length });
+    return json({ profiles: profiles.slice(0, limit), count: profiles.length });
   });
 }

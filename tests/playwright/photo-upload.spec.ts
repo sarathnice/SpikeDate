@@ -69,11 +69,9 @@ for (const layout of ['compact mobile', 'computer gallery'] as const) {
     });
     try {
       await page.getByRole('button', { name: 'Profile', exact: true }).click();
-      await page
-        .getByRole('button', { name: /Edit preferences & media/i })
-        .click();
+      await page.getByRole('button', { name: 'Edit photos' }).click();
       const registration = page.getByRole('dialog', {
-        name: 'Preferences & media',
+        name: 'Your photos',
       });
       const firstStoredPhoto = before.find((item) => item.type === 'photo');
       if (firstStoredPhoto)
