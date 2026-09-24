@@ -26,17 +26,21 @@ export async function POST(request: Request) {
     return json({ error: 'Not found.' }, { status: 404 });
   return withDatabase(async () => {
     const db = getDb();
+    const additionalOnly = new URL(request.url).searchParams.get('batch') === 'additional';
+    const selectedProfiles = syntheticProfiles
+      .map((fixture, offset) => ({ fixture, offset }))
+      .filter(({ offset }) => !additionalOnly || offset >= 50);
     const now = Date.now();
     const passwordHash = await hashPassword('SpikeDate2026!');
-    for (let offset = 0; offset < firstNames.length; offset += 10) {
-      const group = firstNames.slice(offset, offset + 10);
+    for (let offset = 0; offset < selectedProfiles.length; offset += 10) {
+      const group = selectedProfiles.slice(offset, offset + 10);
       await db.batch(
-        group.flatMap((name, groupIndex) => {
-          const index = offset + groupIndex + 1;
+        group.flatMap(({ fixture, offset: fixtureOffset }) => {
+          const index = fixtureOffset + 1;
           const suffix = String(index).padStart(3, '0');
           const userId = 'test-' + suffix;
           const email = 'test' + suffix + '@spikedate.test';
-          const gender = syntheticProfiles[index - 1].gender;
+          const gender = fixture.gender;
           const goals = ['Long-term', 'Marriage', 'Dating', 'Short-term'];
           const goal = goals[index % goals.length];
           const birthYear = 1986 + (index % 18);
@@ -64,18 +68,19 @@ export async function POST(request: Request) {
             db
               .prepare(
                 'INSERT OR IGNORE INTO profiles ' +
-                  '(user_id, display_name, gender, bio, relationship_goal, city, country, verification_status, discoverable, discoverable_requested, completed_at, created_at, updated_at) ' +
-                  'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                  '(user_id, display_name, gender, bio, relationship_goal, city, region, country, verification_status, discoverable, discoverable_requested, completed_at, created_at, updated_at) ' +
+                  'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
               )
               .bind(
                 userId,
-                name,
+                fixture.name,
                 gender,
                 'Synthetic test profile ' +
                   suffix +
                   ' for end-to-end validation.',
                 goal,
-                index % 2 ? 'Boston' : 'Cambridge',
+                fixture.city,
+                fixture.region,
                 'US',
                 'verified',
                 1,
@@ -111,7 +116,7 @@ export async function POST(request: Request) {
         }),
       );
     }
-    await db.batch(
+    if (!additionalOnly) await db.batch(
       [2, 3, 4, 5, 6].flatMap((index) => {
         const suffix = String(index).padStart(3, '0');
         const matchId = `test-match-001-${suffix}`;
@@ -157,7 +162,7 @@ export async function POST(request: Request) {
         ];
       }),
     );
-    await db.batch(
+    if (!additionalOnly) await db.batch(
       [2, 3, 4, 5].map((index) => {
         const suffix = String(index).padStart(3, '0');
         return db
@@ -182,7 +187,7 @@ export async function POST(request: Request) {
     );
     const availableDay = new Date(now + 86_400_000);
     const availableLocalDate = availableDay.toISOString().slice(0, 10);
-    await db.batch(
+    if (!additionalOnly) await db.batch(
       [2, 3, 4, 5].map((index) => {
         const startAt = new Date(`${availableLocalDate}T18:00:00-04:00`);
         startAt.setMinutes((index - 2) * 30);
@@ -230,9 +235,9 @@ export async function POST(request: Request) {
             availableAssets.add(asset);
         }),
       );
-      const statements = firstNames.flatMap((_, index) => {
-        const suffix = String(index + 1).padStart(3, '0');
-        const asset = syntheticProfiles[index].asset;
+      const statements = selectedProfiles.flatMap(({ fixture, offset }) => {
+        const suffix = String(offset + 1).padStart(3, '0');
+        const asset = fixture.asset;
         if (!availableAssets.has(asset)) return [];
         return [
           db
@@ -253,7 +258,7 @@ export async function POST(request: Request) {
       if (statements.length) await db.batch(statements);
     }
     const adminId = 'test-001';
-    for (const [offset, fixture] of syntheticProfiles.entries()) {
+    for (const { offset, fixture } of selectedProfiles) {
       const connection = fixture.connection;
       const suffix = String(offset + 1).padStart(3, '0');
       const interestLabels = [
@@ -358,16 +363,16 @@ export async function POST(request: Request) {
           : []),
       ]);
     }
-    await db
+    if (!additionalOnly) await db
       .prepare(
         'INSERT OR IGNORE INTO admin_users (user_id, role, created_at, updated_at) VALUES (?, ?, ?, ?)',
       )
       .bind(adminId, 'super_admin', now, now)
       .run();
     return json({
-      created: firstNames.length,
+      created: selectedProfiles.length,
       password: 'SpikeDate2026!',
-      firstAccount: 'test001@spikedate.test',
+      firstAccount: selectedProfiles[0]?.fixture.email,
       fixturePhotoAssetsAvailable: availableAssets.size,
     });
   });

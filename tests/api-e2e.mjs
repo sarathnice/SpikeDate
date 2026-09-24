@@ -62,7 +62,7 @@ await record('seed exactly 50 isolated accounts', async () => {
     headers: { 'x-spikedate-seed-secret': seedSecret },
   });
   assert.equal(response.status, 200, JSON.stringify(body));
-  assert.equal(body.created, 50);
+  assert.equal(body.created, 100);
 });
 
 await record('authenticate all 50 synthetic accounts', async () => {

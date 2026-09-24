@@ -239,6 +239,7 @@ type DiscoverCandidate = {
   bio?: string;
   prompts?: Array<{ prompt: string; answer: string }>;
   city?: string | null;
+  region?: string | null;
   relationshipGoal?: string;
   imageUrl?: string | null;
   media?: Array<{ type: 'photo' | 'video'; url: string }>;
@@ -275,6 +276,7 @@ type RegistrationData = {
   name: string;
   birthday: string;
   city: string;
+  region: string;
   gender: Gender;
   pronouns: string;
   orientation: string;
@@ -1351,6 +1353,7 @@ const testIdentities: TestIdentity[] = profiles.map((profile) => ({
     name: profile.name,
     birthday: birthdays[profile.name],
     city: profile.place,
+    region: '',
     gender: profile.gender,
     pronouns:
       profile.gender === 'Woman'
@@ -1728,7 +1731,7 @@ function profileFromDiscovery(candidate: DiscoverCandidate): Profile {
           ? [{ type: 'photo', src: candidate.imageUrl }]
           : [{ type: 'photo', src: '/profile-placeholder.svg' }],
       age: candidate.age,
-      place: candidate.city || known.place,
+      place: [candidate.city, candidate.region].filter(Boolean).join(', ') || known.place,
       intent: candidate.relationshipGoal || known.intent,
       verified: candidate.verified,
       active: candidate.active,
@@ -1755,7 +1758,7 @@ function profileFromDiscovery(candidate: DiscoverCandidate): Profile {
     media: candidate.media?.length
       ? candidate.media.map((item) => ({ type: item.type, src: item.url }))
       : [{ type: 'photo', src: image }],
-    place: candidate.city || 'Nearby',
+    place: [candidate.city, candidate.region].filter(Boolean).join(', ') || 'Nearby',
     distance: 'Nearby',
     distanceMiles: 2,
     intent: candidate.relationshipGoal || 'Dating',
@@ -4032,6 +4035,7 @@ export default function HomePage() {
               smoking: data.smoking || null,
               pets: data.pets || null,
               city: data.city || null,
+              region: data.region || null,
               country: 'US',
               discoverable: true,
             },
@@ -4945,6 +4949,7 @@ export default function HomePage() {
       birthday: details.birthDate,
       gender: details.gender as Gender,
       city: '',
+      region: '',
       pronouns: '',
       height: '',
       ethnicity: '',
@@ -5481,6 +5486,7 @@ export default function HomePage() {
             interests:
               account.interests?.map((interest) => interest.label) ?? [],
             city: profileText('city', currentData.city),
+            region: profileText('region', currentData.region),
             occupation: profileText('occupation', currentData.occupation),
             education: profileText('education', currentData.education),
             ...(account.connection || emptyConnection),
@@ -11831,7 +11837,7 @@ function YourProfile({
               )}
             </h1>
             <p>
-              {details.city}
+              {[details.city, details.region].filter(Boolean).join(', ')}
               {details.occupation ? ` · ${details.occupation}` : ''}
             </p>
           </div>
@@ -11996,7 +12002,7 @@ function YourProfile({
         {[
           {
             title: 'The basics',
-            description: `${name} · ${birthday} · ${details.city}`,
+            description: `${name} · ${birthday} · ${[details.city, details.region].filter(Boolean).join(', ')}`,
             Icon: UserRound,
             edit: 'Edit basics',
           },
@@ -12411,7 +12417,7 @@ function ProfilePreview({
     ...portrait,
     id: userId ?? portrait.id,
     name,
-    place: details.city || portrait.place,
+    place: [details.city, details.region].filter(Boolean).join(', ') || portrait.place,
     intent: details.intents[0] || portrait.intent,
     tags: details.interests,
     prompt: serverDataEnabled
@@ -12558,6 +12564,7 @@ const initialRegistration: RegistrationData = {
   name: 'Alex',
   birthday: '1998-04-18',
   city: 'Brooklyn',
+  region: 'NY',
   gender: 'Nonbinary',
   pronouns: 'they/them',
   orientation: '',
@@ -12652,6 +12659,10 @@ function RegistrationDialog({
   const [data, setData] = useState<RegistrationData>(initialData);
   const [validationError, setValidationError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [registrationLocationStatus, setRegistrationLocationStatus] = useState<
+    'idle' | 'loading' | 'found' | 'error'
+  >('idle');
+  const [registrationLocationMessage, setRegistrationLocationMessage] = useState('');
   const [showOptionalAbout, setShowOptionalAbout] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
@@ -12698,6 +12709,8 @@ function RegistrationDialog({
         }
       }
       setValidationError('');
+      setRegistrationLocationStatus('idle');
+      setRegistrationLocationMessage('');
       setShowOptionalAbout(editing && initialStep === 1);
       setCropFile(null);
       setCropOpen(false);
@@ -12806,6 +12819,45 @@ function RegistrationDialog({
   ) => {
     setValidationError('');
     setData((current) => ({ ...current, [key]: value }));
+  };
+  const suggestRegistrationArea = async () => {
+    if (registrationLocationStatus === 'loading') return;
+    setRegistrationLocationStatus('loading');
+    setRegistrationLocationMessage('');
+    try {
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: false,
+        maximumAge: 60_000,
+        timeout: 10_000,
+      });
+      if (position.coords.accuracy > 10_000)
+        throw new Error('Location is too imprecise. Enter your city and state manually.');
+      const response = await serverJson<{
+        area: { city: string; region: string; country: string };
+      }>('/api/registration-location/reverse', {
+        method: 'POST',
+        body: JSON.stringify({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }),
+      });
+      setData((current) => ({
+        ...current,
+        city: response.area.city,
+        region: response.area.region,
+      }));
+      setValidationError('');
+      setRegistrationLocationStatus('found');
+      setRegistrationLocationMessage('Suggested area added. Review or edit it before continuing.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      setRegistrationLocationStatus('error');
+      setRegistrationLocationMessage(
+        /permission|denied/i.test(message)
+          ? 'Location is off. Enter your city and state manually.'
+          : message || 'We could not find your city. Enter it manually.',
+      );
+    }
   };
   const toggle = (
     key: 'intents' | 'interests' | 'values' | 'preferredGenders',
@@ -12977,16 +13029,53 @@ function RegistrationDialog({
                   identity in your profile after setup.
                 </p>
               )}
-              <label className="wide-field">
-                <span className="field-label">
-                  City <b>Required</b>
-                </span>
-                <input
-                  aria-label="City"
-                  value={data.city}
-                  onChange={(event) => update('city', event.target.value)}
-                />
-              </label>
+              <div className="wide-field registration-location-assist">
+                <button
+                  type="button"
+                  className="registration-location-use"
+                  disabled={registrationLocationStatus === 'loading'}
+                  onClick={() => void suggestRegistrationArea()}
+                >
+                  <MapPin size={17} aria-hidden="true" />
+                  {registrationLocationStatus === 'loading'
+                    ? 'Finding your area…'
+                    : registrationLocationStatus === 'found'
+                      ? 'Update current location'
+                      : 'Use current location'}
+                </button>
+                <span className="registration-location-or">or enter it yourself</span>
+                <div className="registration-location-fields">
+                  <label>
+                    <span className="field-label">City <b>Required</b></span>
+                    <input
+                      aria-label="City"
+                      autoComplete="address-level2"
+                      placeholder="City"
+                      value={data.city}
+                      onChange={(event) => update('city', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span className="field-label">State</span>
+                    <input
+                      aria-label="State"
+                      autoComplete="address-level1"
+                      placeholder="e.g. MA"
+                      maxLength={100}
+                      value={data.region}
+                      onChange={(event) => update('region', event.target.value)}
+                    />
+                  </label>
+                </div>
+                <small className="registration-location-note">
+                  A one-time U.S. Census lookup suggests your area using rounded coordinates. Your exact location is not shown on your profile.
+                </small>
+                {registrationLocationMessage && (
+                  <p className="registration-location-feedback" role="status">
+                    {registrationLocationMessage}
+                  </p>
+                )}
+              </div>
             </div>
           )}
           {step === 1 && (
@@ -14056,7 +14145,7 @@ function RegistrationDialog({
               <h3>{data.name}</h3>
               <p>
                 <MapPin size={14} aria-hidden="true" />
-                {data.city}
+                {[data.city, data.region].filter(Boolean).join(', ')}
               </p>
               <p>
                 <Heart size={14} aria-hidden="true" />

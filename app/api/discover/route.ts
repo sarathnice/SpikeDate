@@ -33,6 +33,7 @@ type Candidate = {
   drinking: string | null;
   bio: string;
   city: string | null;
+  region: string | null;
   discovery_city: string | null;
   latitude_e6: number | null;
   longitude_e6: number | null;
@@ -135,7 +136,7 @@ export async function GET(request: Request) {
     }
     const result = await db
       .prepare(
-        'SELECT profiles.user_id, profiles.display_name, users.birth_date, profiles.bio, profiles.city, profiles.discovery_city, profiles.latitude_e6, profiles.longitude_e6, profiles.gender, ' +
+        'SELECT profiles.user_id, profiles.display_name, users.birth_date, profiles.bio, profiles.city, profiles.region, profiles.discovery_city, profiles.latitude_e6, profiles.longitude_e6, profiles.gender, ' +
           'profiles.height_cm, profiles.occupation, profiles.kids, profiles.wants_kids, profiles.smoking, profiles.drinking, profiles.education, profiles.pets, ' +
           'connections.relationship_style, connections.dating_pace, connections.communication_preference, connections.values_json, connections.rhythm_json, connections.languages_json, ' +
           'profiles.relationship_goal, profiles.verification_status, users.last_active_at, presence_pref.show_online, lifts.ends_at AS lift_ends_at, ' +
@@ -321,6 +322,7 @@ export async function GET(request: Request) {
           bio: candidate.bio,
           prompts: promptsByUser.get(candidate.user_id) || [],
           city: candidate.city,
+          region: candidate.region,
           relationshipGoal: candidate.relationship_goal,
           verified,
           active:

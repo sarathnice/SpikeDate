@@ -29,6 +29,7 @@ const profileSchema = z.object({
   smoking: z.string().trim().max(50).nullable(),
   pets: z.string().trim().max(50).nullable(),
   city: z.string().trim().max(100).nullable(),
+  region: z.string().trim().max(100).nullable(),
   country: z.string().trim().max(100).nullable(),
   discoverable: z.boolean(),
 });
@@ -224,6 +225,7 @@ export async function PATCH(request: Request) {
         smoking: 'smoking',
         pets: 'pets',
         city: 'city',
+        region: 'region',
         country: 'country',
         discoverable: 'discoverable_requested',
       };

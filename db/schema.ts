@@ -110,6 +110,7 @@ export const profiles = sqliteTable(
     discoveryCity: text('discovery_city'),
     discoveryLocationUpdatedAt: integer('discovery_location_updated_at'),
     city: text('city'),
+    region: text('region'),
     country: text('country'),
     verificationStatus: text('verification_status')
       .notNull()

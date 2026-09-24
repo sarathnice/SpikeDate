@@ -1,0 +1,75 @@
+.registration-location-assist {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.registration-location-use {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 13%, var(--card));
+  color: var(--foreground);
+  font: inherit;
+}
+
+.registration-location-use svg {
+  color: var(--accent);
+}
+
+.registration-location-use:disabled {
+  opacity: 0.7;
+}
+
+.registration-location-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted-foreground);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.registration-location-or::before,
+.registration-location-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.registration-location-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(84px, 0.42fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.registration-location-fields label,
+.registration-location-fields input {
+  min-width: 0;
+  width: 100%;
+}
+
+.registration-location-note,
+.registration-location-feedback {
+  color: var(--muted-foreground);
+  font-size: 0.79rem;
+  line-height: 1.45;
+}
+
+.registration-location-feedback {
+  margin: 0;
+  color: var(--foreground);
+}
+
+@media (max-width: 340px) {
+  .registration-location-fields {
+    grid-template-columns: minmax(0, 1fr) minmax(70px, 0.4fr);
+  }
+}

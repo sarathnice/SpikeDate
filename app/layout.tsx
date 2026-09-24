@@ -3,6 +3,7 @@ import { Inter, Playfair_Display, Poppins } from 'next/font/google';
 import './globals.css';
 import './count-typography.css';
 import './registration-vibe.css';
+import './registration-location.css';
 import './profile-connection.css';
 import './photo-quality.css';
 import './quiet-rail.css';

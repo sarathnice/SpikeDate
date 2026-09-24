@@ -30,6 +30,10 @@ const women = [
   'Sara',
   'Alice',
   'Rose',
+  'Yara', 'Ayla', 'Kira', 'Anika', 'Tessa',
+  'Celeste', 'Nadia', 'Iris', 'June', 'Alina',
+  'Saanvi', 'Emily', 'Beatriz', 'Hana', 'Aisha',
+  'Quinn', 'Stella', 'Lucia', 'Nia', 'Harper',
 ];
 const men = [
   'Noah',
@@ -62,8 +66,12 @@ const men = [
   'Ryan',
   'David',
   'Hugo',
+  'Karim', 'Julien', 'Aaron', 'Miles', 'Amir',
+  'Victor', 'Nathan', 'Ezra', 'Jae', 'Soren',
+  'Caleb', 'Ravi', 'Simon', 'Diego', 'Peter',
+  'Yusuf', 'Jonah', 'Rohan', 'Felix', 'Keon',
 ];
-export const syntheticProfiles = Array.from({ length: 50 }, (_, offset) => {
+export const syntheticProfiles = Array.from({ length: 100 }, (_, offset) => {
   const woman = offset % 2 === 0;
   const index = Math.floor(offset / 2);
   const suffix = String(offset + 1).padStart(3, '0');
@@ -90,6 +98,8 @@ export const syntheticProfiles = Array.from({ length: 50 }, (_, offset) => {
     email: `test${suffix}@spikedate.test`,
     name: woman ? women[index] : men[index],
     gender: woman ? 'woman' : 'man',
+    city: offset % 2 === 0 ? 'Boston' : 'Cambridge',
+    region: 'MA',
     asset: (woman
       ? ['maya', 'lena', 'imani', 'ava']
       : ['noah', 'mateo', 'jordan', 'elias'])[index % 4],
