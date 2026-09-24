@@ -13,8 +13,11 @@
   --amber: #dda3ff;
 }
 :root[data-pulse-theme='default'][data-pulse-accent='vermilion'] {
-  --coral: #f45e3f;
+  --coral: #ff4b32;
   --amber: #ff9a75;
+}
+:root[data-pulse-theme='default'][data-pulse-accent='vermilion'] .brand-date {
+  color: var(--coral);
 }
 :root[data-pulse-theme='default']:is(
   [data-pulse-accent='electric-blue'],

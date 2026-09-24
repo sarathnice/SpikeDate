@@ -4,8 +4,8 @@
   "description": "A photo-first dating experience for genuine connection.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1A1A2E",
-  "theme_color": "#1A1A2E",
+  "background_color": "#0B0C12",
+  "theme_color": "#0B0C12",
   "icons": [
     {
       "src": "/brand/app-icon-192.png",
