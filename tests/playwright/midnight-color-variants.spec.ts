@@ -5,7 +5,7 @@ const variants = [
   { id: 'electric-blue', name: 'Electric Blue', accent: '#3978ff', secondary: '#7ea7ff' },
   { id: 'spring-green', name: 'Spring Green', accent: '#75eb8a', secondary: '#b8f6c2' },
   { id: 'neon-orchid', name: 'Neon Orchid', accent: '#c05cff', secondary: '#dda3ff' },
-  { id: 'vermilion', name: 'Vermilion', accent: '#f45e3f', secondary: '#ff9a75' },
+  { id: 'vermilion', name: 'Vermilion', accent: '#ff4b32', secondary: '#ff9a75' },
 ] as const;
 
 const toRgb = (hex: string) => {
@@ -82,8 +82,8 @@ test('retained color themes keep Midnight layout and persist across reloads', as
       accent: variant.accent,
       navFits: true,
     });
-    expect(actual.brand).toBe(toRgb(variant.accent));
-    expect(actual.date).toBe(toRgb(variant.secondary));
+    expect(actual.brand).toBe(toRgb('#ff4b32'));
+    expect(actual.date).toBe(toRgb(variant.id === 'vermilion' ? '#ff4b32' : variant.secondary));
     expect(actual.boost).toBe(toRgb(variant.secondary));
     await expect(page.locator('.phone-frame')).toBeVisible();
 

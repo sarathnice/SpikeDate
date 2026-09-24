@@ -4,6 +4,7 @@ The app icon uses the selected solid Vermilion `#FF4B32` heart and spike on Midn
 
 - `spikedate-icon.svg` — solid Vermilion app icon master
 - `spikedate-symbol-gradient.svg` — gradient symbol on transparency
+- `spikedate-symbol-vermilion.svg` — current solid Vermilion mark on transparency, shared by in-app and static lockups
 - `spikedate-symbol-white.svg` / `spikedate-symbol-navy.svg` — one-color symbols
 - `spikedate-logo-horizontal.svg` / `spikedate-logo-vertical.svg` — full-color lockups
 - `spikedate-logo-*-white.svg` / `spikedate-logo-*-navy.svg` — one-color lockups

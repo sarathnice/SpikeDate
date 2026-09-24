@@ -521,9 +521,7 @@ function BrandHeartMark({
 }: {
   size?: number;
   className?: string;
-  fill?: string;
 }) {
-  const maskId = `spikedate-heart-${useId().replace(/:/g, '')}`;
   return (
     <svg
       className={`brand-heart-mark ${className}`}
@@ -533,24 +531,23 @@ function BrandHeartMark({
       aria-hidden="true"
       focusable="false"
     >
-      <defs>
-        <mask id={maskId}>
-          <rect width="1024" height="1024" fill="white" />
-          <path
-            d="M555 197C540 300 456 330 500 417c35 70 151 69 186 146 38 84-55 170-169 270"
-            fill="none"
-            stroke="black"
-            strokeWidth="112"
-            strokeLinecap="round"
-          />
-        </mask>
-      </defs>
       <path
-        d="M512 873C452 813 183 628 183 377c0-150 113-236 241-197 40 12 68 35 88 69 20-34 48-57 88-69 128-39 241 47 241 197 0 251-269 436-329 496Z"
-        fill="currentColor"
-        mask={`url(#${maskId})`}
+        d="M512 837C466 794 226 620 226 396c0-124 91-199 194-169 45 13 75 44 92 82 17-38 47-69 92-82 103-30 194 45 194 169 0 224-240 398-286 441Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="82"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
-      <path d="m557 70 72 216-143-38Z" fill="currentColor" />
+      <path
+        d="M560 175C548 269 462 314 500 399c34 75 151 68 190 142 48 93-67 192-178 296"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="86"
+        strokeLinecap="butt"
+        strokeLinejoin="round"
+      />
+      <path d="m560 105 49 151-99-24Z" fill="currentColor" />
     </svg>
   );
 }
@@ -7483,6 +7480,9 @@ function ProfileCard({
       <span className="swipe-label pass-label">NEXT</span>
       <span className="swipe-label like-label">NEXT</span>
       <div className="photo-scrim" />
+      <span className="profile-photo-brand" aria-hidden="true">
+        <BrandHeartMark size={18} />
+      </span>
       <button
         type="button"
         className="profile-card-open"
@@ -8065,6 +8065,9 @@ function FullProfile({
                 />
               ))}
             </div>
+            <span className="profile-photo-brand profile-photo-brand-film" aria-hidden="true">
+              <BrandHeartMark size={16} />
+            </span>
             <span className="film-count">
               {active.type === 'video' && (
                 <Play size={12} fill="currentColor" />
@@ -11481,6 +11484,9 @@ function YourProfile({
           unoptimized={image.startsWith('/') || image.startsWith('data:')}
           className="profile-passport-photo"
         />
+        <span className="profile-photo-brand profile-photo-brand-self" aria-hidden="true">
+          <BrandHeartMark size={16} />
+        </span>
         <div className="profile-passport-topbar">
           <button
             type="button"

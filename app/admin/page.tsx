@@ -151,7 +151,7 @@ export default function AdminPage() {
       <header className="admin-header">
         <div className="admin-brand">
           <Image
-            src="/brand/spikedate-symbol-gradient.svg"
+            src="/brand/spikedate-symbol-vermilion.svg"
             alt=""
             width={42}
             height={42}

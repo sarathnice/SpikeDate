@@ -22,6 +22,7 @@ import './reminder-moments.css';
 import './midnight-actions.css';
 import './midnight-color-variants.css';
 import './counts-lift.css';
+import './brand-vermilion.css';
 
 const inter = Inter({
   variable: '--font-inter',
