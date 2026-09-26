@@ -22,6 +22,7 @@
   "cache": {
     "enabled": true,
   },
+  "ai": { "binding": "AI" },
   "vars": {
     "SPIKEDATE_ARCADE_ENABLED": "true",
     "SPIKEDATE_IMAGES_ENABLED": "true",

@@ -839,6 +839,31 @@ export const auditLogs = sqliteTable(
   ],
 );
 
+export const supportThreads = sqliteTable(
+  'support_threads',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    category: text('category').notNull().default('general'),
+    status: text('status').notNull().default('self_service'),
+    subject: text('subject').notNull().default('Help conversation'),
+    ...timestamps,
+  },
+  (table) => [index('idx_support_threads_user_updated').on(table.userId, table.updatedAt), index('idx_support_threads_status_updated').on(table.status, table.updatedAt)],
+);
+
+export const supportMessages = sqliteTable(
+  'support_messages',
+  {
+    id: text('id').primaryKey(),
+    threadId: text('thread_id').notNull().references(() => supportThreads.id, { onDelete: 'cascade' }),
+    sender: text('sender').notNull(),
+    body: text('body').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [index('idx_support_messages_thread_created').on(table.threadId, table.createdAt)],
+);
+
 export const dataRequests = sqliteTable(
   'data_requests',
   {

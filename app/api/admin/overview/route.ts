@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     if (admin instanceof Response) return admin;
     const now = Date.now();
     const [
+      allUsers,
       users,
       reports,
       moderation,
@@ -20,6 +21,7 @@ export async function GET(request: Request) {
       plans,
       privacy,
     ] = await Promise.all([
+      db.prepare('SELECT COUNT(*) AS count FROM users').first(),
       db
         .prepare("SELECT COUNT(*) AS count FROM users WHERE status = 'active'")
         .first(),
@@ -62,7 +64,10 @@ export async function GET(request: Request) {
         )
         .first(),
     ]);
-    const openCases = await db
+    const canModerate = admin.roles.some((role) =>
+      ['super_admin', 'safety_reviewer', 'moderator'].includes(role),
+    );
+    const openCases = canModerate ? await db
       .prepare(
         'SELECT safety_actions.id, safety_actions.reason, safety_actions.details, safety_actions.created_at, ' +
           'reporter.display_name AS reporter_name, subject.display_name AS subject_name ' +
@@ -71,18 +76,19 @@ export async function GET(request: Request) {
           "WHERE safety_actions.kind = 'report' AND safety_actions.status = 'open' " +
           'ORDER BY safety_actions.created_at ASC LIMIT 20',
       )
-      .all();
-    const moderationQueue = await db
+      .all() : { results: [] };
+    const moderationQueue = canModerate ? await db
       .prepare(
         'SELECT profile_media.id, profile_media.type, profile_media.created_at, profiles.display_name ' +
           'FROM profile_media JOIN profiles ON profiles.user_id = profile_media.user_id ' +
           "WHERE profile_media.moderation_status = 'pending' " +
           'ORDER BY profile_media.explicit DESC, profile_media.created_at ASC LIMIT 20',
       )
-      .all();
+      .all() : { results: [] };
     return json({
       admin: { email: admin.user.email, roles: admin.roles },
       metrics: {
+        allUsers: Number((allUsers as { count?: number } | null)?.count ?? 0),
         activeUsers: Number((users as { count?: number } | null)?.count ?? 0),
         openReports: Number((reports as { count?: number } | null)?.count ?? 0),
         pendingMedia: Number(

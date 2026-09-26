@@ -5,6 +5,7 @@
   "compatibility_date": "2026-09-07",
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": "dist/client" },
+  "ai": { "binding": "AI" },
   "durable_objects": {
     "bindings": [{ "name": "ARCADE_ROOMS", "class_name": "ArcadeRoom" }],
   },

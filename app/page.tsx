@@ -7,6 +7,7 @@ import { Geolocation } from '@capacitor/geolocation';
 import type { DiscoveryLocation } from '@/lib/discovery-location';
 import { PresenceStatus } from '@/components/presence-status';
 import { WelcomeStories } from '@/components/welcome-stories';
+import { HelpDesk } from '@/components/help-desk';
 import { syntheticProfiles } from '@/lib/synthetic-profiles';
 import {
   LivePresenceProvider,
@@ -12098,6 +12099,7 @@ function YourProfile({
         </p>
         <PresencePreferences />
         <div className="profile-quick-actions lower-profile-tools">
+          <HelpDesk />
           <button className="verification-entry" onClick={onVerification}>
             <ShieldCheck size={20} />
             <span>
