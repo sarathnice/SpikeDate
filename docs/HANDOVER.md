@@ -60,6 +60,11 @@ Rotate before expiry and review permissions when adding a production environment
 
 ## Documentation precedence
 
+For optional password-encrypted owner credential backup, see
+[Encrypted handover](../handover/README.md). The archive is not yet created;
+the owner must enter its passphrase locally and verify it before committing.
+Raw signing/API credentials must never be committed.
+
 Code/configuration and observed environment state are authoritative for behavior.
 This handover set records the reviewed baseline and points to that evidence.
 Root phase reports and older design/QA notes describe earlier milestones; do not

@@ -56,3 +56,8 @@ next-env.d.ts
 /android/app/build/
 /ios/App/DerivedData/
 **/xcuserdata/
+
+# Owner handover: permit ciphertext only; plaintext stays under ignored outputs.
+/handover/*
+!/handover/README.md
+!/handover/spikedate-credentials.json.gpg

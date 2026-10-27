@@ -20,6 +20,9 @@ baseline. Older QA/design reports are historical evidence, not release status.
   as another member or expose private chats through an unscoped AI/database tool.
 - Keep secrets in ignored local environment files or encrypted platform secrets.
   Never commit tokens, signing material, database copies or QA screenshots.
+  The owner's optional `handover/spikedate-credentials.json.gpg` is the sole
+  approved ciphertext exception: require local encryption/decryption verification
+  and explicit owner approval, never commit its plaintext or passphrase.
 - Do not seed, bulk update/delete, change roles, upload profile data, or deploy
   shared infrastructure without explicit task authorization.
 - For a feature: trace the UI/API/schema flow; add focused tests for success,
