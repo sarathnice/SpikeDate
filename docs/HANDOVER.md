@@ -61,9 +61,10 @@ Rotate before expiry and review permissions when adding a production environment
 ## Documentation precedence
 
 For optional password-encrypted owner credential backup, see
-[Encrypted handover](../handover/README.md). The archive is not yet created;
-the owner must enter its passphrase locally and verify it before committing.
-Raw signing/API credentials must never be committed.
+[Encrypted handover](../handover/README.md). The owner-encrypted archive was
+recovery-verified on October 27, 2026; it covers five available local inputs but
+does not include the Cloudflare deployment token or supplemental provider notes.
+The owner holds its passphrase separately. Raw credentials must never be committed.
 
 Code/configuration and observed environment state are authoritative for behavior.
 This handover set records the reviewed baseline and points to that evidence.

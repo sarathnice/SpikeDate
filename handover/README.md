@@ -1,11 +1,19 @@
 # Encrypted credential handover
 
 Only `spikedate-credentials.json.gpg` may contain credential material here, and
-only after encryption and local decryption verification. **No vault has been
-created or committed yet.** This is optional owner-controlled backup, not a
+only after encryption and local decryption verification. **The owner-encrypted
+vault was created and recovery-verified on October 27, 2026.** Five available
+local inputs matched their recovered bytes and SHA-256 checksums. The Cloudflare
+deployment token and supplemental owner/provider notes were unavailable and are
+not included. This is an incomplete owner-controlled backup, not a
 replacement for GitHub Actions environment secrets or individual account access.
 
-## Create the file on the owner's computer
+## Create a replacement on the owner's computer
+
+The creation tool refuses to overwrite an existing vault. Preserve the previous
+ciphertext outside this path before creating a replacement; do not delete your
+only recovery copy. The verification plaintext was removed after checks; decrypt
+again when you need to recover the files.
 
 1. Review the ignored explicit input list at
    `outputs/private-handover/inputs.json`. Add only SpikeDate-specific files you
