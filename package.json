@@ -27,6 +27,8 @@
     "test": "vitest run",
     "test:ui": "playwright test",
     "arcade:local": "wrangler dev --config wrangler.arcade-local.jsonc --port 3007 --persist-to outputs/qa/arcade/local-state",
+    "profiles:local": "wrangler dev --config wrangler.profile-demo.local.jsonc --env-file outputs/qa/profile-import/local.env --ip 127.0.0.1 --port 3007 --persist-to outputs/qa/profile-import/local-state",
+    "profiles:local:import": "wrangler d1 migrations apply DB --local --persist-to outputs/qa/profile-import/local-state --config wrangler.profile-demo.local.jsonc && node scripts/import-local-profile-demo.mjs --apply",
     "test:arcade:ui": "cross-env SPIKEDATE_UI_URL=http://127.0.0.1:3007 SPIKEDATE_QA_REPORT_DIR=outputs/qa/arcade/retest playwright test tests/playwright/arcade-live.spec.ts",
     "qa": "node tests/qa/run.mjs",
     "qa:stage": "node tests/qa/run.mjs --url https://spikedate-stage.sarathnice.workers.dev --open",

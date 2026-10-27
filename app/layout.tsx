@@ -6,11 +6,14 @@ import './registration-vibe.css';
 import './registration-location.css';
 import './profile-connection.css';
 import './photo-quality.css';
+import './immersive-cinema.css';
 import './quiet-rail.css';
+import './home-tools.css';
 import './connections.css';
 import './profile-atelier.css';
 import './profile-preview.css';
 import './chat-midnight.css';
+import './chat-quiet.css';
 import './gallery-glass.css';
 import './quiet-precision.css';
 import './astrology.css';
@@ -25,6 +28,8 @@ import './midnight-color-variants.css';
 import './counts-lift.css';
 import './brand-vermilion.css';
 import './discovery-location.css';
+import './profile-action-halo.css';
+import './profile-intent-interest.css';
 
 const inter = Inter({
   variable: '--font-inter',

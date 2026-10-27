@@ -17,6 +17,7 @@ const schema = z.discriminatedUnion('mode', [
     city: z.string().trim().min(2).max(100),
   }),
   z.object({ mode: z.literal('denied') }),
+  z.object({ mode: z.literal('anywhere') }),
 ]);
 
 type Row = {
@@ -30,7 +31,8 @@ function publicLocation(row: Row | null) {
     mode:
       row?.discovery_location_mode === 'device' ||
       row?.discovery_location_mode === 'city' ||
-      row?.discovery_location_mode === 'denied'
+      row?.discovery_location_mode === 'denied' ||
+      row?.discovery_location_mode === 'anywhere'
         ? row.discovery_location_mode
         : 'unset',
     city: row?.discovery_city ?? null,
@@ -67,12 +69,14 @@ export async function PUT(request: Request) {
     const data = parsed.data;
     await db
       .prepare(
-        'UPDATE profiles SET discovery_location_mode = ?, discovery_city = ?, latitude_e6 = ?, longitude_e6 = ?, discovery_location_updated_at = ?, updated_at = ? WHERE user_id = ?',
+        "UPDATE profiles SET discovery_location_mode = ?, discovery_city = ?, latitude_e6 = CASE WHEN ? = 'anywhere' THEN latitude_e6 ELSE ? END, longitude_e6 = CASE WHEN ? = 'anywhere' THEN longitude_e6 ELSE ? END, discovery_location_updated_at = ?, updated_at = ? WHERE user_id = ?",
       )
       .bind(
         data.mode,
         data.mode === 'city' ? data.city.replace(/\s+/g, ' ') : null,
+        data.mode,
         data.mode === 'device' ? coarseCoordinateE6(data.latitude) : null,
+        data.mode,
         data.mode === 'device' ? coarseCoordinateE6(data.longitude) : null,
         now,
         now,

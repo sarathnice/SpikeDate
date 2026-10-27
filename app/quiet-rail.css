@@ -5,7 +5,8 @@
   .phone-frame > .quiet-rail-home {
     padding: 0 0 calc(70px + env(safe-area-inset-bottom)) !important;
   }
-  .phone-frame:has(> .quiet-rail-home) .tabbar {
+  .phone-frame:has(> .quiet-rail-home) .tabbar,
+  .phone-frame:has(> .preview-screen) .tabbar {
     inset: auto 0 0 !important;
     width: 100% !important;
     height: calc(70px + env(safe-area-inset-bottom)) !important;
@@ -99,7 +100,7 @@
     padding: 0 !important;
     border-radius: 50% !important;
     border: 1px solid rgb(255 255 255 / 28%) !important;
-    background: rgb(8 10 16 / 10%) !important;
+    background: transparent !important;
     backdrop-filter: none !important;
     filter: none !important;
     box-shadow: none !important;
@@ -113,8 +114,8 @@
   }
   .phone-frame .quiet-rail-home .gallery-like-heart {
     display: block !important;
-    width: 31px !important;
-    height: 31px !important;
+    width: 27px !important;
+    height: 27px !important;
   }
   .phone-frame .quiet-rail-home .home-action-rail .spark svg {
     color: #fff !important;
@@ -322,9 +323,6 @@
   .phone-frame .quiet-rail-home button:focus-visible {
     outline: 2px solid #fff;
     outline-offset: 3px;
-  }
-  .phone-frame .preview-wrap .quiet-rail-home .home-action-rail {
-    bottom: 22px !important;
   }
   html[data-native-platform='ios']
     .phone-frame:has(> .quiet-rail-home)

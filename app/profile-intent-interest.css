@@ -1,0 +1,38 @@
+/* The same quiet two-detail treatment in discovery and own-card preview. */
+@layer quiet-rail {
+.phone-frame .profile-card .chips.profile-intent-interest {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 7px 14px !important;
+  max-width: 100%;
+}
+.phone-frame .profile-card .chips.profile-intent-interest > span {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: #eceef3 !important;
+  overflow-wrap: anywhere;
+  text-shadow: 0 1px 5px rgb(0 0 0 / 85%);
+}
+.phone-frame .profile-card .chips.profile-intent-interest > span::before {
+  content: none !important;
+}
+.phone-frame .profile-card .chips.profile-intent-interest .home-detail-icon {
+  display: block !important;
+  width: 13px !important;
+  height: 13px !important;
+  flex: 0 0 13px !important;
+  fill: none !important;
+  stroke-width: 1.6 !important;
+}
+}

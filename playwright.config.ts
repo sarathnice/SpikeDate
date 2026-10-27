@@ -57,7 +57,7 @@ export default defineConfig({
   projects: [
     {
       name: 'ios-mobile',
-      testIgnore: /admin-(desktop|actions|fixture-actions)\.spec\.ts/,
+      testIgnore: /admin-(desktop|actions|fixture-actions|banner)\.spec\.ts/,
       use: {
         ...devices['iPhone 15'],
         browserName: 'chromium',
@@ -65,7 +65,7 @@ export default defineConfig({
     },
     {
       name: 'android-mobile',
-      testIgnore: /admin-(desktop|actions|fixture-actions)\.spec\.ts/,
+      testIgnore: /admin-(desktop|actions|fixture-actions|banner)\.spec\.ts/,
       use: {
         ...devices['Pixel 7'],
         browserName: 'chromium',
@@ -73,7 +73,7 @@ export default defineConfig({
     },
     {
       name: 'desktop-admin',
-      testMatch: /admin-(desktop|actions|fixture-actions)\.spec\.ts/,
+      testMatch: /admin-(desktop|actions|fixture-actions|banner)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],

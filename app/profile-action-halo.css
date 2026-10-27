@@ -1,0 +1,56 @@
+/* Shared Hairline Halo controls. Layout remains owned by each profile surface. */
+@layer quiet-rail {
+.phone-frame button.profile-action-control,
+.phone-frame .quiet-rail-home .home-action-rail button.profile-action-control,
+.profile-sheet button.profile-action-control {
+  --profile-action-ink: var(--foreground);
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 48px;
+  width: 48px !important;
+  height: 48px !important;
+  min-width: 48px;
+  min-height: 48px !important;
+  padding: 0 !important;
+  border: 1px solid color-mix(in srgb, var(--profile-action-ink) 32%, transparent) !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  color: var(--profile-action-ink) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+.phone-frame .quiet-rail-home .home-action-rail button.profile-action-control,
+.phone-frame .photo-first-room button.profile-action-control {
+  --profile-action-ink: #fff;
+}
+.phone-frame button.profile-action-control.like,
+.phone-frame .quiet-rail-home .home-action-rail button.profile-action-control.like,
+.profile-sheet button.profile-action-control.like,
+.phone-frame button.profile-action-control.saved,
+.profile-sheet button.profile-action-control.saved {
+  color: #ff4b32 !important;
+}
+button.profile-action-control > .profile-action-icon {
+  display: block !important;
+  width: 24px !important;
+  height: 24px !important;
+  filter: none !important;
+}
+button.profile-action-control > svg.profile-action-icon,
+button.profile-action-control .spike-intro-icon > svg:first-child {
+  stroke-width: 1.8;
+}
+button.profile-action-control:focus-visible {
+  outline: 2px solid #ff4b32;
+  outline-offset: 3px;
+}
+button.profile-action-control:active:not(:disabled) { transform: scale(.96); }
+button.profile-action-control:disabled { opacity: .45; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  button.profile-action-control { transition: none; }
+}
+}

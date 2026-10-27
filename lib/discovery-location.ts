@@ -1,4 +1,4 @@
-export type DiscoveryLocationMode = 'unset' | 'device' | 'city' | 'denied';
+export type DiscoveryLocationMode = 'unset' | 'device' | 'city' | 'denied' | 'anywhere';
 
 export type DiscoveryLocation = {
   mode: DiscoveryLocationMode;
@@ -49,6 +49,7 @@ export function matchesDiscoveryLocation(
   candidate: CandidateLocation,
   maxDistanceKm: number,
 ): boolean {
+  if (viewer.mode === 'anywhere') return true;
   if (viewer.mode === 'city' && viewer.city) {
     const requested = normalizeCity(viewer.city);
     return normalizeCity(candidate.discoveryCity ?? candidate.city ?? '') === requested;

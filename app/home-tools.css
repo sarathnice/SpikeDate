@@ -1,0 +1,57 @@
+/* Home keeps the portrait clear: one transparent shortcut opens all utilities. */
+.phone-frame .home-tools-trigger {
+  position: absolute;
+  z-index: 30;
+  top: calc(16px + env(safe-area-inset-top));
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 38%);
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+.home-tools-trigger svg { filter: drop-shadow(0 1px 2px rgb(0 0 0 / 65%)); }
+html[data-native-platform='ios'] .phone-frame .home-tools-trigger {
+  top: calc(16px + var(--ios-safe-top));
+}
+.home-tools-backdrop { backdrop-filter: none !important; background: rgb(0 0 0 / 20%); }
+.home-tools-dialog[data-slot='dialog-content'] {
+  position: fixed;
+  right: auto;
+  bottom: auto;
+  translate: none !important;
+  transform: none !important;
+  animation: none !important;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 100px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 8px 12px;
+  gap: 0;
+  border: 1px solid var(--ui-border, var(--border));
+  border-radius: 20px;
+  background: var(--surface, var(--background));
+  color: var(--foreground);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 35%);
+  backdrop-filter: none;
+  font-family: var(--font-inter), Inter, sans-serif;
+}
+.home-tools-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-left: 7px; }
+.home-tools-heading [data-slot='dialog-title'] { font: 400 12px/1.4 var(--font-inter), Inter, sans-serif; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted-foreground); }
+.home-tools-close { display: grid; place-items: center; height: 44px; width: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--muted-foreground); cursor: pointer; }
+.home-tools-list > button { display: flex; align-items: center; gap: 13px; width: 100%; min-height: 64px; padding: 11px 7px; text-align: left; background: transparent; color: var(--foreground); border: 0; border-bottom: 1px solid var(--ui-border, var(--border)); cursor: pointer; }
+.home-tools-list > button:last-child { border-bottom: 0; }
+.home-tools-list > button > svg:first-child { flex-shrink: 0; color: var(--coral); }
+.home-tools-list > button > svg:last-child:not(:first-child) { flex-shrink: 0; color: var(--muted-foreground); }
+.home-tool-copy { flex: 1; min-width: 0; }
+.home-tool-copy strong { display: block; font-size: 14px; font-weight: 400; }
+.home-tool-copy small { display: block; margin-top: 3px; font-size: 11px; line-height: 1.4; color: var(--muted-foreground); }
+.home-tool-count { color: var(--muted-foreground); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.home-tools-list > button:disabled { opacity: .65; cursor: not-allowed; }
+.home-tools-list > button:not(:disabled):hover { background: color-mix(in srgb, var(--foreground) 5%, transparent); border-radius: 9px; }

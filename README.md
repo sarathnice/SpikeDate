@@ -1,5 +1,9 @@
 # SpikeDate
 
+For GitHub-triggered Cloudflare releases and local setup, see
+[Self-deployment](docs/SELF_DEPLOYMENT.md). Use **Actions → Deploy SpikeDate to
+Cloudflare staging → Run workflow** after configuring the staging API-token secret.
+
 Matched chat now includes live **Arcade** (Four in a Row, Bubble Duel, Guess Next) alongside ten Conversation games. See [Arcade setup and controls](docs/ARCADE_GAMES.md) and [Conversation games](docs/DATING_GAMES.md). Arcade requires the built Worker / Durable Object gateway, not a standalone Vite demo preview.
 
 SpikeDate is a photo-first dating experience with profile discovery, Galaxy communities, matching, chat, preferences, registration, themes, and mobile-first layouts.

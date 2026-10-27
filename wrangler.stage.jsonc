@@ -24,6 +24,7 @@
   },
   "ai": { "binding": "AI" },
   "vars": {
+    "SPIKEDATE_FICTIONAL_PROFILES": "true",
     "SPIKEDATE_ARCADE_ENABLED": "true",
     "SPIKEDATE_IMAGES_ENABLED": "true",
     "NEXT_PUBLIC_PULSE_VOICE_CLOUD_ENABLED": "false",

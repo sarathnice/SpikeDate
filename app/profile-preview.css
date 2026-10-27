@@ -2,44 +2,47 @@
 @layer profile-preview {
   .phone-frame .preview-wrap > .discover-screen {
     height: 100% !important;
-    padding: 0 !important;
+    padding: 0 0 calc(70px + env(safe-area-inset-bottom)) !important;
     position: relative;
   }
-  .phone-frame .preview-wrap .home-action-rail {
-    inset: auto 10px 16px auto !important;
+  .phone-frame .preview-screen {
+    position: relative;
     padding: 0 !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
-    gap: 6px !important;
-    pointer-events: auto !important;
   }
-  .phone-frame .preview-wrap .home-action-rail button {
-    position: relative !important;
-    inset: auto !important;
+  .phone-frame .preview-wrap {
     padding: 0 !important;
-    display: grid !important;
-    place-items: center !important;
-    width: 44px !important;
-    height: 44px !important;
-    min-height: 44px !important;
+    width: 100%;
   }
-  .phone-frame .preview-wrap .gallery-fresh-label {
+  .phone-frame:has(> .preview-screen) > .global-boost-button {
     display: none !important;
   }
-  .phone-frame .preview-wrap .today-count-badge {
-    position: absolute !important;
-    top: -2px !important;
-    right: -2px !important;
-  }
-  .phone-frame .preview-wrap .profile-card .card-content {
-    left: 16px !important;
-    right: 72px !important;
-    bottom: 18px !important;
-  }
   .phone-frame .preview-banner {
-    padding-right: 64px !important;
-    flex-shrink: 0;
+    position: absolute !important;
+    z-index: 30;
+    top: calc(16px + env(safe-area-inset-top));
+    left: 16px;
+    right: 76px;
+    min-height: 44px !important;
+    padding: 0 !important;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    color: #fff;
+    text-shadow: 0 1px 3px rgb(0 0 0 / 75%);
+  }
+  .phone-frame .preview-banner button {
+    width: 44px !important;
+    height: 44px !important;
+    border: 1px solid rgb(255 255 255 / 38%) !important;
+    background: transparent !important;
+  }
+  .phone-frame .preview-banner .edit-card {
+    width: 44px !important;
+    padding: 0 !important;
+    justify-content: center !important;
+  }
+  .phone-frame .preview-banner .edit-card-label { display: none !important; }
+  .phone-frame .preview-banner small { color: #fff; }
+  html[data-native-platform='ios'] .phone-frame .preview-banner {
+    top: calc(16px + var(--ios-safe-top));
   }
   .phone-frame .preview-action-feedback {
     position: absolute;

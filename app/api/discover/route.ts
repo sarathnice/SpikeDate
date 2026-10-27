@@ -59,10 +59,15 @@ export async function GET(request: Request) {
     if (user instanceof Response) return user;
     const url = new URL(request.url);
     const includeMatches = url.searchParams.get('includeMatches') === '1';
-    const limit = Math.min(
-      50,
-      Math.max(1, Number(url.searchParams.get('limit')) || 20),
-    );
+    const requestedLimit = Number(url.searchParams.get('limit') ?? 20);
+    const cursor = url.searchParams.get('cursor') ?? '';
+    if (
+      !Number.isInteger(requestedLimit) ||
+      requestedLimit < 1 ||
+      cursor.length > 160
+    )
+      return json({ error: 'Invalid discovery page.' }, { status: 400 });
+    const limit = Math.min(50, requestedLimit);
     const preferences = await db
       .prepare(
         'SELECT min_age, max_age, max_distance_km, genders_json, relationship_goals_json FROM preferences WHERE user_id = ?',
@@ -91,7 +96,8 @@ export async function GET(request: Request) {
       mode:
         locationRow?.discovery_location_mode === 'device' ||
         locationRow?.discovery_location_mode === 'city' ||
-        locationRow?.discovery_location_mode === 'denied'
+        locationRow?.discovery_location_mode === 'denied' ||
+        locationRow?.discovery_location_mode === 'anywhere'
           ? locationRow.discovery_location_mode
           : 'unset',
       city: locationRow?.discovery_city ?? null,
@@ -134,65 +140,114 @@ export async function GET(request: Request) {
         'AND LOWER(TRIM(COALESCE(profiles.discovery_city, profiles.city))) = ? ';
       locationParams = [normalizeCity(location.city)];
     }
-    const result = await db
-      .prepare(
-        'SELECT profiles.user_id, profiles.display_name, users.birth_date, profiles.bio, profiles.city, profiles.region, profiles.discovery_city, profiles.latitude_e6, profiles.longitude_e6, profiles.gender, ' +
-          'profiles.height_cm, profiles.occupation, profiles.kids, profiles.wants_kids, profiles.smoking, profiles.drinking, profiles.education, profiles.pets, ' +
-          'connections.relationship_style, connections.dating_pace, connections.communication_preference, connections.values_json, connections.rhythm_json, connections.languages_json, ' +
-          'profiles.relationship_goal, profiles.verification_status, users.last_active_at, presence_pref.show_online, lifts.ends_at AS lift_ends_at, ' +
-          'COUNT(DISTINCT shared.interest_id) AS shared_interests, updates.text AS daily_text, ' +
-          'updates.available_tonight AS available_tonight, ' +
-          'availability.local_date AS availability_local_date, availability.start_at AS availability_start_at, ' +
-          'availability.end_at AS availability_end_at, availability.timezone AS availability_timezone, ' +
-          "(SELECT media.id FROM profile_media media WHERE media.user_id = profiles.user_id AND media.type = 'photo' " +
-          "AND media.moderation_status = 'approved' ORDER BY media.position LIMIT 1) AS primary_media_id " +
-          'FROM profiles JOIN users ON users.id = profiles.user_id ' +
-          'LEFT JOIN profile_connections connections ON connections.user_id = profiles.user_id ' +
-          'LEFT JOIN presence_preferences presence_pref ON presence_pref.user_id = users.id ' +
-          'LEFT JOIN user_interests shared ON shared.user_id = profiles.user_id AND shared.interest_id IN ' +
-          '(SELECT interest_id FROM user_interests WHERE user_id = ?) ' +
-          'LEFT JOIN profile_lift_activations lifts ON lifts.user_id = profiles.user_id AND lifts.ends_at > ? ' +
-          'LEFT JOIN daily_updates updates ON updates.user_id = profiles.user_id AND updates.expires_at > ? AND updates.deleted_at IS NULL ' +
-          "AND (updates.visibility = 'discover' OR " +
-          "(updates.visibility = 'liked' AND EXISTS (SELECT 1 FROM interactions liked WHERE liked.actor_id = updates.user_id AND liked.target_id = ? AND liked.kind IN ('like', 'super_spike') AND liked.undone_at IS NULL)) OR " +
-          "(updates.visibility = 'matches' AND EXISTS (SELECT 1 FROM matches update_match WHERE update_match.status = 'active' AND ((update_match.user_a_id = ? AND update_match.user_b_id = profiles.user_id) OR (update_match.user_b_id = ? AND update_match.user_a_id = profiles.user_id))))) " +
-          'LEFT JOIN daily_availability availability ON availability.user_id = profiles.user_id AND availability.end_at > ? ' +
-          "AND EXISTS (SELECT 1 FROM matches availability_match WHERE availability_match.status = 'active' AND ((availability_match.user_a_id = ? AND availability_match.user_b_id = profiles.user_id) OR (availability_match.user_b_id = ? AND availability_match.user_a_id = profiles.user_id))) " +
-          "WHERE profiles.user_id != ? AND profiles.discoverable = 1 AND users.status = 'active' " +
-          locationSql +
-          'AND NOT EXISTS (SELECT 1 FROM safety_actions blocked WHERE blocked.kind = ? AND ' +
-          '((blocked.reporter_id = ? AND blocked.subject_id = profiles.user_id) OR ' +
-          '(blocked.reporter_id = profiles.user_id AND blocked.subject_id = ?))) ' +
-          'AND (NOT EXISTS (SELECT 1 FROM interactions seen WHERE seen.actor_id = ? AND seen.target_id = profiles.user_id ' +
-          "AND seen.kind IN ('like', 'super_spike', 'pass') AND seen.undone_at IS NULL) " +
-          (includeMatches
-            ? "OR EXISTS (SELECT 1 FROM matches room_match WHERE room_match.status = 'active' AND ((room_match.user_a_id = ? AND room_match.user_b_id = profiles.user_id) OR (room_match.user_b_id = ? AND room_match.user_a_id = profiles.user_id))) "
-            : '') +
-          ') ' +
-          'GROUP BY profiles.user_id ' +
-          'ORDER BY (lifts.ends_at IS NOT NULL) DESC, shared_interests DESC, users.last_active_at DESC, profiles.user_id ' +
-          'LIMIT ?',
+    const now = new Date();
+    const eligible = (candidate: Candidate) => {
+      if (
+        (location.mode === 'device' || location.mode === 'city') &&
+        !matchesDiscoveryLocation(
+          location,
+          {
+            latitudeE6: candidate.latitude_e6,
+            longitudeE6: candidate.longitude_e6,
+            city: candidate.city,
+            discoveryCity: candidate.discovery_city,
+          },
+          maxDistanceKm,
+        )
       )
-      .bind(
-        user.id,
-        Date.now(),
-        Date.now(),
-        user.id,
-        user.id,
-        user.id,
-        Date.now(),
-        user.id,
-        user.id,
-        user.id,
-        ...locationParams,
-        'block',
-        user.id,
-        user.id,
-        user.id,
-        ...(includeMatches ? [user.id, user.id] : []),
-        500,
+        return false;
+      const birth = new Date(candidate.birth_date + 'T00:00:00Z');
+      let age = now.getUTCFullYear() - birth.getUTCFullYear();
+      if (
+        now.getUTCMonth() < birth.getUTCMonth() ||
+        (now.getUTCMonth() === birth.getUTCMonth() &&
+          now.getUTCDate() < birth.getUTCDate())
       )
-      .all<Candidate>();
+        age--;
+      return (
+        Number.isFinite(age) &&
+        age >= 18 &&
+        (!preferences ||
+          (age >= Math.max(18, preferences.min_age) &&
+            (preferences.max_age >= 99 || age <= preferences.max_age))) &&
+        (!genders.length || genders.includes(candidate.gender)) &&
+        (!goals.length || goals.includes(candidate.relationship_goal))
+      );
+    };
+    // Stable keyset pages avoid both the old 500-candidate ceiling and offset
+    // skips when another profile's presence or ranking changes between requests.
+    const selected: Candidate[] = [];
+    let scannedAfter = cursor;
+    while (selected.length <= limit) {
+      const batch = await db
+        .prepare(
+          'SELECT profiles.user_id, profiles.display_name, users.birth_date, profiles.bio, profiles.city, profiles.region, profiles.discovery_city, profiles.latitude_e6, profiles.longitude_e6, profiles.gender, ' +
+            'profiles.height_cm, profiles.occupation, profiles.kids, profiles.wants_kids, profiles.smoking, profiles.drinking, profiles.education, profiles.pets, ' +
+            'connections.relationship_style, connections.dating_pace, connections.communication_preference, connections.values_json, connections.rhythm_json, connections.languages_json, ' +
+            'profiles.relationship_goal, profiles.verification_status, users.last_active_at, presence_pref.show_online, lifts.ends_at AS lift_ends_at, ' +
+            'COUNT(DISTINCT shared.interest_id) AS shared_interests, updates.text AS daily_text, ' +
+            'updates.available_tonight AS available_tonight, ' +
+            'availability.local_date AS availability_local_date, availability.start_at AS availability_start_at, ' +
+            'availability.end_at AS availability_end_at, availability.timezone AS availability_timezone, ' +
+            "(SELECT media.id FROM profile_media media WHERE media.user_id = profiles.user_id AND media.type = 'photo' " +
+            "AND media.moderation_status = 'approved' ORDER BY media.position LIMIT 1) AS primary_media_id " +
+            'FROM profiles JOIN users ON users.id = profiles.user_id ' +
+            'LEFT JOIN profile_connections connections ON connections.user_id = profiles.user_id ' +
+            'LEFT JOIN presence_preferences presence_pref ON presence_pref.user_id = users.id ' +
+            'LEFT JOIN user_interests shared ON shared.user_id = profiles.user_id AND shared.interest_id IN ' +
+            '(SELECT interest_id FROM user_interests WHERE user_id = ?) ' +
+            'LEFT JOIN profile_lift_activations lifts ON lifts.user_id = profiles.user_id AND lifts.ends_at > ? ' +
+            'LEFT JOIN daily_updates updates ON updates.user_id = profiles.user_id AND updates.expires_at > ? AND updates.deleted_at IS NULL ' +
+            "AND (updates.visibility = 'discover' OR " +
+            "(updates.visibility = 'liked' AND EXISTS (SELECT 1 FROM interactions liked WHERE liked.actor_id = updates.user_id AND liked.target_id = ? AND liked.kind IN ('like', 'super_spike') AND liked.undone_at IS NULL)) OR " +
+            "(updates.visibility = 'matches' AND EXISTS (SELECT 1 FROM matches update_match WHERE update_match.status = 'active' AND ((update_match.user_a_id = ? AND update_match.user_b_id = profiles.user_id) OR (update_match.user_b_id = ? AND update_match.user_a_id = profiles.user_id))))) " +
+            'LEFT JOIN daily_availability availability ON availability.user_id = profiles.user_id AND availability.end_at > ? ' +
+            "AND EXISTS (SELECT 1 FROM matches availability_match WHERE availability_match.status = 'active' AND ((availability_match.user_a_id = ? AND availability_match.user_b_id = profiles.user_id) OR (availability_match.user_b_id = ? AND availability_match.user_a_id = profiles.user_id))) " +
+            "WHERE profiles.user_id != ? AND profiles.discoverable = 1 AND users.status = 'active' " +
+            locationSql +
+            'AND NOT EXISTS (SELECT 1 FROM safety_actions blocked WHERE blocked.kind = ? AND ' +
+            '((blocked.reporter_id = ? AND blocked.subject_id = profiles.user_id) OR ' +
+            '(blocked.reporter_id = profiles.user_id AND blocked.subject_id = ?))) ' +
+            'AND (NOT EXISTS (SELECT 1 FROM interactions seen WHERE seen.actor_id = ? AND seen.target_id = profiles.user_id ' +
+            "AND seen.kind IN ('like', 'super_spike', 'pass') AND seen.undone_at IS NULL) " +
+            (includeMatches
+              ? "OR EXISTS (SELECT 1 FROM matches room_match WHERE room_match.status = 'active' AND ((room_match.user_a_id = ? AND room_match.user_b_id = profiles.user_id) OR (room_match.user_b_id = ? AND room_match.user_a_id = profiles.user_id))) "
+              : '') +
+            ') AND profiles.user_id > ? ' +
+            'GROUP BY profiles.user_id ' +
+            'ORDER BY profiles.user_id ' +
+            'LIMIT ?',
+        )
+        .bind(
+          user.id,
+          Date.now(),
+          Date.now(),
+          user.id,
+          user.id,
+          user.id,
+          Date.now(),
+          user.id,
+          user.id,
+          user.id,
+          ...locationParams,
+          'block',
+          user.id,
+          user.id,
+          user.id,
+          ...(includeMatches ? [user.id, user.id] : []),
+          scannedAfter,
+          200,
+        )
+        .all<Candidate>();
+      for (const candidate of batch.results) {
+        scannedAfter = candidate.user_id;
+        if (eligible(candidate)) selected.push(candidate);
+        if (selected.length > limit) break;
+      }
+      if (selected.length > limit || batch.results.length < 200) break;
+    }
+    const hasMore = selected.length > limit;
+    const result = { results: selected.slice(0, limit) };
     const interestsByUser = new Map<string, string[]>();
     const mediaByUser = new Map<
       string,
@@ -203,11 +258,15 @@ export async function GET(request: Request) {
       Array<{ prompt: string; answer: string }>
     >();
     if (result.results.length) {
+      // A single JSON parameter avoids D1's bound-variable limit for broad searches.
+      const candidateIds = JSON.stringify(
+        result.results.map((candidate) => candidate.user_id),
+      );
       const interests = await db
         .prepare(
-          `SELECT user_interests.user_id, interests.label FROM user_interests JOIN interests ON interests.id = user_interests.interest_id WHERE user_interests.user_id IN (${result.results.map(() => '?').join(',')}) ORDER BY interests.label`,
+          'SELECT user_interests.user_id, interests.label FROM user_interests JOIN interests ON interests.id = user_interests.interest_id WHERE user_interests.user_id IN (SELECT value FROM json_each(?)) ORDER BY interests.label',
         )
-        .bind(...result.results.map((candidate) => candidate.user_id))
+        .bind(candidateIds)
         .all<{ user_id: string; label: string }>();
       for (const item of interests.results) {
         if (typeof item.label !== 'string') continue;
@@ -218,9 +277,9 @@ export async function GET(request: Request) {
       }
       const prompts = await db
         .prepare(
-          `SELECT user_id, prompt, answer FROM profile_prompts WHERE user_id IN (${result.results.map(() => '?').join(',')}) ORDER BY position, id`,
+          'SELECT user_id, prompt, answer FROM profile_prompts WHERE user_id IN (SELECT value FROM json_each(?)) ORDER BY position, id',
         )
-        .bind(...result.results.map((candidate) => candidate.user_id))
+        .bind(candidateIds)
         .all<{ user_id: string; prompt: string; answer: string }>();
       for (const item of prompts.results) {
         const items = promptsByUser.get(item.user_id) || [];
@@ -235,9 +294,9 @@ export async function GET(request: Request) {
       }
       const media = await db
         .prepare(
-          `SELECT id, user_id, type FROM profile_media WHERE user_id IN (${result.results.map(() => '?').join(',')}) AND moderation_status = 'approved' AND type IN ('photo', 'video') ORDER BY position, id`,
+          "SELECT id, user_id, type FROM profile_media WHERE user_id IN (SELECT value FROM json_each(?)) AND moderation_status = 'approved' AND type IN ('photo', 'video') ORDER BY position, id",
         )
-        .bind(...result.results.map((candidate) => candidate.user_id))
+        .bind(candidateIds)
         .all<{ id: string; user_id: string; type: 'photo' | 'video' }>();
       for (const item of media.results) {
         const items = mediaByUser.get(item.user_id) ?? [];
@@ -250,7 +309,6 @@ export async function GET(request: Request) {
         }
       }
     }
-    const now = new Date();
     const profiles = result.results.flatMap((candidate) => {
       if (
         (location.mode === 'device' || location.mode === 'city') &&
@@ -274,9 +332,11 @@ export async function GET(request: Request) {
           now.getUTCDate() < birthDate.getUTCDate())
       )
         age -= 1;
+      if (age < 18) return [];
       if (
         preferences &&
-        (age < preferences.min_age || age > preferences.max_age)
+        (age < Math.max(18, preferences.min_age) ||
+          (preferences.max_age < 99 && age > preferences.max_age))
       )
         return [];
       if (genders.length && !genders.includes(candidate.gender)) return [];
@@ -331,6 +391,7 @@ export async function GET(request: Request) {
           lastActiveAt:
             candidate.show_online === 0 ? null : candidate.last_active_at,
           profileLiftActive: Boolean(candidate.lift_ends_at),
+          sharedInterestCount: Number(candidate.shared_interests) || 0,
           today: candidate.daily_text,
           availableTonight: Boolean(candidate.available_tonight),
           availability:
@@ -354,6 +415,11 @@ export async function GET(request: Request) {
         },
       ];
     });
-    return json({ profiles: profiles.slice(0, limit), count: profiles.length });
+    return json({
+      profiles,
+      count: profiles.length,
+      hasMore,
+      nextCursor: hasMore ? result.results.at(-1)!.user_id : null,
+    });
   });
 }

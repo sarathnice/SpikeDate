@@ -7,10 +7,11 @@ import AdminUserDetail from './AdminUserDetail';
 import AdminAssistant from './AdminAssistant';
 import AdminPeople from './AdminPeople';
 import AdminSupport from './AdminSupport';
+import AdminBanner from './AdminBanner';
 import { Activity, BadgeDollarSign, CalendarDays, FileClock, Flag, ImageIcon, LockKeyhole, LogOut, MessageCircle, RefreshCw, Scale, ShieldCheck, Sparkles, Users } from 'lucide-react';
 import './admin.css';
 
-type View = 'overview' | 'reports' | 'media' | 'users' | 'support' | 'privacy' | 'appeals' | 'audit';
+type View = 'overview' | 'reports' | 'media' | 'users' | 'support' | 'privacy' | 'appeals' | 'audit' | 'environment';
 type Overview = {
   admin: { email: string; roles: string[] };
   metrics: Record<string, number>;
@@ -27,6 +28,7 @@ const nav: Array<{ id: View; label: string; icon: typeof Activity; roles?: strin
   { id: 'privacy', label: 'Privacy', icon: FileClock, roles: ['super_admin', 'support_agent'] },
   { id: 'appeals', label: 'Appeals', icon: Scale, roles: ['super_admin', 'safety_reviewer', 'moderator'] },
   { id: 'audit', label: 'Activity', icon: ShieldCheck, roles: ['super_admin'] },
+  { id: 'environment', label: 'Environment', icon: Sparkles, roles: ['super_admin'] },
 ];
 const metrics = [
   ['allUsers', 'All accounts', Users], ['activeUsers', 'Active accounts', Users], ['openReports', 'Open reports', Flag],
@@ -47,6 +49,7 @@ export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [peopleRefresh, setPeopleRefresh] = useState(0);
+  const [bannerRefresh, setBannerRefresh] = useState(0);
   const [error, setError] = useState('');
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [note, setNote] = useState('');
@@ -65,6 +68,7 @@ export default function AdminPage() {
     setState('ready');
   }
   async function loadRows(next: View, search = '') {
+    if (next === 'environment') { setBannerRefresh(value => value + 1); return; }
     if (['overview', 'reports', 'media', 'users', 'support'].includes(next)) return;
     setLoadingRows(true);
     try {
@@ -124,6 +128,7 @@ export default function AdminPage() {
       {view === 'media' && <section className="admin-panel"><h2>Pending uploads</h2>{overview.moderationQueue.length ? overview.moderationQueue.map((item) => <article className="admin-item admin-media-item" key={item.id}><div className="admin-media-preview">{item.type === 'photo' ? <Image src={`/api/admin/media/${item.id}/view`} alt={`Pending upload from ${item.display_name}`} width={86} height={104} unoptimized /> : <video src={`/api/admin/media/${item.id}/view`} muted controls playsInline><track kind="captions" /></video>}</div><div><div className="admin-item-top"><strong>{item.display_name}</strong><small>{date(item.created_at)}</small></div><p>{item.type} awaiting review</p>{review(item.id, [{ label: 'Approve', run: () => void save(`/api/admin/media/${item.id}`, { outcome: 'approved', note }) }, { label: 'Reject', danger: true, run: () => void save(`/api/admin/media/${item.id}`, { outcome: 'rejected', note }) }])}</div></article>) : <p className="admin-empty">No pending uploads.</p>}</section>}
       {view === 'users' && <><div hidden={!!selectedUserId}><AdminPeople onOpen={openUser} superAdmin={superAdmin} refreshKey={peopleRefresh} /></div>{selectedUserId && <AdminUserDetail id={selectedUserId} superAdmin={superAdmin} canViewMessages={can(['super_admin', 'safety_reviewer'])} onBack={() => { setSelectedUserId(null); setPeopleRefresh((value) => value + 1); window.scrollTo(0, 0); }} />}</>}
       {view === 'support' && <AdminSupport />}
+      {view === 'environment' && superAdmin && <AdminBanner refreshKey={bannerRefresh} />}
       {view === 'privacy' && <section className="admin-panel"><h2>Data requests</h2><p className="admin-section-note">Marking a request in progress does not export or delete data.</p>{loadingRows ? <p>Loading requests…</p> : rows.length ? rows.map((item) => <article className="admin-item" key={item.id}><div className="admin-item-top"><strong>{item.display_name ?? item.email}</strong><span className={`admin-status ${item.status}`}>{item.status}</span></div><p>{item.kind === 'delete' ? 'Deletion' : 'Export'} request · {item.email}</p><small>Due {date(item.due_at)}</small>{item.status === 'requested' && review(item.id, [{ label: 'Mark in progress', run: () => void save(`/api/admin/privacy/${item.id}`, { note }) }], 10)}</article>) : <p className="admin-empty">No privacy requests.</p>}</section>}
       {view === 'appeals' && <section className="admin-panel"><h2>Moderation appeals</h2><p className="admin-section-note">Overturning does not automatically restore an account; review other restrictions separately.</p>{loadingRows ? <p>Loading appeals…</p> : rows.length ? rows.map((item) => <article className="admin-item" key={item.id}><div className="admin-item-top"><strong>{item.display_name ?? item.email}</strong><span className={`admin-status ${item.status}`}>{item.status}</span></div><p>{item.statement}</p><small>Original reason: {item.reason ?? 'Not recorded'} · {date(item.created_at)}</small>{item.status === 'open' && review(item.id, [{ label: 'Uphold decision', run: () => void save(`/api/admin/appeals/${item.id}`, { outcome: 'upheld', note }) }, ...(superAdmin ? [{ label: 'Overturn decision', run: () => void save(`/api/admin/appeals/${item.id}`, { outcome: 'overturned', note }) }] : [])], 10)}</article>) : <p className="admin-empty">No appeals to review.</p>}</section>}
       {view === 'audit' && <section className="admin-panel"><h2>Recent activity</h2>{loadingRows ? <p>Loading activity…</p> : rows.length ? rows.map((item) => <article className="admin-item admin-audit-item" key={item.id}><div><strong>{item.action}</strong><p>{item.actor_email ?? 'System'} · {item.entity_type} · {item.entity_id}</p></div><small>{date(item.created_at)}</small></article>) : <p className="admin-empty">No recorded activity.</p>}</section>}

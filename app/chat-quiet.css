@@ -1,0 +1,118 @@
+.midnight-chat .quiet-message-reactions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  max-width: 100%;
+}
+.midnight-chat .quiet-message-reactions button {
+  background: transparent;
+  color: var(--chat-text, #f6f6f8);
+  border: 1px solid var(--chat-line, #343a48);
+  border-radius: 18px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 9px;
+  font: inherit;
+}
+.midnight-chat .quiet-message-reactions .quiet-react-trigger {
+  border-color: transparent;
+  color: var(--chat-muted, #b5bac8);
+}
+.midnight-chat .quiet-message-reactions button[aria-pressed='true'] {
+  border-color: #ff4b32;
+  background: #ff4b3214;
+}
+.midnight-chat .quiet-reaction-picker {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 5px;
+  background: var(--chat-surface, #191d29);
+  border-radius: 18px;
+}
+.midnight-chat .quiet-reaction-picker button {
+  font-size: 20px;
+  border: 0;
+}
+.midnight-chat .bubble-wrap.mine .quiet-message-reactions {
+  justify-content: flex-end;
+}
+.midnight-chat .quiet-composer-tools {
+  flex-shrink: 0;
+  min-width: 0;
+  padding: 0 12px;
+  background: var(--chat-bg, #0b0d14);
+}
+.midnight-chat .quiet-composer-toggles {
+  display: flex;
+  gap: 6px;
+}
+.midnight-chat .quiet-composer-toggles button {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 44px;
+  background: transparent;
+  color: var(--chat-muted, #b5bac8);
+  border: 0;
+  padding: 8px;
+  font: inherit;
+  font-size: 12px;
+}
+.midnight-chat .quiet-composer-toggles button[aria-expanded='true'] {
+  color: #ff4b32;
+}
+.midnight-chat .quiet-composer-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  background: var(--chat-surface, #191d29);
+  border: 1px solid var(--chat-line, #343a48);
+  border-radius: 16px;
+  padding: 8px;
+}
+.midnight-chat .quiet-composer-panel button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--chat-text, #f6f6f8);
+  font: inherit;
+  padding: 8px;
+  border-radius: 12px;
+  text-align: left;
+}
+.midnight-chat .quiet-composer-panel[aria-label='Emoji picker'] button {
+  font-size: 22px;
+}
+.midnight-chat
+  .quiet-composer-panel[aria-label='Conversation starters']
+  button {
+  width: 100%;
+  border-top: 1px solid var(--chat-line, #343a48);
+  font-size: 13px;
+}
+.midnight-chat .quiet-composer-panel small {
+  color: var(--chat-muted, #b5bac8);
+  font-size: 12px;
+}
+.midnight-chat .quiet-composer-panel button:hover {
+  background: #ffffff0c;
+}
+.midnight-chat button:disabled {
+  opacity: 0.5;
+}
+.quiet-chat-error {
+  position: absolute;
+  bottom: 100px;
+  left: 16px;
+  right: 16px;
+  padding: 8px;
+  border-radius: 12px;
+  background: #291c1b;
+  color: #ffb4a5;
+  font-size: 12px;
+  z-index: 5;
+}

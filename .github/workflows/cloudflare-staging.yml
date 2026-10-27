@@ -1,0 +1,59 @@
+name: Deploy SpikeDate to Cloudflare staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type deploy-stage to update the shared staging app and apply pending database migrations
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spikedate-cloudflare-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/codex/staging-mobile' && inputs.confirmation == 'deploy-stage'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://spikedate-stage.sarathnice.workers.dev/
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22.14.0
+          cache: npm
+      - name: Check deployment credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Add CLOUDFLARE_API_TOKEN to the staging environment secrets. See docs/SELF_DEPLOYMENT.md."
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run lint
+      - name: Test staging discovery, reactions, banners and profile controls
+        run: >-
+          npx vitest run tests/discovery-pages.test.ts tests/discovery-gallery.test.ts
+          tests/discovery-location.test.ts tests/chat-quiet.test.ts
+          tests/environment-banner.test.ts tests/profile-action-icon.test.ts
+      - name: Build, migrate and deploy staging
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: d22cf985cee89b0a3aa4618f2cb77370
+        run: npm run deploy:cloudflare:staging
+      - name: Check deployed website
+        run: curl --fail --retry 3 --retry-delay 5 --max-time 60 --output /dev/null https://spikedate-stage.sarathnice.workers.dev/
+      - name: Record deployed revision
+        run: |
+          echo "### SpikeDate staging deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Website: https://spikedate-stage.sarathnice.workers.dev/" >> "$GITHUB_STEP_SUMMARY"
+          echo "Local profiles and photos are not uploaded by this workflow." >> "$GITHUB_STEP_SUMMARY"

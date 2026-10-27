@@ -15,6 +15,18 @@ const boston: ViewerLocation = {
 };
 
 describe('discovery location', () => {
+  it('allows any area only when anywhere is explicitly selected', () => {
+    const candidate = { latitudeE6: null, longitudeE6: null, city: 'Tokyo', discoveryCity: null };
+    expect(matchesDiscoveryLocation({ ...boston, mode: 'anywhere' }, candidate, 1)).toBe(true);
+    expect(matchesDiscoveryLocation({ ...boston, mode: 'denied' }, candidate, 161)).toBe(false);
+    expect(matchesDiscoveryLocation({ ...boston, mode: 'unset' }, candidate, 161)).toBe(false);
+  });
+
+  it('supports a 100 mile radius', () => {
+    const candidate = { latitudeE6: 43_200_000, longitudeE6: -71_060_000, city: null, discoveryCity: null };
+    expect(matchesDiscoveryLocation(boston, candidate, 50 * 1.609344)).toBe(false);
+    expect(matchesDiscoveryLocation(boston, candidate, 100 * 1.609344)).toBe(true);
+  });
   it('rounds raw device coordinates before storage', () => {
     expect(coarseCoordinateE6(42.357891)).toBe(42_360_000);
     expect(coarseCoordinateE6(-71.063912)).toBe(-71_060_000);

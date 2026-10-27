@@ -6304,7 +6304,7 @@ button > .lucide-calendar-check {
 .preview-banner {
   min-height: 73px;
   display: grid;
-  grid-template-columns: 41px 1fr;
+  grid-template-columns: 41px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 8px 15px 0;
@@ -6350,12 +6350,10 @@ button > .lucide-calendar-check {
   cursor: default;
   pointer-events: none;
 }
-.edit-card {
-  position: absolute;
-  right: 31px;
-  top: 17px;
-  z-index: 3;
-  height: 38px;
+.preview-banner .edit-card {
+  position: static;
+  width: auto;
+  height: 44px;
   padding: 0 13px;
   display: flex;
   align-items: center;
@@ -6365,7 +6363,6 @@ button > .lucide-calendar-check {
   background: rgba(15, 15, 18, 0.7);
   color: white;
   font-size: 0.74rem;
-  backdrop-filter: blur(8px);
   cursor: pointer;
 }
 

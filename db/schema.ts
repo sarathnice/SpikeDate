@@ -1,4 +1,5 @@
 import {
+  check,
   index,
   integer,
   primaryKey,
@@ -12,6 +13,15 @@ const timestamps = {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 };
+
+export const environmentBanners = sqliteTable('environment_banners', {
+  environment: text('environment', { enum: ['local', 'staging'] }).primaryKey(),
+  label: text('label', { enum: ['Local demo', 'Local preview', 'Staging', 'Test environment'] }).notNull(),
+  version: integer('version').notNull(),
+  updatedBy: text('updated_by').notNull().references(() => users.id),
+  updatedAt: integer('updated_at').notNull(),
+  changeId: text('change_id').notNull(),
+});
 
 export const users = sqliteTable(
   'users',
@@ -423,6 +433,16 @@ export const messages = sqliteTable(
     ),
   ],
 );
+
+export const messageReactions = sqliteTable('message_reactions', {
+  messageId: text('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  emoji: text('emoji', { enum: ['❤️', '😂', '👍', '😊', '🔥'] }).notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, table => [
+  primaryKey({ columns: [table.messageId, table.userId] }),
+  check('message_reactions_emoji_check', sql`${table.emoji} IN ('❤️', '😂', '👍', '😊', '🔥')`),
+]);
 
 export const messageMedia = sqliteTable(
   'message_media',

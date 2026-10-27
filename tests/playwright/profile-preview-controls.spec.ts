@@ -1,5 +1,15 @@
-import { expect, test } from '@playwright/test';
-import { loginSynthetic } from '../qa/ui-helpers';
+import { expect, test, type Page } from '@playwright/test';
+
+test.setTimeout(180000);
+
+async function loginPreviewFixture(page: Page, number: number) {
+  await page.goto('/');
+  await page.getByRole('button',{name:'Login',exact:true}).click();
+  await page.getByLabel('Test profile').selectOption(`atlanta${String(number).padStart(3,'0')}@spikedate.test`);
+  await page.getByRole('button',{name:/Fill selected test login/i}).click();
+  await page.getByRole('button',{name:'Sign in to SpikeDate',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Open Home tools',exact:true})).toBeVisible();
+}
 
 test.skip(
   ({ baseURL }) =>
@@ -13,7 +23,7 @@ for (const number of [13, 1]) {
   test(`Own preview ${number}: saved text, Quiet Rail controls, live presence and full preview`, async ({
     page,
   }, info) => {
-    await loginSynthetic(page, number);
+    await loginPreviewFixture(page, number);
     const original = await (await page.request.get('/api/profile')).json();
     const preference = await (await page.request.get('/api/presence')).json();
     const answer = `A quiet café, an easy conversation and a sunset walk · ${info.project.name}`;
@@ -56,6 +66,15 @@ for (const number of [13, 1]) {
       });
       for (const width of [320, 390, 430]) {
         await page.setViewportSize({ width, height: 844 });
+        const edit = preview.getByRole('button', { name: 'Edit card', exact: true });
+        await expect(preview.locator('.preview-banner .edit-card')).toBeVisible();
+        const editBox = await edit.boundingBox();
+        const todayBox = await preview.getByRole('button',{name:'Open Home tools',exact:true}).boundingBox();
+        expect(editBox).not.toBeNull();
+        expect(todayBox).not.toBeNull();
+        expect(editBox!.x).toBeGreaterThanOrEqual(0);
+        expect(editBox!.x + editBox!.width).toBeLessThanOrEqual(width);
+        expect(editBox!.x + editBox!.width).toBeLessThanOrEqual(todayBox!.x);
         await expect(
           preview.locator('.distance .lucide-map-pin'),
         ).toBeVisible();
@@ -79,11 +98,11 @@ for (const number of [13, 1]) {
             preview.locator('.preview-action-feedback'),
           ).toContainText('Preview only');
         }
-        const tools = preview.locator('.home-today-tools button');
-        await expect(tools).toHaveCount(2);
-        for (const tool of await tools.all()) {
-          await expect(tool).toBeVisible();
-          await tool.click();
+        await expect(preview.locator('.home-today-tools')).toHaveCount(0);
+        const tools = preview.getByRole('button',{name:'Open Home tools',exact:true});
+        for (const label of ['Filters','Announcements','Boost / Profile Lift','Calendar & Today','Fresh Moments']) {
+          await tools.click();
+          await page.locator('.home-tools-list > button').filter({hasText:label}).click();
           await expect(
             preview.locator('.preview-action-feedback'),
           ).toContainText('Preview only');
@@ -114,7 +133,10 @@ for (const number of [13, 1]) {
           }),
         }),
       ).toContainText(answer);
-      await expect(full.locator('.sheet-actions')).toHaveCount(0);
+      await expect(full.locator('.sheet-actions button')).toHaveCount(4);
+      await full.locator('.sheet-actions button').nth(1).click();
+      await expect(full.locator('.cinema-preview-notice')).toContainText('Preview only');
+      expect(sends).toBe(0);
       await full.getByRole('button', { name: 'Close full profile' }).click();
       // Privacy off must remove the status; do not fake Online in a preview.
       await page.request.patch('/api/presence', {
@@ -157,7 +179,7 @@ for (const number of [13, 1]) {
 test('Preview theme geometry: Midnight and Vermilion retain the right-side rail', async ({
   page,
 }, info) => {
-  await loginSynthetic(page, 13);
+  await loginPreviewFixture(page, 13);
   for (const theme of ['default', 'vermilion']) {
     await page.evaluate(
       (value) => localStorage.setItem('pulse-theme', value),

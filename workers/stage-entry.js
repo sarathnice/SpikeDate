@@ -1,5 +1,6 @@
 import app from '../dist/server/index.js';
 import { handleArcade } from '../lib/server/arcade-room';
+import { appendEnvironmentBanner } from '../lib/environment-banner';
 export { ArcadeRoom } from '../lib/server/arcade-room';
 const worker = {
   async fetch(request, env, ctx) {
@@ -13,7 +14,8 @@ const worker = {
       headers.set('Cache-Control', 'no-store, max-age=0');
       headers.set('CDN-Cache-Control', 'no-store');
       headers.set('Cloudflare-CDN-Cache-Control', 'no-store');
-      return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+      const document = new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+      return appendEnvironmentBanner(document, env);
     }
     return response;
   },

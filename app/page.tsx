@@ -8,6 +8,12 @@ import type { DiscoveryLocation } from '@/lib/discovery-location';
 import { PresenceStatus } from '@/components/presence-status';
 import { WelcomeStories } from '@/components/welcome-stories';
 import { HelpDesk } from '@/components/help-desk';
+import { HomeTools } from '@/components/home-tools';
+import { ProfileMoreMenu } from '@/components/profile-more-menu';
+import { QuietReactions, ChatReaction, ChatQuietComposer } from '@/components/chat-quiet';
+import { collectDiscoveryPages, type DiscoveryPage } from '@/lib/discovery-pages';
+import { ProfileIntentInterest } from '@/components/profile-intent-interest';
+import { ProfileActionIcon, SpikeIntroIcon } from '@/components/profile-action-icon';
 import { syntheticProfiles } from '@/lib/synthetic-profiles';
 import {
   LivePresenceProvider,
@@ -75,7 +81,6 @@ import {
   LogOut,
   MapPin,
   MessageCircle,
-  type LucideProps,
   Mic,
   Moon,
   Music2,
@@ -229,6 +234,8 @@ type Profile = {
   availability?: DailyAvailability;
 };
 type DiscoverCandidate = {
+  profileLiftActive?: boolean;
+  sharedInterestCount?: number;
   id: string;
   name: string;
   age: number;
@@ -265,6 +272,7 @@ type ChatContact = {
   availability?: DailyAvailability;
 };
 type Filters = {
+  anywhere?: boolean;
   genders: Gender[];
   minAge: number;
   maxAge: number;
@@ -485,30 +493,6 @@ declare global {
       ) => void | Promise<void>;
     };
   }
-}
-
-function SpikeIntroIcon({ size = 24, className, ...props }: LucideProps) {
-  const dimension = Number(size);
-  return (
-    <span
-      className={`spike-intro-icon ${className ?? ''}`}
-      style={{ width: dimension, height: dimension }}
-      aria-hidden="true"
-    >
-      <MessageCircle size={dimension} {...props} />
-      <Star
-        className="spike-intro-star"
-        size={dimension * 0.34}
-        fill="currentColor"
-        strokeWidth={1.4}
-      />
-      <Plus
-        className="spike-intro-plus"
-        size={dimension * 0.3}
-        strokeWidth={2}
-      />
-    </span>
-  );
 }
 
 function ProfileSpikeBadge({ compact = false }: { compact?: boolean }) {
@@ -1001,8 +985,8 @@ function matchesFilters(profile: Profile, filters: Filters) {
   return (
     filters.genders.includes(profile.gender) &&
     profile.age >= filters.minAge &&
-    profile.age <= filters.maxAge &&
-    profile.distanceMiles <= filters.maxDistance &&
+    (filters.maxAge >= 99 || profile.age <= filters.maxAge) &&
+    (filters.anywhere || profile.distanceMiles <= filters.maxDistance) &&
     (filters.intents.length === 0 ||
       filters.intents.includes(profile.intent)) &&
     (filters.smoking === 'Any' || profile.smoking === 'No') &&
@@ -1039,12 +1023,12 @@ function filtersFromServerPreferences(
     return {
       ...defaultFilters,
       genders: genders.length ? genders : ['Woman', 'Man', 'Nonbinary'],
-      minAge: Math.max(18, Math.min(60, Number(preferences.min_age) || 18)),
-      maxAge: Math.max(18, Math.min(60, Number(preferences.max_age) || 60)),
+      minAge: Math.max(18, Math.min(99, Number(preferences.min_age) || 18)),
+      maxAge: Math.max(18, Math.min(99, Number(preferences.max_age) || 99)),
       maxDistance: Math.max(
         1,
         Math.min(
-          50,
+          100,
           Math.round((Number(preferences.max_distance_km) || 80) / 1.609344),
         ),
       ),
@@ -1448,6 +1432,9 @@ async function serverJson<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(body.error || 'SpikeDate could not save that change.');
   return body;
 }
+
+const loadDiscovery = (includeMatches = false, cancelled: () => boolean = () => false) =>
+  collectDiscoveryPages<DiscoverCandidate>((path) => serverJson<DiscoveryPage<DiscoverCandidate>>(path), includeMatches, cancelled);
 
 async function serverAccepted(path: string, init: RequestInit): Promise<void> {
   const headers = new Headers(init.headers);
@@ -1967,6 +1954,9 @@ export default function HomePage() {
   ]);
   const [savedProfileNames, setSavedProfileNames] = useState<string[]>([]);
   const [serverProfiles, setServerProfiles] = useState<Profile[]>([]);
+  const [discoveryLoading, setDiscoveryLoading] = useState(false);
+  const [discoveryError, setDiscoveryError] = useState(false);
+  const [discoveryRefresh, setDiscoveryRefresh] = useState(0);
   const [serverGalaxyProfiles, setServerGalaxyProfiles] = useState<Profile[]>(
     [],
   );
@@ -4050,7 +4040,7 @@ export default function HomePage() {
               genders: data.preferredGenders,
               minAge: data.minAge,
               maxAge: data.maxAge,
-              maxDistanceKm: data.maxDistance,
+              maxDistanceKm: Math.round(data.maxDistance * 1.609344),
               relationshipGoals: data.intents,
               dealbreakers: [],
             },
@@ -5002,7 +4992,8 @@ export default function HomePage() {
     choice:
       | { mode: 'device'; latitude: number; longitude: number }
       | { mode: 'city'; city: string }
-      | { mode: 'denied' },
+      | { mode: 'denied' }
+      | { mode: 'anywhere' },
   ) => {
     if (!authEmail) return;
     let location: DiscoveryLocation;
@@ -5024,14 +5015,13 @@ export default function HomePage() {
       );
     }
     setDiscoveryLocation(location);
+    setFilters((current) => ({ ...current, anywhere: location.mode === 'anywhere' }));
     setLocationReady(true);
     setLocationError('');
     if (serverDataEnabled) {
       setGalaxyRefresh((value) => value + 1);
       try {
-        const response = await serverJson<{ profiles: DiscoverCandidate[] }>(
-          '/api/discover?limit=50',
-        );
+        const response = await loadDiscovery();
         setServerProfiles(response.profiles.map(profileFromDiscovery));
         setProfileIndex(0);
       } catch {
@@ -5127,6 +5117,7 @@ export default function HomePage() {
             };
         if (cancelled) return;
         setDiscoveryLocation(location);
+        setFilters((current) => ({ ...current, anywhere: location.mode === 'anywhere' }));
         setLocationReady(true);
         if (location.mode === 'device') void refreshCurrentLocation();
       } catch {
@@ -5244,9 +5235,7 @@ export default function HomePage() {
     const refresh = async () => {
       if (document.visibilityState !== 'visible') return;
       try {
-        const data = await serverJson<{ profiles: DiscoverCandidate[] }>(
-          '/api/discover?limit=50&includeMatches=1',
-        );
+        const data = await loadDiscovery(true, () => cancelled);
         if (cancelled) return;
         setServerGalaxyProfiles(data.profiles.map(profileFromDiscovery));
         setGalaxyNow(Date.now());
@@ -5278,9 +5267,13 @@ export default function HomePage() {
     if (!serverDataEnabled || !authEmail) {
       setServerProfiles([]);
       setOwnProfileMedia([]);
+      setDiscoveryLoading(false);
+      setDiscoveryError(false);
       return;
     }
     let cancelled = false;
+    setDiscoveryLoading(true);
+    setDiscoveryError(false);
     void Promise.all([
       serverJson<{
         zodiac: ZodiacSign | null;
@@ -5311,7 +5304,7 @@ export default function HomePage() {
           expires_at: number;
         } | null;
       }>('/api/profile'),
-      serverJson<{ profiles: DiscoverCandidate[] }>('/api/discover?limit=50'),
+      loadDiscovery(false, () => cancelled),
       serverJson<{
         conversations: Array<{
           id: string;
@@ -5340,7 +5333,7 @@ export default function HomePage() {
         if (cancelled) return;
         setServerZodiac(account.zodiac ?? null);
         const serverFilters = filtersFromServerPreferences(account.preferences);
-        if (serverFilters) setFilters(serverFilters);
+        if (serverFilters) setFilters((current) => ({ ...serverFilters, anywhere: current.anywhere }));
         const wallet = liftData.wallet ?? account.wallet;
         setSuperPulsesRemaining(wallet?.super_spikes ?? 0);
         setPurchasedBoosts(wallet?.profile_lifts ?? 0);
@@ -5498,11 +5491,12 @@ export default function HomePage() {
             normalizeVerificationStatus(profile.verification_status),
           );
       })
-      .catch(() => announce('Server data is temporarily unavailable.'));
+      .catch(() => { if (!cancelled) { setDiscoveryError(true); announce('Server data is temporarily unavailable.'); } })
+      .finally(() => { if (!cancelled) setDiscoveryLoading(false); });
     return () => {
       cancelled = true;
     };
-  }, [authEmail]);
+  }, [authEmail, discoveryRefresh]);
 
   useEffect(() => {
     if (!serverDataEnabled || !authEmail) {
@@ -6224,7 +6218,7 @@ export default function HomePage() {
     >
       <main className="app-shell" data-theme={theme}>
         <div className="phone-frame" data-active-tab={tab}>
-          <button
+          {tab !== 'Pulse' && <button
             className={`global-boost-button ${boostActive ? 'active' : ''}`}
             aria-label={
               boostActive ? 'View active Profile Lift' : 'Lift my profile'
@@ -6237,19 +6231,25 @@ export default function HomePage() {
                 ? 'Profile Lift active'
                 : `${boostsRemaining} Profile Lifts left`}
             </span>
-          </button>
+          </button>}
           {tab === 'Pulse' && (
-            <DiscoverHeader
+            <HomeTools
               onFilters={() => setFilterOpen(true)}
-              onVoice={openVoice}
-              voiceEnabled={voiceAvailable}
-              activeFilterCount={activeFilterCount}
+              onAnnouncements={openVoice}
+              announcementsEnabled={voiceAvailable}
+              onLift={() => setBoostOpen(true)}
+              liftActive={boostActive}
+              onToday={() => ownDailyStory ? openEditToday(ownDailyStory) : openNewToday()}
+              todayActive={Boolean(ownDailyStory || dailyAvailability)}
+              onFresh={() => setTodayFeedOpen(true)}
+              filterCount={activeFilterCount}
+              freshCount={visibleDailyStories.length}
             />
           )}
           {tab === 'Pulse' &&
             (!locationReady ||
             (discoveryLocation.mode !== 'device' &&
-              discoveryLocation.mode !== 'city') ? (
+              discoveryLocation.mode !== 'city' && discoveryLocation.mode !== 'anywhere') ? (
               <section className="screen scroll-screen pulse-location-gate">
                 <GalaxyLocationCard
                   location={discoveryLocation}
@@ -6261,6 +6261,10 @@ export default function HomePage() {
                   onDecline={() => void declineDiscoveryLocation()}
                 />
               </section>
+            ) : discoveryLoading && !availableProfiles.length ? (
+              <section className="empty-discover" role="status"><h1>Loading profiles…</h1><p>Finding everyone who matches your preferences.</p></section>
+            ) : discoveryError && !availableProfiles.length ? (
+              <section className="empty-discover" role="alert"><h1>Could not load profiles</h1><p>Your preferences are unchanged. Please try again.</p><button className="primary-button" onClick={() => setDiscoveryRefresh(value => value + 1)}>Retry profiles</button></section>
             ) : filteredProfiles.length ? (
               <DiscoverScreen
                 profile={current}
@@ -6295,16 +6299,20 @@ export default function HomePage() {
               <EmptyDiscover
                 onFilters={() => setFilterOpen(true)}
                 availableCount={availableProfiles.length}
-                onShowAll={() => {
-                  setFilters({
+                onShowAll={() => { void (async () => {
+                  const next: Filters = {
                     ...defaultFilters,
                     genders: ['Woman', 'Man', 'Nonbinary'],
                     minAge: 18,
-                    maxAge: 60,
-                    maxDistance: 50,
-                  });
+                    maxAge: 99,
+                    maxDistance: 100,
+                    anywhere: true,
+                  };
+                  if (serverDataEnabled) await serverJson('/api/profile', { method: 'PATCH', body: JSON.stringify({ section: 'preferences', data: { genders: next.genders, minAge: 18, maxAge: 99, maxDistanceKm: 161, relationshipGoals: [], dealbreakers: [] } }) });
+                  await saveDiscoveryLocation({ mode: 'anywhere' });
+                  setFilters(next);
                   setProfileIndex(0);
-                }}
+                })().catch(() => announce('Could not widen discovery. Please try again.')); }}
               />
             ))}
           {tab === 'Galaxy' && !room && (
@@ -6580,6 +6588,7 @@ export default function HomePage() {
             <ProfilePreview
               name={selfName}
               sourceProfile={signedInIdentity?.profile}
+              verified={verificationStatus === 'photo_verified' || verificationStatus === 'identity_verified'}
               userId={
                 ownAccount?.email === authEmail
                   ? ownAccount.id
@@ -6742,17 +6751,33 @@ export default function HomePage() {
           open={filterOpen}
           onOpenChange={setFilterOpen}
           filters={filters}
-          availableProfiles={availableProfiles}
           membership={membership}
           onUpgrade={() => {
             setFilterOpen(false);
             setSubscriptionOpen(true);
           }}
-          onApply={(next) => {
+          onApply={async (next) => {
+            if (serverDataEnabled) {
+              await serverJson('/api/profile', { method: 'PATCH', body: JSON.stringify({
+                section: 'preferences', data: {
+                  genders: next.genders, minAge: next.minAge, maxAge: next.maxAge,
+                  maxDistanceKm: Math.round(next.maxDistance * 1.609344),
+                  relationshipGoals: next.intents, dealbreakers: [],
+                },
+              }) });
+            }
+            if (Boolean(next.anywhere) !== (discoveryLocation.mode === 'anywhere')) {
+              await saveDiscoveryLocation(next.anywhere ? { mode: 'anywhere' } : registrationData.city ? { mode: 'city', city: registrationData.city } : { mode: 'denied' });
+            } else if (serverDataEnabled) {
+              const response = await loadDiscovery();
+              setServerProfiles(response.profiles.map(profileFromDiscovery));
+            }
             setFilters(next);
+            setRegistrationData((current) => ({ ...current, minAge: next.minAge, maxAge: next.maxAge, maxDistance: next.maxDistance, preferredGenders: next.genders }));
+            setGalaxyRefresh((value) => value + 1);
             setProfileIndex(0);
             setFilterOpen(false);
-            announce('Preferences applied');
+            announce('Preferences saved');
           }}
         />
         {datePlansEnabled && (
@@ -7243,7 +7268,7 @@ function TodayViewerDialog({
         ) : (
           <div className="today-viewer-actions">
             <button type="button" onClick={() => onLike(story)}>
-              <BrandHeartMark size={20} /> Like
+              <ProfileActionIcon action="like" size={20} /> Like
             </button>
             <button type="button" onClick={() => onSpike(story)}>
               <SpikeIntroIcon size={20} /> Spike
@@ -7271,41 +7296,6 @@ function TodayViewerDialog({
         )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-function DiscoverHeader({
-  onFilters,
-  onVoice,
-  voiceEnabled,
-  activeFilterCount,
-}: {
-  onFilters: () => void;
-  onVoice: () => void;
-  voiceEnabled: boolean;
-  activeFilterCount: number;
-}) {
-  return (
-    <header className="topbar">
-      <button
-        className="filter-button"
-        aria-label="Filter profiles"
-        onClick={onFilters}
-      >
-        <SlidersHorizontal size={21} />
-        {activeFilterCount > 0 && <span>{activeFilterCount}</span>}
-      </button>
-      {voiceEnabled && (
-        <button
-          className="voice-briefing-button"
-          aria-label="Open activity briefing"
-          onClick={onVoice}
-        >
-          <Volume2 size={20} />
-        </button>
-      )}
-      <SpikeDateWordmark context="header" />
-    </header>
   );
 }
 
@@ -7377,6 +7367,7 @@ function DiscoverScreen({
   saved,
   onToggleSaved,
   preview = false,
+  onPreviewTool,
 }: {
   profile: Profile;
   connection?: 'like' | 'super_spike';
@@ -7396,6 +7387,7 @@ function DiscoverScreen({
   saved: boolean;
   onToggleSaved: () => void;
   preview?: boolean;
+  onPreviewTool?: (tool: string) => void;
 }) {
   return (
     <section
@@ -7418,25 +7410,19 @@ function DiscoverScreen({
         className="home-action-rail"
         aria-label={preview ? 'Profile action preview' : 'Profile actions'}
       >
-        <button onClick={onPass} aria-label={`Pass on ${profile.name}`}>
-          <X size={21} />
+        <button className="profile-action-control" onClick={onPass} aria-label={`Pass on ${profile.name}`}>
+          <ProfileActionIcon action="pass" />
         </button>
         <button
-          className="like"
+          className="like profile-action-control"
           onClick={onLike}
           disabled={busy}
           aria-label={`Like ${profile.name}`}
         >
-          <BrandHeartMark size={20} />
-          <Heart
-            className="gallery-like-heart"
-            size={32}
-            fill="currentColor"
-            aria-hidden="true"
-          />
+          <ProfileActionIcon action="like" />
         </button>
         <button
-          className="spark"
+          className="spark profile-action-control"
           onClick={onSpark}
           aria-label={
             matched
@@ -7445,10 +7431,10 @@ function DiscoverScreen({
           }
           disabled={busy}
         >
-          {matched ? <MessageCircle size={20} /> : <SpikeIntroIcon size={20} />}
+          <ProfileActionIcon action={matched ? 'message' : 'spike'} />
         </button>
         <button
-          className={saved ? 'saved' : ''}
+          className={`profile-action-control${saved ? ' saved' : ''}`}
           onClick={onToggleSaved}
           aria-label={
             saved
@@ -7457,27 +7443,21 @@ function DiscoverScreen({
           }
           aria-pressed={saved}
         >
-          <Bookmark size={20} fill={saved ? 'currentColor' : 'none'} />
+          <ProfileActionIcon action="save" saved={saved} />
         </button>
       </div>
-      <div className="home-today-tools" aria-label="Today updates">
-        <button
-          className={`today-compose ${todayActive ? 'active' : ''}`}
-          onClick={onPostToday}
-          aria-label="Post or edit your Today update"
-        >
-          <TodayActionIcon active={todayActive} />
-        </button>
-        <button
-          className="today-feed"
-          onClick={onSeeAllToday}
-          aria-label={`${todayCount} fresh Today updates. See all`}
-        >
-          <Sun size={20} />
-          <span className="gallery-fresh-label">Fresh</span>
-          <span className="today-count-badge">{todayCount}</span>
-        </button>
-      </div>
+      {preview && <HomeTools
+        onFilters={() => onPreviewTool?.('Filters')}
+        onAnnouncements={() => onPreviewTool?.('Announcements')}
+        announcementsEnabled
+        onLift={() => onPreviewTool?.('Profile Lift')}
+        liftActive={false}
+        onToday={onPostToday}
+        todayActive={todayActive}
+        onFresh={onSeeAllToday}
+        filterCount={0}
+        freshCount={todayCount}
+      />}
     </section>
   );
 }
@@ -7699,9 +7679,6 @@ function ProfileCard({
       <span className="swipe-label pass-label">NEXT</span>
       <span className="swipe-label like-label">NEXT</span>
       <div className="photo-scrim" />
-      <span className="profile-photo-brand" aria-hidden="true">
-        <BrandHeartMark size={18} />
-      </span>
       <button
         type="button"
         className="profile-card-open"
@@ -7744,15 +7721,7 @@ function ProfileCard({
           <MapPin size={13} className="home-detail-icon" aria-hidden="true" />
           {profile.place} · {profile.distance}
         </p>
-        <div className="chips">
-          <span>
-            <Heart size={13} className="home-detail-icon" aria-hidden="true" />
-            {profile.intent}
-          </span>
-          {profile.tags.map((tag) => (
-            <span key={tag}>{tag}</span>
-          ))}
-        </div>
+        <ProfileIntentInterest intent={profile.intent} tags={profile.tags} />
         <p className="card-story">{profile.prompt}</p>
         {(story || tonight) && (
           <div
@@ -7843,36 +7812,36 @@ function ActionRow({
 }) {
   return (
     <div className="action-row" aria-label="Profile actions">
-      <button className="action-button pass" aria-label="Pass" onClick={onPass}>
-        <X size={27} />
+      <button className="action-button pass profile-action-control" aria-label="Pass" onClick={onPass}>
+        <ProfileActionIcon action="pass" />
       </button>
       <button
-        className="action-button like"
+        className="action-button like profile-action-control"
         aria-label="Like"
         onClick={onLike}
         disabled={busy}
       >
-        <BrandHeartMark size={29} />
+        <ProfileActionIcon action="like" />
       </button>
       {onSpark && (
         <button
-          className="action-button spark-action"
+          className="action-button spark-action profile-action-control"
           aria-label={matched ? 'Message match' : 'Send a Spike introduction'}
           title={matched ? 'Message' : 'Spike'}
           onClick={onSpark}
           disabled={busy}
         >
-          {matched ? <MessageCircle size={25} /> : <SpikeIntroIcon size={25} />}
+          <ProfileActionIcon action={matched ? 'message' : 'spike'} />
         </button>
       )}
       {onToggleSaved && (
         <button
-          className={`action-button save-action ${saved ? 'saved' : ''}`}
+          className={`action-button save-action profile-action-control ${saved ? 'saved' : ''}`}
           aria-label={saved ? 'Remove from Saved' : 'Save privately'}
           aria-pressed={saved}
           onClick={onToggleSaved}
         >
-          <Bookmark size={24} fill={saved ? 'currentColor' : 'none'} />
+          <ProfileActionIcon action="save" saved={saved} />
         </button>
       )}
     </div>
@@ -8064,15 +8033,12 @@ function FullProfile({
   onPass,
   onLike,
   onSpark,
-  onBoost,
   matched,
   onShare,
   onReport,
   onBlock,
   saved,
   onToggleSaved,
-  todayActive,
-  onPostToday,
   readOnly = false,
   detailsOverride,
   story,
@@ -8201,21 +8167,27 @@ function FullProfile({
     .slice(0, 1);
   const media = [...photos, ...video];
   const [mediaIndex, setMediaIndex] = useState(0);
+  const [previewNotice, setPreviewNotice] = useState('');
   useEffect(() => {
-    if (open) setMediaIndex(0);
+    if (!previewNotice) return;
+    const timer=window.setTimeout(()=>setPreviewNotice(''),3000);
+    return ()=>window.clearTimeout(timer);
+  },[previewNotice]);
+  useEffect(() => {
+    if (open) { setMediaIndex(0); setPreviewNotice(''); }
   }, [open, profile.name]);
   const active = media[mediaIndex] ?? {
     type: 'photo' as const,
     src: profile.image,
   };
   const changeMedia = (step: number) =>
-    setMediaIndex((index) => (index + step + media.length) % media.length);
+    setMediaIndex((index) => (index + step + Math.max(1,media.length)) % Math.max(1,media.length));
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className={`profile-sheet ${readOnly ? 'profile-preview-sheet' : ''}`}
+        className={`profile-sheet immersive-cinema ${readOnly ? 'profile-preview-sheet' : ''}`}
       >
         <SheetTitle className="sr-only">
           {profile.name}&apos;s full profile
@@ -8230,33 +8202,11 @@ function FullProfile({
         >
           <ChevronDown size={25} />
         </button>
+        <div className="cinema-menu-anchor">
+          <ProfileMoreMenu key={`${profile.id ?? profile.name}-${open}`} name={profile.name} readOnly={readOnly} onShare={onShare} onReport={onReport} onBlock={onBlock} />
+        </div>
         <div className="profile-scroll">
           <div className="profile-film">
-            {!readOnly && (
-              <div className="profile-film-tools">
-                <button
-                  className={`profile-utility profile-today ${todayActive ? 'active' : ''}`}
-                  onClick={onPostToday}
-                  aria-label="Post or edit your Today update"
-                >
-                  <TodayActionIcon active={todayActive} />
-                </button>
-                <button
-                  className="profile-utility profile-boost"
-                  onClick={onBoost}
-                  aria-label="Lift my profile"
-                >
-                  <ProfileLiftMark size={20} />
-                </button>
-                <button
-                  className="profile-utility profile-share"
-                  onClick={onShare}
-                  aria-label={`Share ${profile.name}'s profile with friends or family`}
-                >
-                  <Share2 size={20} />
-                </button>
-              </div>
-            )}
             {active.type === 'video' ? (
               <video
                 src={active.src}
@@ -8276,23 +8226,6 @@ function FullProfile({
                 />
               </>
             )}
-            <div className="media-bars" aria-hidden="true">
-              {media.map((_, index) => (
-                <span
-                  key={index}
-                  className={index === mediaIndex ? 'active' : ''}
-                />
-              ))}
-            </div>
-            <span className="profile-photo-brand profile-photo-brand-film" aria-hidden="true">
-              <BrandHeartMark size={16} />
-            </span>
-            <span className="film-count">
-              {active.type === 'video' && (
-                <Play size={12} fill="currentColor" />
-              )}{' '}
-              {mediaIndex + 1} / {media.length}
-            </span>
             {media.length > 1 && (
               <>
                 <button
@@ -8300,16 +8233,15 @@ function FullProfile({
                   onClick={() => changeMedia(-1)}
                   aria-label="Previous profile photo"
                 >
-                  <ChevronLeft size={24} />
+                  <span className="sr-only">Previous photo</span>
                 </button>
                 <button
                   className="media-hit next"
                   onClick={() => changeMedia(1)}
                   aria-label="Next profile photo"
                 >
-                  <ChevronRight size={24} />
+                  <span className="sr-only">Next photo</span>
                 </button>
-                <span className="media-hint">Tap photo edges to browse</span>
               </>
             )}
             <div className="profile-title">
@@ -8343,6 +8275,12 @@ function FullProfile({
                 {profile.place} · {profile.distance}
               </p>
             </div>
+          </div>
+          <div className="cinema-photo-navigation" aria-label="Profile media navigation">
+            <span className="cinema-photo-count" aria-live="polite">{active.type === 'video' ? 'Video' : 'Photo'} {mediaIndex + 1} of {Math.max(1,media.length)}</span>
+            {media.length > 1 && <div className="cinema-photo-dots" aria-hidden="true">
+              {media.map((item,index)=><span key={item.id ?? `${item.src}-${index}`} className={mediaIndex===index ? 'active' : ''} />)}
+            </div>}
           </div>
           {photos.length > 1 && (
             <div
@@ -8547,19 +8485,18 @@ function FullProfile({
             )}
           </div>
         </div>
-        {!readOnly && (
           <div className="sheet-actions">
+            {previewNotice && <p className="cinema-preview-notice" role="status">{previewNotice}</p>}
             <ActionRow
-              onPass={onPass}
-              busy={busy}
-              onLike={onLike}
-              onSpark={onSpark}
+              onPass={readOnly ? ()=>setPreviewNotice('Preview only — nothing was sent or changed.') : onPass}
+              busy={!readOnly && busy}
+              onLike={readOnly ? ()=>setPreviewNotice('Preview only — nothing was sent or changed.') : onLike}
+              onSpark={readOnly ? ()=>setPreviewNotice('Preview only — nothing was sent or changed.') : onSpark}
               matched={matched}
               saved={saved}
-              onToggleSaved={onToggleSaved}
+              onToggleSaved={readOnly ? ()=>setPreviewNotice('Preview only — nothing was sent or changed.') : onToggleSaved}
             />
           </div>
-        )}
       </SheetContent>
     </Sheet>
   );
@@ -9253,7 +9190,7 @@ function RoomsHub({
           onDecline={onDeclineLocation}
         />
         {(discoveryLocation.mode === 'device' ||
-          discoveryLocation.mode === 'city') && (
+          discoveryLocation.mode === 'city' || discoveryLocation.mode === 'anywhere') && (
           <>
         <div className="galaxy-browse-heading">
           <div>
@@ -9340,7 +9277,7 @@ function GalaxyLocationCard({
   const [city, setCity] = useState('');
   const [showCity, setShowCity] = useState(false);
   const [showChoices, setShowChoices] = useState(false);
-  const chosen = location.mode === 'device' || location.mode === 'city';
+  const chosen = location.mode === 'device' || location.mode === 'city' || location.mode === 'anywhere';
   useEffect(() => {
     if (chosen) setShowChoices(false);
   }, [chosen, location.updatedAt]);
@@ -9350,7 +9287,7 @@ function GalaxyLocationCard({
         <div className="galaxy-location-current">
           <span className="galaxy-location-symbol"><MapPin size={18} aria-hidden="true" /></span>
           <span>
-            <strong>{location.mode === 'device' ? 'Near your current area' : `Near ${location.city}`}</strong>
+            <strong>{location.mode === 'anywhere' ? 'Anywhere · all locations' : location.mode === 'device' ? 'Near your current area' : `Near ${location.city}`}</strong>
             <small>{location.updatedAt ? `Updated ${new Date(location.updatedAt).toLocaleDateString()}` : 'Nearby discovery is on'} · Exact location stays private</small>
           </span>
           <button type="button" onClick={() => setShowChoices(true)} aria-label="Change discovery area">Change</button>
@@ -10823,6 +10760,7 @@ function ChatThread({
       body.scrollTop = body.scrollHeight;
   }, [contact.name, messages.length, toolsOpen]);
   return (
+    <QuietReactions key={contact.conversationId ?? contact.name} conversationId={serverDataEnabled ? contact.conversationId : undefined}>
     <section
       ref={threadBody}
       className="thread midnight-chat spike-midnight-chat"
@@ -10948,20 +10886,6 @@ function ChatThread({
               )}
             </article>
           )}
-          {messages.length === 1 && (
-            <div className="icebreakers inline">
-              <button
-                onClick={() =>
-                  onComposer('What’s the best rooftop in Brooklyn?')
-                }
-              >
-                Best rooftop?
-              </button>
-              <button onClick={() => onComposer('Pick our first song 🎵')}>
-                Pick our first song
-              </button>
-            </div>
-          )}
           {messages.map((message, index) => (
             <div
               key={message.id}
@@ -11014,6 +10938,7 @@ function ChatThread({
               ) : (
                 <div className="bubble">{message.text}</div>
               )}
+              <ChatReaction messageId={message.id} disabled={loading || (serverDataEnabled && typeof message.id !== 'string')} />
               {message.mine &&
                 index === messages.findLastIndex((item) => item.mine) && (
                   <span
@@ -11077,6 +11002,7 @@ function ChatThread({
           </button>
         )}
       </div>
+      <ChatQuietComposer key={contact.conversationId ?? contact.name} value={composer} onChange={onComposer} lastMessage={messages.filter(message => !message.mine).at(-1)?.text} disabled={loading} />
       <form
         className="composer"
         onSubmit={(e) => {
@@ -11092,6 +11018,7 @@ function ChatThread({
         <label className="chat-compose-field">
           <input
             value={composer}
+            maxLength={2000}
             disabled={loading}
             onChange={(e) => onComposer(e.target.value)}
             placeholder={
@@ -11154,8 +11081,14 @@ function ChatThread({
         </DialogContent>
       </Dialog>
     </section>
+    </QuietReactions>
   );
 }
+
+type LocalTestLogins = {
+  password: string;
+  accounts: { email: string; profile: { name: string; gender: string } }[];
+};
 
 function AuthScreen({
   onSignIn,
@@ -11180,6 +11113,21 @@ function AuthScreen({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [testEmail, setTestEmail] = useState(testIdentities[0].email);
+  const [localTestLogins, setLocalTestLogins] = useState<LocalTestLogins | null>(null);
+  useEffect(() => {
+    if (!['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)) return;
+    const controller = new AbortController();
+    fetch('/api/demo-logins', { signal: controller.signal, cache: 'no-store' })
+      .then(async (response) => response.ok ? await response.json() as LocalTestLogins : null)
+      .then((data) => {
+        if (!data?.accounts?.length || !data.password) return;
+        setLocalTestLogins(data);
+        setTestEmail(data.accounts[0].email);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
+  const selectedTestPassword = localTestLogins?.password ?? testPassword;
   const [phone, setPhone] = useState('+1 ');
   const [phoneChallengeId, setPhoneChallengeId] = useState('');
   const [phoneCode, setPhoneCode] = useState('');
@@ -11318,7 +11266,7 @@ function AuthScreen({
   };
   const useTestProfile = () => {
     setEmail(testEmail);
-    setPassword(testPassword);
+    setPassword(selectedTestPassword);
     setError('');
   };
   if (welcomeVisible) {
@@ -11573,7 +11521,7 @@ function AuthScreen({
                 value={testEmail}
                 onChange={(event) => setTestEmail(event.target.value)}
               >
-                {(serverDataEnabled
+                {(localTestLogins?.accounts ?? (serverDataEnabled
                   ? syntheticProfiles.map((fixture) => ({
                       email: fixture.email,
                       profile: {
@@ -11581,10 +11529,10 @@ function AuthScreen({
                         gender: fixture.gender === 'woman' ? 'Woman' : 'Man',
                       },
                     }))
-                  : testIdentities
+                  : testIdentities)
                 ).map((identity) => (
                   <option key={identity.email} value={identity.email}>
-                    {identity.profile.name} · {identity.profile.gender}
+                    {identity.profile.name} · {identity.profile.gender} · {identity.email}
                   </option>
                 ))}
               </select>
@@ -11598,11 +11546,11 @@ function AuthScreen({
               <span>
                 <strong>Fill selected test login</strong>
                 <small>
-                  {testEmail} · {testPassword}
+                  {testEmail} · {selectedTestPassword}
                 </small>
               </span>
             </button>
-            <button
+            {!localTestLogins && <button
               className="demo-login compact"
               type="button"
               onClick={useDemo}
@@ -11612,7 +11560,7 @@ function AuthScreen({
                 <strong>Use general demo</strong>
                 <small>demo@spikedate.app · {testPassword}</small>
               </span>
-            </button>
+            </button>}
           </div>
         )}
         <p className="auth-privacy">
@@ -11805,9 +11753,6 @@ function YourProfile({
           unoptimized={image.startsWith('/') || image.startsWith('data:')}
           className="profile-passport-photo"
         />
-        <span className="profile-photo-brand profile-photo-brand-self" aria-hidden="true">
-          <BrandHeartMark size={16} />
-        </span>
         <div className="profile-passport-topbar">
           <button
             type="button"
@@ -12361,6 +12306,7 @@ function YourProfile({
 function ProfilePreview({
   name,
   sourceProfile,
+  verified,
   media,
   details,
   story,
@@ -12372,6 +12318,7 @@ function ProfilePreview({
 }: {
   name: string;
   sourceProfile?: Profile;
+  verified?: boolean;
   media: MediaItem[];
   details: RegistrationData;
   story?: DailyStory;
@@ -12392,11 +12339,11 @@ function ProfilePreview({
     name,
     age: 28,
     gender: 'Nonbinary',
-    image: '/imani.png',
-    media: [{ type: 'photo', src: '/imani.png' }],
-    place: 'Fort Greene',
-    distance: '3 miles away',
-    distanceMiles: 3,
+    image: '/profile-placeholder.svg',
+    media: [],
+    place: [details.city, details.region].filter(Boolean).join(', ') || 'Not shared',
+    distance: 'Nearby',
+    distanceMiles: 0,
     intent: details.intents[0] ?? 'Long-term',
     tags: details.interests.slice(0, 2),
     prompt: details.promptOne,
@@ -12417,6 +12364,14 @@ function ProfilePreview({
     : base;
   const self: Profile = {
     ...portrait,
+    age: (() => {
+      const birth = new Date(`${details.birthday}T00:00:00`);
+      if (Number.isNaN(birth.getTime())) return portrait.age;
+      const now = new Date();
+      return now.getFullYear() - birth.getFullYear() - Number(now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate()));
+    })(),
+    gender: details.gender,
+    verified: verified ?? portrait.verified,
     id: userId ?? portrait.id,
     name,
     place: [details.city, details.region].filter(Boolean).join(', ') || portrait.place,
@@ -12448,15 +12403,19 @@ function ProfilePreview({
           <ArrowLeft size={21} />
         </button>
         <span>
-          <strong>This is how you appear</strong>
-          <small>What people see in Spike</small>
+          <strong>Profile preview</strong>
+          <small>Only visible to you</small>
         </span>
+        <button className="edit-card" onClick={onEdit} aria-label="Edit card">
+          <Edit3 size={18} /> <span className="edit-card-label">Edit card</span>
+        </button>
       </header>
       <div className="preview-wrap">
         <DiscoverScreen
           profile={self}
           story={story}
           preview
+          onPreviewTool={(tool) => setPreviewAction(`Preview only — ${tool}. Nothing was changed.`)}
           busy={false}
           matched={false}
           saved={false}
@@ -12499,9 +12458,6 @@ function ProfilePreview({
             {previewAction}
           </p>
         )}
-        <button className="edit-card" onClick={onEdit}>
-          <Edit3 size={18} /> Edit card
-        </button>
       </div>
       <FullProfile
         profile={self}
@@ -12915,16 +12871,16 @@ function RegistrationDialog({
         return 'Minimum age cannot be higher than maximum age.';
       if (
         ![data.minAge, data.maxAge].every(
-          (age) => Number.isInteger(age) && age >= 18 && age <= 60,
+          (age) => Number.isInteger(age) && age >= 18 && age <= 99,
         )
       )
-        return 'Choose an age range between 18 and 60.';
+        return 'Choose an age range between 18 and 99 (99+ has no upper limit).';
       if (
         !Number.isFinite(data.maxDistance) ||
         data.maxDistance < 1 ||
-        data.maxDistance > 50
+        data.maxDistance > 100
       )
-        return 'Choose a distance between 1 and 50 km.';
+        return 'Choose a distance between 1 and 100 miles.';
     }
     return '';
   };
@@ -13433,7 +13389,7 @@ function RegistrationDialog({
                         aria-label="Minimum age"
                         type="number"
                         min={18}
-                        max={60}
+                        max={99}
                         value={data.minAge}
                         onChange={(e) =>
                           update('minAge', Number(e.target.value))
@@ -13446,7 +13402,7 @@ function RegistrationDialog({
                         aria-label="Maximum age"
                         type="number"
                         min={18}
-                        max={60}
+                        max={99}
                         value={data.maxAge}
                         onChange={(e) =>
                           update('maxAge', Number(e.target.value))
@@ -13459,7 +13415,7 @@ function RegistrationDialog({
                         aria-label="Maximum distance"
                         type="number"
                         min={1}
-                        max={50}
+                        max={100}
                         value={data.maxDistance}
                         onChange={(e) =>
                           update('maxDistance', Number(e.target.value))
@@ -13889,7 +13845,7 @@ function RegistrationDialog({
                       aria-label="Minimum age"
                       type="range"
                       min="18"
-                      max="60"
+                      max="99"
                       value={data.minAge}
                       onChange={(event) =>
                         update('minAge', Number(event.target.value))
@@ -13899,7 +13855,7 @@ function RegistrationDialog({
                       aria-label="Maximum age"
                       type="range"
                       min="18"
-                      max="60"
+                      max="99"
                       value={data.maxAge}
                       onChange={(event) =>
                         update('maxAge', Number(event.target.value))
@@ -13912,7 +13868,7 @@ function RegistrationDialog({
                       aria-label="Maximum distance"
                       type="range"
                       min="1"
-                      max="50"
+                      max="100"
                       value={data.maxDistance}
                       onChange={(event) =>
                         update('maxDistance', Number(event.target.value))
@@ -14323,7 +14279,6 @@ function FilterDialog({
   open,
   onOpenChange,
   filters,
-  availableProfiles,
   membership,
   onUpgrade,
   onApply,
@@ -14331,16 +14286,18 @@ function FilterDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   filters: Filters;
-  availableProfiles: Profile[];
   membership: Membership;
   onUpgrade: () => void;
-  onApply: (filters: Filters) => void;
+  onApply: (filters: Filters) => void | Promise<void>;
 }) {
   const [draft, setDraft] = useState(filters);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   useEffect(() => {
     if (open) {
       setDraft(filters);
+      setSaveError('');
       setAdvancedOpen(false);
     }
   }, [open, filters]);
@@ -14358,9 +14315,6 @@ function FilterDialog({
         ? current.intents.filter((item) => item !== intent)
         : [...current.intents, intent],
     }));
-  const resultCount = availableProfiles.filter((profile) =>
-    matchesFilters(profile, draft),
-  ).length;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -14421,15 +14375,16 @@ function FilterDialog({
             <div className="quick-filter-label-row">
               <h3>Age range</h3>
               <strong>
-                {draft.minAge}–{draft.maxAge}
+                {draft.minAge === 18 && draft.maxAge === 99 ? 'Any adult age (18+)' : `${draft.minAge}–${draft.maxAge === 99 ? '99+' : draft.maxAge}`}
               </strong>
             </div>
+            <button type="button" className="secondary-button" aria-pressed={draft.minAge === 18 && draft.maxAge === 99} onClick={() => setDraft({ ...draft, minAge: 18, maxAge: 99 })}>Any adult age (18+)</button>
             <div className="dual-range" aria-label="Preferred age range">
               <input
                 aria-label="Filter minimum age"
                 type="range"
                 min="18"
-                max="60"
+                max="99"
                 value={draft.minAge}
                 onChange={(event) =>
                   setDraft({
@@ -14442,7 +14397,7 @@ function FilterDialog({
                 aria-label="Filter maximum age"
                 type="range"
                 min="18"
-                max="60"
+                max="99"
                 value={draft.maxAge}
                 onChange={(event) =>
                   setDraft({
@@ -14457,13 +14412,16 @@ function FilterDialog({
           <section className="quick-filter-group quick-filter-range">
             <div className="quick-filter-label-row">
               <h3>Distance</h3>
-              <strong>{draft.maxDistance} miles</strong>
+              <strong>{draft.anywhere ? 'Anywhere' : `${draft.maxDistance} miles`}</strong>
             </div>
+            <label><input type="checkbox" checked={Boolean(draft.anywhere)} onChange={(event) => setDraft({ ...draft, anywhere: event.target.checked })} /> Anywhere · all locations</label>
+            <p>Anywhere ignores distance. Turn it off to use your home city; choose current location in Galaxy for a distance radius.</p>
             <input
               aria-label="Filter maximum distance"
+              disabled={Boolean(draft.anywhere)}
               type="range"
               min="1"
-              max="50"
+              max="100"
               value={draft.maxDistance}
               onChange={(event) =>
                 setDraft({
@@ -14575,12 +14533,19 @@ function FilterDialog({
           </section>
         </div>
         <div className="quick-filter-action">
+          {saveError && <p role="alert">{saveError}</p>}
           <button
             className="primary-button apply-filters"
-            onClick={() => onApply(draft)}
-            disabled={draft.genders.length === 0}
+            onClick={async () => {
+              setSaving(true);
+              setSaveError('');
+              try { await onApply(draft); }
+              catch { setSaveError('Could not save all preferences. Please retry.'); }
+              finally { setSaving(false); }
+            }}
+            disabled={saving || draft.genders.length === 0}
           >
-            Show {resultCount} {resultCount === 1 ? 'profile' : 'profiles'}
+            {saving ? 'Saving…' : 'Apply preferences'}
           </button>
         </div>
       </DialogContent>
