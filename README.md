@@ -1,5 +1,11 @@
 # SpikeDate
 
+**New developers and AI tools: start with [Developer handover](docs/HANDOVER.md).**
+It links the current architecture, business requirements/feature status, code
+walkthrough, agent instructions and release runbook. Older milestone and QA notes
+are historical; current provider status is in
+[Business requirements](docs/BUSINESS_REQUIREMENTS.md).
+
 For GitHub-triggered Cloudflare releases and local setup, see
 [Self-deployment](docs/SELF_DEPLOYMENT.md). Use **Actions → Deploy SpikeDate to
 Cloudflare staging → Run workflow** after configuring the staging API-token secret.
@@ -147,7 +153,7 @@ verification decision, and an approved photo are present. See
 `docs/REGISTRATION_FACE_CAPTURE.md` for research, test coverage, and the outstanding
 provider integration.
 
-GitHub Actions validates the web build and Docker image, then builds an Android debug APK and an unsigned iOS simulator app. Cloudflare production deployment is intentionally deferred.
+GitHub Actions validates the web build and Docker image, then builds an Android debug APK and an unsigned iOS simulator app. Separate manually triggered workflows deploy Cloudflare staging and upload signed iOS builds to TestFlight. These do not establish production readiness; see the current handover and deployment runbook.
 
 ## Activity briefing controls
 

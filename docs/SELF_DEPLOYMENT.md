@@ -3,6 +3,16 @@
 Release branch: `codex/staging-mobile` (the repository's current default branch).
 Staging website: https://spikedate-stage.sarathnice.workers.dev/
 
+## Current verified setup (October 27, 2026)
+
+The GitHub `staging` environment already has the encrypted `CLOUDFLARE_API_TOKEN`
+secret. Do not recreate it for ordinary deployments. The approved account-scoped
+Workers Scripts Edit + D1 Edit token expires **January 25, 2027**; rotate it before
+expiry or immediately if compromised. Do not extract existing Apple secrets.
+The [first verified GitHub release](https://github.com/sarathnice/SpikeDate/actions/runs/40521749065)
+succeeded, including the homepage HTTP check. No signed-in browser/device QA was
+part of that run. The setup instructions below are for rotation/new environments.
+
 ## GitHub Actions: Cloudflare staging
 
 One-time setup:
@@ -107,3 +117,23 @@ still require a new iOS build through **SpikeDate iOS TestFlight**.
 References: [Wrangler deployment](https://developers.cloudflare.com/workers/wrangler/commands/workers/),
 [Cloudflare API tokens for CI](https://developers.cloudflare.com/workers/ci-cd/external-cicd/).
 See also [Workers authorization](https://developers.cloudflare.com/workers/authorization/).
+
+## Failure and recovery
+
+- Missing/expired token: update the environment secret, not source code, then
+  rerun the workflow on the intended revision. Never log the token to debug it.
+- Failed test/build: inspect the failing job, fix/retest and push a new commit;
+  do not remove a gate to get a green release.
+- Failed migration: stop and inspect D1 state before retrying. The command applies
+  migrations before publishing code, so a failed deploy can leave schema changes.
+- Failed deployment: check Wrangler's error and resource permissions. Existing
+  code may still be live; verify the actual Worker version rather than assuming.
+- Bad release: select a known-good Worker version in Cloudflare's version history
+  using the supported rollback flow after assessing schema compatibility. Worker
+  rollback does **not** undo D1 migrations, member writes or R2 object changes.
+- Before a destructive migration/import, make and verify separate D1 and R2
+  backups and a restore plan. Never delete shared data to recreate a test fixture.
+- A full clean-room deployment to a new account needs separately provisioned
+  D1/R2/DO resources, correct account/resource IDs, provider secrets and a migration
+  plan. This workflow targets the existing staging account; it is not a complete
+  new-account provisioning or production rollout system.

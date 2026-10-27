@@ -1,5 +1,9 @@
 # SpikeDate staging on Cloudflare
 
+Historical setup notes. For the current GitHub-triggered staging workflow,
+secrets and recovery steps, use [Self-deployment](docs/SELF_DEPLOYMENT.md) and
+[Developer handover](docs/HANDOVER.md).
+
 ## Direct Cloudflare account staging
 
 - Cloudflare account: `d22cf985cee89b0a3aa4618f2cb77370`

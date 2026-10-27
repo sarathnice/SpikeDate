@@ -1,6 +1,8 @@
 # SpikeDate iOS testing with TestFlight
 
-TestFlight installs a signed prerelease build on an iPhone without submitting the app for App Review.
+TestFlight installs a signed prerelease build on an iPhone without publicly
+releasing it in the App Store. External testing may require Apple's TestFlight
+Beta App Review; this is separate from public App Store release approval.
 
 ## Registered Apple identifiers
 
@@ -29,8 +31,12 @@ Never commit certificates, provisioning profiles, API private keys, or passwords
 2. Select **SpikeDate iOS TestFlight**.
 3. Choose **Run workflow**.
 4. After Apple finishes processing the build, open App Store Connect > SpikeDate > TestFlight.
-5. Add the Apple ID used on the test iPhone as an internal tester.
-6. Install Apple's TestFlight app on the iPhone and accept the invitation.
+5. Use internal testing only for authorized App Store Connect team members.
+   For family/friends, add the build to an external group, complete Beta App
+   Review if requested, then invite by email or enable the group's public link.
+6. Testers install TestFlight and accept the invitation, then use their own
+   SpikeDate login inside the app. Sandbox purchase accounts are not required
+   just to install or test ordinary app features.
 
 Each run uses the GitHub run number as the unique iOS build number. The app points to the Cloudflare staging environment.
 

@@ -1,5 +1,9 @@
 # SpikeDate five-phase implementation
 
+Historical milestone report. For the reviewed October 27, 2026 baseline, read
+[Developer handover](docs/HANDOVER.md) and its feature-status guide. Migration
+counts and provider/release readiness below may reflect earlier work.
+
 ## Phase 1 — Cloudflare data foundation
 
 D1 now owns accounts, profiles, media metadata, preferences, interactions,

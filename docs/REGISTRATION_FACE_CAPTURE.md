@@ -1,5 +1,11 @@
 # Registration face capture — implementation and verification
 
+This includes earlier camera-quality/provider research. Current staging selects
+AWS liveness and photo comparison. See [Architecture](ARCHITECTURE.md) and
+[Business requirements](BUSINESS_REQUIREMENTS.md) for the reviewed baseline;
+quality-only/manual/mock capture does not issue a verified badge. Real provider
+and device behavior still needs separate test evidence.
+
 ## Findings
 
 Before this change, Profile had a camera-quality dialog but registration never
